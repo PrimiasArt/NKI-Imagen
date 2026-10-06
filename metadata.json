@@ -1,0 +1,8 @@
+{
+  "name": "HLC Imagen v4.2b5 Fix",
+  "description": "AI application that converts images to JSON Prompts and generates new images from JSON structures using Google Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
