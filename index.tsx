@@ -74,7 +74,17 @@ class RootErrorBoundary extends Component<Props, State> {
             )}
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(regs => {
+                      regs.forEach(r => r.update());
+                    }).catch(() => {});
+                  }
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('reload', Date.now().toString());
+                  window.location.href = url.toString();
+                }}
                 style={{
                   padding: '10px 24px',
                   background: '#10b981',
@@ -89,11 +99,27 @@ class RootErrorBoundary extends Component<Props, State> {
                 Tải Lại Trang
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   try {
-                    window.localStorage.clear();
-                    window.location.reload();
-                  } catch (e) {}
+                    // Xóa triệt để Service Worker & CacheStorage của trình duyệt
+                    if ('serviceWorker' in navigator) {
+                      const registrations = await navigator.serviceWorker.getRegistrations();
+                      for (const reg of registrations) {
+                        await reg.unregister();
+                      }
+                    }
+                    if ('caches' in window) {
+                      const keys = await caches.keys();
+                      for (const key of keys) {
+                        await caches.delete(key);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn("Lỗi khi xóa cache:", e);
+                  }
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('nocache', Date.now().toString());
+                  window.location.href = url.toString();
                 }}
                 style={{
                   padding: '10px 20px',
