@@ -4,6 +4,9 @@ import {
   ColorGradingAdjustments,
   DEFAULT_COLOR_ADJUSTMENTS,
   CINEMATIC_COLOR_PRESETS,
+  CustomColorPreset,
+  loadCustomColorPresets,
+  saveCustomColorPresets,
   applyColorGradingToImageData,
   renderWithAdjustments,
   rotateCanvas90,
@@ -34,6 +37,161 @@ type StudioTool = 'select' | 'brush' | 'eraser' | 'crop' | 'color' | 'hand';
 type RightSidebarTab = 'ai_magic' | 'color_grading' | 'transform';
 type AiMagicAction = 'inpaint' | 'eraser' | 'expand' | 'bg_replace';
 
+/**
+ * Reusable Editable Number Box for sliders (Photoshop style)
+ */
+interface EditableNumberInputProps {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  unit?: string;
+  colorClass?: string;
+  widthClass?: string;
+  onChange: (val: number) => void;
+}
+
+const EditableNumberInput: React.FC<EditableNumberInputProps> = ({
+  value,
+  min,
+  max,
+  step = 1,
+  unit,
+  colorClass = 'text-amber-300',
+  widthClass = 'w-14',
+  onChange
+}) => {
+  const [localVal, setLocalVal] = useState<string>(String(value));
+
+  useEffect(() => {
+    setLocalVal(String(value));
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const text = e.target.value;
+    setLocalVal(text);
+
+    if (text === '' || text === '-') {
+      return;
+    }
+
+    const parsed = Number(text);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(min, Math.min(max, parsed));
+      onChange(clamped);
+    }
+  };
+
+  const handleBlur = () => {
+    if (localVal === '' || localVal === '-' || isNaN(Number(localVal))) {
+      setLocalVal(String(value));
+      onChange(value);
+    } else {
+      const clamped = Math.max(min, Math.min(max, Number(localVal)));
+      setLocalVal(String(clamped));
+      onChange(clamped);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = Math.min(max, value + (step || 1));
+      onChange(next);
+      setLocalVal(String(next));
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = Math.max(min, value - (step || 1));
+      onChange(next);
+      setLocalVal(String(next));
+    }
+  };
+
+  return (
+    <div 
+      className="relative flex items-center flex-none"
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        type="text"
+        inputMode="numeric"
+        value={localVal}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className={`${widthClass} bg-black/60 border border-white/20 rounded-lg py-1 px-1 text-center text-xs font-mono font-bold ${colorClass} focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400/50 transition-all`}
+      />
+      {unit && (
+        <span className="text-[10px] font-mono text-white/40 ml-1 select-none">
+          {unit}
+        </span>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Reusable Adjustment Row with Slider and Direct Editable Number Input
+ */
+interface AdjustmentSliderRowProps {
+  label: string;
+  sublabel?: string;
+  min: number;
+  max: number;
+  step?: number;
+  value: number;
+  unit?: string;
+  onChange: (val: number) => void;
+  sliderBgClass?: string;
+  accentClass?: string;
+  colorClass?: string;
+}
+
+const AdjustmentSliderRow: React.FC<AdjustmentSliderRowProps> = ({
+  label,
+  sublabel,
+  min,
+  max,
+  step = 1,
+  value,
+  unit,
+  onChange,
+  sliderBgClass = 'h-1.5 bg-white/20',
+  accentClass = 'accent-amber-400',
+  colorClass = 'text-amber-300'
+}) => {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-white/70 font-medium">{label}</span>
+        {sublabel && <span className="text-[10px] text-white/40 font-mono">{sublabel}</span>}
+      </div>
+      <div className="flex items-center gap-2.5">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className={`flex-1 ${sliderBgClass} ${accentClass} rounded-lg cursor-pointer`}
+        />
+        <EditableNumberInput
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          unit={unit}
+          colorClass={colorClass}
+          onChange={onChange}
+        />
+      </div>
+    </div>
+  );
+};
+
 export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   initialImageSrc,
   onClose,
@@ -58,10 +216,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   const [brushSize, setBrushSize] = useState<number>(36);
   const [brushHardness, setBrushHardness] = useState<number>(0.8);
   const [hasMask, setHasMask] = useState<boolean>(false);
+  const [isMaskVisible, setIsMaskVisible] = useState<boolean>(true);
 
   // Color Grading Adjustments
   const [adjustments, setAdjustments] = useState<ColorGradingAdjustments>(DEFAULT_COLOR_ADJUSTMENTS);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+
+  // Custom User Presets
+  const [customPresets, setCustomPresets] = useState<CustomColorPreset[]>(() => loadCustomColorPresets());
+  const [isSavingPresetModalOpen, setIsSavingPresetModalOpen] = useState<boolean>(false);
+  const [newPresetName, setNewPresetName] = useState<string>('');
+  const [presetFilter, setPresetFilter] = useState<'all' | 'custom' | 'cinematic'>('all');
+
 
   // Canvas Viewport Pan & Zoom
   const [zoom, setZoom] = useState<number>(1);
@@ -158,6 +324,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       }
     }
     setHasMask(false);
+    setIsMaskVisible(true);
   }, []);
 
   // Initialize/Load image onto canvas
@@ -283,10 +450,19 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     ctx.restore();
     lastDrawPointRef.current = { x, y };
     setHasMask(true);
+    setIsMaskVisible(true);
   }, [activeTool, brushSize]);
 
   // Mouse Down Event Handler
   const handleMouseDown = (e: React.MouseEvent) => {
+    // 1. Guard against clicks on interactive controls, inputs, buttons, or overlay chrome
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, label, [role="button"], .studio-overlay-interactive')) {
+      return;
+    }
+
+    if (!currentImageSrc) return;
+
     // Pan mode: Middle click OR Hand tool OR Space held
     if (e.button === 1 || activeTool === 'hand' || e.altKey) {
       setIsPanning(true);
@@ -297,8 +473,11 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     if (e.button === 0) { // Left Click
       if (activeTool === 'brush' || activeTool === 'eraser') {
         const coords = clientToCanvasCoords(e.clientX, e.clientY);
-        setIsDrawing(true);
-        drawMaskStroke(coords.x, coords.y, true);
+        // Only draw if inside or immediately along canvas boundaries
+        if (coords.x >= 0 && coords.x <= imageSize.width && coords.y >= 0 && coords.y <= imageSize.height) {
+          setIsDrawing(true);
+          drawMaskStroke(coords.x, coords.y, true);
+        }
       } else if (activeTool === 'crop' && cropBox) {
         // Crop box dragging
         const coords = clientToCanvasCoords(e.clientX, e.clientY);
@@ -455,6 +634,86 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       ...preset.adjustments
     });
     showToast(`Đã áp dụng Preset: ${preset.name}`);
+  };
+
+  // Custom User Presets Handlers
+  const applyCustomPreset = (preset: CustomColorPreset) => {
+    setActivePresetId(preset.id);
+    setAdjustments({
+      ...DEFAULT_COLOR_ADJUSTMENTS,
+      ...preset.adjustments
+    });
+    showToast(`Đã áp dụng Preset: ${preset.name}`);
+  };
+
+  const handleSaveCurrentAsPreset = () => {
+    const trimmed = newPresetName.trim();
+    if (!trimmed) {
+      showToast('Vui lòng nhập tên cho preset!');
+      return;
+    }
+    const newPreset: CustomColorPreset = {
+      id: `custom_preset_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: trimmed,
+      createdAt: Date.now(),
+      adjustments: { ...adjustments }
+    };
+    const updated = [newPreset, ...customPresets];
+    setCustomPresets(updated);
+    saveCustomColorPresets(updated);
+    setActivePresetId(newPreset.id);
+    setIsSavingPresetModalOpen(false);
+    setNewPresetName('');
+    showToast(`Đã lưu preset "${newPreset.name}" vào thư viện! 💾`);
+  };
+
+  const handleDeleteCustomPreset = (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = customPresets.filter(p => p.id !== id);
+    setCustomPresets(updated);
+    saveCustomColorPresets(updated);
+    if (activePresetId === id) setActivePresetId(null);
+    showToast(`Đã xóa preset "${name}"`);
+  };
+
+  const handleExportPresets = () => {
+    if (customPresets.length === 0) {
+      showToast('Chưa có preset tự tạo nào để xuất.');
+      return;
+    }
+    const jsonStr = JSON.stringify(customPresets, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `NKI_Color_Presets_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Đã xuất danh sách preset ra file JSON!');
+  };
+
+  const handleImportPresets = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target?.result as string);
+          if (Array.isArray(data)) {
+            const merged = [...data, ...customPresets];
+            const unique = Array.from(new Map(merged.map(p => [p.id, p])).values());
+            setCustomPresets(unique);
+            saveCustomColorPresets(unique);
+            showToast(`Đã nhập thành công ${data.length} preset!`);
+          } else {
+            showToast('Định dạng JSON preset không hợp lệ.');
+          }
+        } catch (err) {
+          showToast('Lỗi đọc file JSON preset');
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   // Reset Color Adjustments
@@ -737,17 +996,39 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         handleRedo();
         e.preventDefault();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        // Photoshop Deselect Shortcut: Ctrl+D / Cmd+D
+        e.preventDefault();
+        clearMask();
+        showToast('Đã bỏ chọn vùng cọ (Deselect)');
+      } else if (e.key === 'Escape') {
+        // Escape cancels mask and switches to select tool
+        e.preventDefault();
+        if (hasMask) {
+          clearMask();
+          showToast('Đã hủy vùng chọn cọ (Esc)');
+        }
+        setActiveTool('select');
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && hasMask && (activeTool === 'brush' || activeTool === 'select' || activeTool === 'eraser')) {
+        // Delete/Backspace clears mask
+        e.preventDefault();
+        clearMask();
+        showToast('Đã xóa vùng chọn');
       } else if (e.key.toLowerCase() === 'b') {
         setActiveTool('brush');
+        setActiveTab('ai_magic');
       } else if (e.key.toLowerCase() === 'e') {
         setActiveTool('eraser');
+        setActiveTab('ai_magic');
       } else if (e.key.toLowerCase() === 'v') {
         setActiveTool('select');
       } else if (e.key.toLowerCase() === 'c') {
         setActiveTool('crop');
+        setActiveTab('transform');
       } else if (e.key.toLowerCase() === 'h') {
         setActiveTool('hand');
       } else if (e.key.toLowerCase() === 'g') {
+        setActiveTool('select');
         setActiveTab('color_grading');
       } else if (e.key === ' ') { // Space for quick pan
         setActiveTool('hand');
@@ -756,7 +1037,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo]);
+  }, [handleUndo, handleRedo, clearMask, hasMask, activeTool]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 select-none overflow-hidden text-white font-sans">
@@ -867,6 +1148,21 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             <span>👁️</span>
             <span className="hidden md:inline">Giữ xem ảnh gốc</span>
           </button>
+
+          {/* Quick Clear Mask Button in Header */}
+          {hasMask && (
+            <button
+              onClick={() => {
+                clearMask();
+                showToast('Đã xóa vùng chọn (Deselect)');
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-in fade-in duration-150"
+              title="Xóa bỏ nét cọ vùng chọn (Phím tắt: Esc hoặc Ctrl+D)"
+            >
+              <span className="text-red-400 font-black">✕</span>
+              <span>Hủy Mask (Esc)</span>
+            </button>
+          )}
         </div>
 
         {/* Right Action Buttons: Save to Gallery & Export */}
@@ -1031,18 +1327,36 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
           <div className="w-8 h-px bg-white/10 my-2"></div>
 
-          {/* Quick Clear Mask */}
+          {/* Quick Clear Mask & Toggle Visibility */}
           {hasMask && (
-            <button
-              onClick={clearMask}
-              className="w-11 h-11 rounded-2xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 flex flex-col items-center justify-center transition-all"
-              title="Xóa vùng chọn quét cọ"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              <span className="text-[7px] font-bold uppercase mt-0.5">Xóa</span>
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  clearMask();
+                  showToast('Đã xóa vùng chọn (Deselect)');
+                }}
+                className="w-11 h-11 rounded-2xl bg-red-500/25 hover:bg-red-500/40 text-red-300 border border-red-500/40 flex flex-col items-center justify-center transition-all shadow-[0_0_12px_rgba(239,68,68,0.25)] active:scale-95 animate-pulse"
+                title="Hủy / Xóa sạch nét cọ vùng chọn (Phím Esc hoặc Ctrl+D)"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="text-[7px] font-bold uppercase mt-0.5">Hủy B</span>
+              </button>
+
+              <button
+                onClick={() => setIsMaskVisible(!isMaskVisible)}
+                className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all border ${
+                  isMaskVisible 
+                    ? 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10' 
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}
+                title={isMaskVisible ? "Tạm ẩn nét cọ để xem ảnh sạch" : "Hiện lại nét cọ"}
+              >
+                <span className="text-xs">{isMaskVisible ? '👁️' : '🙈'}</span>
+                <span className="text-[7px] font-bold uppercase mt-0.5">{isMaskVisible ? 'Ẩn' : 'Hiện'}</span>
+              </button>
+            </>
           )}
         </aside>
 
@@ -1108,24 +1422,68 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           )}
           {/* Top Floating Tool Options Bar (When Brush is active) */}
           {(activeTool === 'brush' || activeTool === 'eraser') && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/90 border border-white/15 px-4 py-2 rounded-2xl backdrop-blur-xl flex items-center gap-4 shadow-2xl">
+            <div 
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseMove={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-white/20 px-3.5 py-1.5 rounded-2xl backdrop-blur-3xl flex items-center gap-3 shadow-[0_15px_40px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.2)] studio-overlay-interactive"
+            >
+              {/* Tool Switcher B / E */}
+              <div className="flex items-center bg-white/10 rounded-xl p-0.5 border border-white/10">
+                <button
+                  onClick={() => setActiveTool('brush')}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    activeTool === 'brush' ? 'bg-primary-500 text-black shadow-md' : 'text-white/60 hover:text-white'
+                  }`}
+                  title="Cọ Quét Vùng Chọn (Phím B)"
+                >
+                  <span>🖌️</span>
+                  <span>Cọ (B)</span>
+                </button>
+                <button
+                  onClick={() => setActiveTool('eraser')}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                    activeTool === 'eraser' ? 'bg-primary-500 text-black shadow-md' : 'text-white/60 hover:text-white'
+                  }`}
+                  title="Tẩy Nét Cọ (Phím E)"
+                >
+                  <span>🧹</span>
+                  <span>Tẩy (E)</span>
+                </button>
+              </div>
+
+              <div className="w-px h-5 bg-white/15"></div>
+
+              {/* Brush Size */}
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-white/70">Kích thước:</span>
+                <span className="text-[11px] font-bold text-white/70">Cỡ:</span>
                 <input
                   type="range"
-                  min="6"
-                  max="180"
+                  min="4"
+                  max="250"
                   value={brushSize}
                   onChange={(e) => setBrushSize(Number(e.target.value))}
-                  className="w-28 accent-primary-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-20 sm:w-24 accent-primary-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
-                <span className="text-xs font-mono font-bold text-primary-400 min-w-[32px]">
-                  {brushSize}px
-                </span>
+                <EditableNumberInput
+                  value={brushSize}
+                  min={4}
+                  max={300}
+                  step={2}
+                  unit="px"
+                  colorClass="text-primary-400"
+                  widthClass="w-12"
+                  onChange={(v) => setBrushSize(v)}
+                />
               </div>
+
               <div className="w-px h-4 bg-white/10"></div>
+
+              {/* Brush Hardness */}
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-white/70">Độ mềm:</span>
+                <span className="text-[11px] font-bold text-white/70">Mềm:</span>
                 <input
                   type="range"
                   min="0.1"
@@ -1133,12 +1491,106 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   step="0.05"
                   value={brushHardness}
                   onChange={(e) => setBrushHardness(Number(e.target.value))}
-                  className="w-20 accent-primary-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-16 accent-primary-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
-                <span className="text-xs font-mono font-bold text-white/60 min-w-[30px]">
-                  {Math.round(brushHardness * 100)}%
-                </span>
+                <EditableNumberInput
+                  value={Math.round(brushHardness * 100)}
+                  min={10}
+                  max={100}
+                  step={5}
+                  unit="%"
+                  colorClass="text-white/90"
+                  widthClass="w-12"
+                  onChange={(v) => setBrushHardness(v / 100)}
+                />
               </div>
+
+              <div className="w-px h-5 bg-white/15"></div>
+
+              {/* Clear Mask Button */}
+              {hasMask && (
+                <>
+                  <button
+                    onClick={() => setIsMaskVisible(!isMaskVisible)}
+                    className={`px-2 py-1 rounded-xl text-[11px] font-semibold flex items-center gap-1 border transition-all ${
+                      isMaskVisible 
+                        ? 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10' 
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    }`}
+                    title={isMaskVisible ? "Tạm ẩn nét cọ để xem ảnh sạch" : "Hiện lại nét cọ"}
+                  >
+                    <span>{isMaskVisible ? '👁️' : '🙈'}</span>
+                    <span>{isMaskVisible ? 'Ẩn' : 'Hiện'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      clearMask();
+                      showToast('Đã xóa bỏ vùng chọn (Deselect)');
+                    }}
+                    className="px-2.5 py-1 rounded-xl bg-red-500/30 hover:bg-red-500 text-red-200 hover:text-white border border-red-500/50 text-xs font-bold flex items-center gap-1 transition-all active:scale-95 shadow-md"
+                    title="Xóa bỏ nét cọ vùng chọn (Esc hoặc Ctrl+D)"
+                  >
+                    <span>✕</span>
+                    <span>Hủy Vùng Chọn (Esc)</span>
+                  </button>
+                </>
+              )}
+
+              {/* Exit Brush Mode Button */}
+              <button
+                onClick={() => setActiveTool('select')}
+                className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white/90 border border-white/15 text-xs font-bold flex items-center gap-1 transition-all active:scale-95"
+                title="Thoát chế độ vẽ cọ, chuyển về công cụ Chọn/Di chuyển (Phím V hoặc Esc)"
+              >
+                <span>Thoát Cọ (V)</span>
+              </button>
+            </div>
+          )}
+
+          {/* Floating Mask Indicator Capsule (when mask exists but user is not in brush/eraser) */}
+          {hasMask && activeTool !== 'brush' && activeTool !== 'eraser' && (
+            <div 
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-red-500/40 px-3.5 py-1.5 rounded-2xl backdrop-blur-2xl flex items-center gap-2.5 shadow-[0_12px_40px_rgba(239,68,68,0.25),inset_0_1px_1px_rgba(255,255,255,0.2)] animate-in fade-in slide-in-from-top-3 duration-200 studio-overlay-interactive"
+            >
+              <div className="flex items-center gap-1.5 text-xs text-red-400 font-bold">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <span>Vùng Chọn (Mask) Đang Có</span>
+              </div>
+              <div className="w-px h-4 bg-white/15"></div>
+              <button
+                onClick={() => setIsMaskVisible(!isMaskVisible)}
+                className={`px-2 py-1 rounded-xl text-[11px] font-semibold flex items-center gap-1 border transition-all ${
+                  isMaskVisible ? 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}
+                title={isMaskVisible ? "Tạm ẩn nét cọ để xem ảnh sạch" : "Hiện lại nét cọ"}
+              >
+                <span>{isMaskVisible ? '👁️' : '🙈'}</span>
+                <span>{isMaskVisible ? 'Ẩn' : 'Hiện'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  clearMask();
+                  showToast('Đã xóa bỏ vùng chọn (Deselect)');
+                }}
+                className="px-2.5 py-1 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1 transition-all shadow-md active:scale-95"
+                title="Xóa bỏ hoàn toàn nét cọ (Esc hoặc Ctrl+D)"
+              >
+                <span>✕</span>
+                <span>Xóa Vùng Chọn (Esc)</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTool('brush');
+                  setActiveTab('ai_magic');
+                }}
+                className="px-2 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-[11px] font-semibold border border-white/10 transition-all"
+                title="Quay lại vẽ tiếp cọ (B)"
+              >
+                <span>Tiếp Tục Vẽ (B)</span>
+              </button>
             </div>
           )}
 
@@ -1161,7 +1613,9 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             {/* Mask Overlay Canvas */}
             <canvas
               ref={maskCanvasRef}
-              className="absolute top-0 left-0 pointer-events-none opacity-90"
+              className={`absolute top-0 left-0 pointer-events-none transition-opacity duration-150 ${
+                isMaskVisible ? 'opacity-90' : 'opacity-0'
+              }`}
               style={{ width: imageSize.width, height: imageSize.height }}
             />
 
@@ -1210,8 +1664,9 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </div>
             )}
 
-            {/* Brush Circle Cursor indicator */}
-            {cursorPos && (activeTool === 'brush' || activeTool === 'eraser') && (
+            {/* Brush Circle Cursor indicator (only within image bounds) */}
+            {cursorPos && (activeTool === 'brush' || activeTool === 'eraser') && 
+             cursorPos.x >= 0 && cursorPos.x <= imageSize.width && cursorPos.y >= 0 && cursorPos.y <= imageSize.height && (
               <div
                 className="absolute rounded-full border border-white pointer-events-none -translate-x-1/2 -translate-y-1/2 shadow-[0_0_8px_rgba(0,0,0,0.8)]"
                 style={{
@@ -1247,7 +1702,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           {/* Sidebar Tabs */}
           <div className="flex border-b border-white/10 p-1.5 bg-black/20 gap-1">
             <button
-              onClick={() => setActiveTab('ai_magic')}
+              onClick={() => {
+                setActiveTab('ai_magic');
+                if (activeTool === 'select' || activeTool === 'color') {
+                  setActiveTool('brush');
+                }
+              }}
               className={`flex-1 py-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'ai_magic'
                   ? 'bg-primary-500 text-black shadow-lg font-bold'
@@ -1258,7 +1718,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               <span>AI Magic</span>
             </button>
             <button
-              onClick={() => setActiveTab('color_grading')}
+              onClick={() => {
+                setActiveTab('color_grading');
+                if (activeTool === 'brush' || activeTool === 'eraser') {
+                  setActiveTool('select');
+                }
+              }}
               className={`flex-1 py-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'color_grading'
                   ? 'bg-amber-400 text-black shadow-lg font-bold'
@@ -1269,7 +1734,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               <span>Chỉnh Màu</span>
             </button>
             <button
-              onClick={() => setActiveTab('transform')}
+              onClick={() => {
+                setActiveTab('transform');
+                if (activeTool === 'brush' || activeTool === 'eraser') {
+                  setActiveTool('select');
+                }
+              }}
               className={`flex-1 py-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'transform'
                   ? 'bg-indigo-500 text-white shadow-lg font-bold'
@@ -1404,8 +1874,14 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     <div className="flex items-center justify-between text-[11px] text-white/50">
                       <span>Dùng cọ đỏ quét lên vị trí muốn thay đổi</span>
                       {hasMask && (
-                        <button onClick={clearMask} className="text-red-400 hover:text-red-300">
-                          Xóa cọ
+                        <button 
+                          onClick={() => {
+                            clearMask();
+                            showToast('Đã xóa nét cọ');
+                          }} 
+                          className="text-red-400 hover:text-red-300 font-bold hover:underline"
+                        >
+                          ✕ Hủy cọ (Esc)
                         </button>
                       )}
                     </div>
@@ -1437,6 +1913,21 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     <p className="text-xs text-white/60 leading-relaxed">
                       Dùng cọ quét phủ kín toàn bộ người lạ, vật thể thừa, dây điện hoặc watermark. AI sẽ tự động xóa sạch và tái tạo nền phía sau một cách liền mạch.
                     </p>
+
+                    <div className="flex items-center justify-between text-[11px] text-white/50">
+                      <span>Quét phủ kín vật thể thừa</span>
+                      {hasMask && (
+                        <button 
+                          onClick={() => {
+                            clearMask();
+                            showToast('Đã xóa nét cọ');
+                          }} 
+                          className="text-red-400 hover:text-red-300 font-bold hover:underline"
+                        >
+                          ✕ Hủy cọ (Esc)
+                        </button>
+                      )}
+                    </div>
 
                     <button
                       onClick={handleExecuteMagicEraser}
@@ -1543,260 +2034,336 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             {/* TAB 2: ADVANCED COLOR GRADING (100% Local, Zero-API) */}
             {activeTab === 'color_grading' && (
               <div className="space-y-5">
-                {/* 1-Click Cinematic Presets (LUTs) */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>🎬</span> Presets Màu Điện Ảnh (LUTs)
-                    </label>
-                    {activePresetId && (
+                {/* Presets Management Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">🎨</span>
+                      <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                        Thư Viện Presets
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={resetColorAdjustments}
-                        className="text-[10px] text-white/50 hover:text-white transition-colors"
+                        onClick={() => setIsSavingPresetModalOpen(true)}
+                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-black rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1"
+                        title="Lưu các thông số màu hiện tại thành preset mới vào thư viện"
                       >
-                        Đặt lại
+                        <span>💾</span>
+                        <span>Lưu Preset</span>
                       </button>
-                    )}
+                      {activePresetId && (
+                        <button
+                          onClick={resetColorAdjustments}
+                          className="text-[10px] text-white/50 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                        >
+                          Đặt lại
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    {CINEMATIC_COLOR_PRESETS.map((preset) => {
-                      const isActive = activePresetId === preset.id;
-                      return (
+                  {/* Inline Modal / Dialog for Saving New Preset */}
+                  {isSavingPresetModalOpen && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-300">Đặt tên cho Preset mới:</span>
                         <button
-                          key={preset.id}
-                          onClick={() => applyPresetLut(preset)}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${
-                            isActive
-                              ? 'bg-amber-400/20 border-amber-400 text-white shadow-md'
-                              : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
-                          }`}
+                          onClick={() => setIsSavingPresetModalOpen(false)}
+                          className="text-white/50 hover:text-white text-xs font-bold"
                         >
-                          <div className="flex items-center justify-between mb-1">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full"
-                              style={{ backgroundColor: preset.badgeColor }}
-                            />
-                            <span className="text-[8px] font-mono text-white/40">{preset.category}</span>
-                          </div>
-                          <div className="text-xs font-bold leading-tight truncate">{preset.name}</div>
+                          ✕
                         </button>
-                      );
-                    })}
+                      </div>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveCurrentAsPreset();
+                          if (e.key === 'Escape') setIsSavingPresetModalOpen(false);
+                        }}
+                        placeholder="VD: Tone Da Hàn Quốc, Moody Teal, Hoàng Hôn..."
+                        className="w-full bg-black/60 border border-white/20 rounded-xl p-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-amber-400"
+                      />
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => setIsSavingPresetModalOpen(false)}
+                          className="px-3 py-1 bg-white/10 hover:bg-white/15 text-white/70 text-xs font-semibold rounded-lg transition-all"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          onClick={handleSaveCurrentAsPreset}
+                          className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black rounded-lg transition-all shadow-md active:scale-95"
+                        >
+                          Lưu Lại
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Filter Tabs: Tất Cả | Của Tôi (N) | Điện Ảnh (8) */}
+                  <div className="flex bg-black/40 p-1 rounded-xl border border-white/10 gap-1 text-[11px] font-bold">
+                    <button
+                      onClick={() => setPresetFilter('all')}
+                      className={`flex-1 py-1 rounded-lg transition-all ${
+                        presetFilter === 'all' ? 'bg-amber-400 text-black shadow-sm' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      Tất Cả
+                    </button>
+                    <button
+                      onClick={() => setPresetFilter('custom')}
+                      className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
+                        presetFilter === 'custom' ? 'bg-amber-400 text-black shadow-sm' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      <span>⭐ Của Tôi</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">{customPresets.length}</span>
+                    </button>
+                    <button
+                      onClick={() => setPresetFilter('cinematic')}
+                      className={`flex-1 py-1 rounded-lg transition-all ${
+                        presetFilter === 'cinematic' ? 'bg-amber-400 text-black shadow-sm' : 'text-white/60 hover:text-white'
+                      }`}
+                    >
+                      🎬 LUT Mẫu ({CINEMATIC_COLOR_PRESETS.length})
+                    </button>
                   </div>
+
+                  {/* Custom Presets Grid */}
+                  {(presetFilter === 'all' || presetFilter === 'custom') && customPresets.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-white/50 px-1 font-bold">
+                        <span>⭐ Preset Của Tôi:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleExportPresets}
+                            className="hover:text-amber-300 transition-colors"
+                            title="Xuất danh sách preset ra file JSON để sao lưu"
+                          >
+                            Xuất JSON
+                          </button>
+                          <span>•</span>
+                          <label className="hover:text-amber-300 transition-colors cursor-pointer" title="Nhập preset từ file JSON">
+                            Nhập JSON
+                            <input
+                              type="file"
+                              accept=".json"
+                              className="hidden"
+                              onChange={handleImportPresets}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {customPresets.map((preset) => {
+                          const isActive = activePresetId === preset.id;
+                          return (
+                            <div
+                              key={preset.id}
+                              onClick={() => applyCustomPreset(preset)}
+                              className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer group relative ${
+                                isActive
+                                  ? 'bg-amber-400/20 border-amber-400 text-white shadow-md'
+                                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
+                                <button
+                                  onClick={(e) => handleDeleteCustomPreset(preset.id, preset.name, e)}
+                                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-opacity text-[11px]"
+                                  title="Xóa preset này"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                              <div className="text-xs font-bold leading-tight truncate">{preset.name}</div>
+                              <div className="text-[9px] text-white/40 mt-0.5">Tùy chỉnh</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {presetFilter === 'custom' && customPresets.length === 0 && (
+                    <div className="p-4 bg-white/5 border border-dashed border-white/15 rounded-2xl text-center space-y-2">
+                      <span className="text-2xl block">💡</span>
+                      <p className="text-xs text-white/70 font-medium">Chưa có preset tự lưu nào</p>
+                      <p className="text-[11px] text-white/40 leading-relaxed">
+                        Chỉnh các thanh trượt bên dưới theo ý thích rồi nhấn <strong className="text-amber-400">"Lưu Preset"</strong> để tái sử dụng cho các bức ảnh khác!
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Built-in Cinematic Presets (LUTs) */}
+                  {(presetFilter === 'all' || presetFilter === 'cinematic') && (
+                    <div className="space-y-1.5">
+                      {presetFilter === 'all' && (
+                        <div className="text-[11px] text-white/50 px-1 font-bold">
+                          🎬 Presets Điện Ảnh Mẫu:
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        {CINEMATIC_COLOR_PRESETS.map((preset) => {
+                          const isActive = activePresetId === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              onClick={() => applyPresetLut(preset)}
+                              className={`p-2.5 rounded-xl border text-left transition-all ${
+                                isActive
+                                  ? 'bg-amber-400/20 border-amber-400 text-white shadow-md'
+                                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full"
+                                  style={{ backgroundColor: preset.badgeColor }}
+                                />
+                                <span className="text-[8px] font-mono text-white/40">{preset.category}</span>
+                              </div>
+                              <div className="text-xs font-bold leading-tight truncate">{preset.name}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section: Light & Tone */}
-                <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
+                <div className="space-y-3.5 bg-white/5 p-4 rounded-2xl border border-white/10">
                   <span className="text-[11px] font-black text-white/80 uppercase tracking-wider block">
                     Ánh Sáng (Light & Tone)
                   </span>
 
-                  {/* Exposure */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Phơi sáng (Exposure)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.exposure}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.exposure}
-                      onChange={(e) => setAdjustments({ ...adjustments, exposure: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Phơi sáng (Exposure)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.exposure}
+                    onChange={(val) => setAdjustments({ ...adjustments, exposure: val })}
+                  />
 
-                  {/* Contrast */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Độ tương phản (Contrast)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.contrast}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.contrast}
-                      onChange={(e) => setAdjustments({ ...adjustments, contrast: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Độ sáng (Brightness)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.brightness}
+                    onChange={(val) => setAdjustments({ ...adjustments, brightness: val })}
+                  />
 
-                  {/* Highlights */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Vùng sáng (Highlights)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.highlights}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.highlights}
-                      onChange={(e) => setAdjustments({ ...adjustments, highlights: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Độ tương phản (Contrast)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.contrast}
+                    onChange={(val) => setAdjustments({ ...adjustments, contrast: val })}
+                  />
 
-                  {/* Shadows */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Vùng tối (Shadows)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.shadows}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.shadows}
-                      onChange={(e) => setAdjustments({ ...adjustments, shadows: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Vùng sáng (Highlights)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.highlights}
+                    onChange={(val) => setAdjustments({ ...adjustments, highlights: val })}
+                  />
+
+                  <AdjustmentSliderRow
+                    label="Vùng tối (Shadows)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.shadows}
+                    onChange={(val) => setAdjustments({ ...adjustments, shadows: val })}
+                  />
                 </div>
 
                 {/* Section: Color & Temperature */}
-                <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
+                <div className="space-y-3.5 bg-white/5 p-4 rounded-2xl border border-white/10">
                   <span className="text-[11px] font-black text-white/80 uppercase tracking-wider block">
                     Màu Sắc (Color Balance)
                   </span>
 
-                  {/* Temperature */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Nhiệt độ (Lạnh ↔ Ấm)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.temperature}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.temperature}
-                      onChange={(e) => setAdjustments({ ...adjustments, temperature: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-gradient-to-r from-blue-500 via-white/20 to-amber-500 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Nhiệt độ (Temperature)"
+                    sublabel="Lạnh ↔ Ấm"
+                    min={-100}
+                    max={100}
+                    value={adjustments.temperature}
+                    sliderBgClass="h-1.5 bg-gradient-to-r from-blue-500 via-white/20 to-amber-500"
+                    onChange={(val) => setAdjustments({ ...adjustments, temperature: val })}
+                  />
 
-                  {/* Tint */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Sắc thái (Lục ↔ Đỏ tía)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.tint}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.tint}
-                      onChange={(e) => setAdjustments({ ...adjustments, tint: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-gradient-to-r from-emerald-500 via-white/20 to-pink-500 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Sắc thái (Tint)"
+                    sublabel="Lục ↔ Đỏ tía"
+                    min={-100}
+                    max={100}
+                    value={adjustments.tint}
+                    sliderBgClass="h-1.5 bg-gradient-to-r from-emerald-500 via-white/20 to-pink-500"
+                    onChange={(val) => setAdjustments({ ...adjustments, tint: val })}
+                  />
 
-                  {/* Vibrance */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Sắc độ thông minh (Vibrance)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.vibrance}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.vibrance}
-                      onChange={(e) => setAdjustments({ ...adjustments, vibrance: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Sắc độ thông minh (Vibrance)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.vibrance}
+                    onChange={(val) => setAdjustments({ ...adjustments, vibrance: val })}
+                  />
 
-                  {/* Saturation */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Độ bão hòa (Saturation)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.saturation}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.saturation}
-                      onChange={(e) => setAdjustments({ ...adjustments, saturation: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Độ bão hòa (Saturation)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.saturation}
+                    onChange={(val) => setAdjustments({ ...adjustments, saturation: val })}
+                  />
                 </div>
 
                 {/* Section: Details & Film Effects */}
-                <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
+                <div className="space-y-3.5 bg-white/5 p-4 rounded-2xl border border-white/10">
                   <span className="text-[11px] font-black text-white/80 uppercase tracking-wider block">
                     Chi Tiết & Hạt Phim (Texture & FX)
                   </span>
 
-                  {/* Clarity */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Độ trong & nét (Clarity)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.clarity}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="-100"
-                      max="100"
-                      value={adjustments.clarity}
-                      onChange={(e) => setAdjustments({ ...adjustments, clarity: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Độ trong & nét (Clarity)"
+                    min={-100}
+                    max={100}
+                    value={adjustments.clarity}
+                    onChange={(val) => setAdjustments({ ...adjustments, clarity: val })}
+                  />
 
-                  {/* Sharpness */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Độ sắc cạnh (Sharpness)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.sharpness}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={adjustments.sharpness}
-                      onChange={(e) => setAdjustments({ ...adjustments, sharpness: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Độ sắc cạnh (Sharpness)"
+                    min={0}
+                    max={100}
+                    value={adjustments.sharpness}
+                    onChange={(val) => setAdjustments({ ...adjustments, sharpness: val })}
+                  />
 
-                  {/* Film Grain */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Hạt phim cổ điển (Film Grain)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.filmGrain}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={adjustments.filmGrain}
-                      onChange={(e) => setAdjustments({ ...adjustments, filmGrain: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Hạt phim cổ điển (Film Grain)"
+                    min={0}
+                    max={100}
+                    value={adjustments.filmGrain}
+                    onChange={(val) => setAdjustments({ ...adjustments, filmGrain: val })}
+                  />
 
-                  {/* Vignette */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-white/70">Làm tối góc (Vignette)</span>
-                      <span className="font-mono text-amber-300 font-bold">{adjustments.vignette}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={adjustments.vignette}
-                      onChange={(e) => setAdjustments({ ...adjustments, vignette: Number(e.target.value) })}
-                      className="w-full accent-amber-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
-                    />
-                  </div>
+                  <AdjustmentSliderRow
+                    label="Làm tối góc (Vignette)"
+                    min={0}
+                    max={100}
+                    value={adjustments.vignette}
+                    onChange={(val) => setAdjustments({ ...adjustments, vignette: val })}
+                  />
                 </div>
 
                 {/* Bake Button */}

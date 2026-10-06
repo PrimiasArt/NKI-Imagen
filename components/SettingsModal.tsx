@@ -29,6 +29,7 @@ import {
   sanitizePromptAntiAi
 } from '../services/antiAiCamouflageService';
 import { AntiAiCamouflageSettings, CameraPresetType } from '../types';
+import { useTranslation, SUPPORTED_LANGUAGES, AppLanguage } from '../services/i18nService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -55,7 +56,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSyncCloudVault,
   isCloudVaultSyncing,
 }) => {
-  const [activeTab, setActiveTab] = useState<'storage' | 'gallery' | 'drive' | 'update' | 'anti-ai'>('storage');
+  const { lang, setLanguage, t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'language' | 'storage' | 'gallery' | 'drive' | 'update' | 'anti-ai'>('language');
   const [driveFolderInput, setDriveFolderInput] = useState(storageSettings.driveFolderName || 'NK Imagen Storage');
   const [prefixInput, setPrefixInput] = useState(storageSettings.customPrefix || 'NKI_');
   const [namingPattern, setNamingPattern] = useState(storageSettings.namingPattern || 'subject_timestamp');
@@ -227,15 +229,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 backdrop-blur-2xl p-4 animate-in fade-in duration-300">
       <div 
-        className="w-full max-w-2xl bg-[#0b111e]/95 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-left"
+        className="w-full max-w-3xl bg-slate-900/80 border border-white/20 rounded-[32px] shadow-[0_30px_90px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.35)] backdrop-blur-3xl overflow-hidden flex flex-col max-h-[90vh] text-left"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+        {/* visionOS Spatial Glass Header */}
+        <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-white/[0.03] backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center text-primary-400">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-500/20 to-primary-500/5 border border-primary-500/30 flex items-center justify-center text-primary-400 shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.2)]">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <circle cx="12" cy="12" r="3" />
@@ -243,97 +245,196 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-black text-white tracking-wider uppercase">Cài Đặt Lưu Trữ & Hệ Thống</h2>
-                <span className="text-[10px] bg-primary-500/20 text-primary-300 font-mono px-1.5 py-0.5 rounded-full border border-primary-500/30">
-                  NKI v4.3
+                <h2 className="text-sm font-black text-white tracking-wider uppercase">
+                  {t('settings.title')}
+                </h2>
+                <span className="text-[10px] bg-white/10 text-white/80 font-mono px-2 py-0.5 rounded-full border border-white/15">
+                  visionOS
                 </span>
               </div>
-              <p className="text-[11px] text-white/50">Cấu hình thư mục lưu ảnh, bộ nhớ IndexedDB và Google Drive</p>
+              <p className="text-[11px] text-white/50">{t('settings.subtitle')}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 hover:scale-105 active:scale-95 text-white/60 hover:text-white flex items-center justify-center transition-all border border-white/15 backdrop-blur-md"
+            title="Đóng (Close)"
           >
             ✕
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-white/10 bg-black/20 px-6 gap-2 pt-2">
-          <button
-            onClick={() => setActiveTab('storage')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-              activeTab === 'storage'
-                ? 'border-primary-400 text-primary-300 bg-white/[0.03]'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <span>📁</span>
-            <span>Thư Mục & Lưu Trữ</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('gallery')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-              activeTab === 'gallery'
-                ? 'border-primary-400 text-primary-300 bg-white/[0.03]'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <span>🖼️</span>
-            <span>Bộ Nhớ Gallery</span>
-            <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full text-white/70 font-mono">
-              {galleryEstimate.count}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('drive')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-              activeTab === 'drive'
-                ? 'border-primary-400 text-primary-300 bg-white/[0.03]'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <span>☁️</span>
-            <span>Google Drive</span>
-            {googleUser && getAccessToken() ? (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            ) : (
-              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-full">Chưa kết nối</span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('update')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-              activeTab === 'update'
-                ? 'border-primary-400 text-primary-300 bg-white/[0.03]'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <span>🚀</span>
-            <span>Cập Nhật & App</span>
-            {updateInfo?.hasUpdate && (
-              <span className="w-2 h-2 rounded-full bg-primary-400 animate-ping"></span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('anti-ai')}
-            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-              activeTab === 'anti-ai'
-                ? 'border-emerald-400 text-emerald-300 bg-white/[0.03]'
-                : 'border-transparent text-white/50 hover:text-white/80'
-            }`}
-          >
-            <span>🛡️</span>
-            <span>Khử Dấu AI (Bypass)</span>
-            {antiAiSettings.enabled && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            )}
-          </button>
+        {/* visionOS Segmented Tab Bar */}
+        <div className="p-2 border-b border-white/10 bg-black/30 backdrop-blur-xl">
+          <div className="flex flex-wrap gap-1 p-1 bg-white/[0.03] border border-white/10 rounded-2xl">
+            <button
+              onClick={() => setActiveTab('language')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'language'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>🌐</span>
+              <span>{t('settings.tab.language')}</span>
+              <span className="text-[11px]">{SUPPORTED_LANGUAGES.find(l => l.code === lang)?.flag}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('storage')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'storage'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>📁</span>
+              <span>{t('settings.tab.storage')}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('gallery')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'gallery'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>🖼️</span>
+              <span>{t('settings.tab.gallery')}</span>
+              <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full text-white/70 font-mono">
+                {galleryEstimate.count}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('drive')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'drive'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>☁️</span>
+              <span>{t('settings.tab.drive')}</span>
+              {googleUser && getAccessToken() ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              ) : (
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded-full">!</span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('update')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'update'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>🚀</span>
+              <span>{t('settings.tab.update')}</span>
+              {updateInfo?.hasUpdate && (
+                <span className="w-2 h-2 rounded-full bg-primary-400 animate-ping"></span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('anti-ai')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'anti-ai'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>🛡️</span>
+              <span>{t('settings.tab.antiAi')}</span>
+              {antiAiSettings.enabled && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Tab Content */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm custom-scrollbar">
+          {/* TAB 0: NGÔN NGỮ (LANGUAGE) - Apple Vision Pro Spatial Tiles */}
+          {activeTab === 'language' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-base font-black text-white tracking-wide flex items-center gap-2">
+                    <span>🌐</span> {t('settings.lang.title')}
+                  </h3>
+                  <p className="text-xs text-white/60 mt-1 max-w-lg leading-relaxed">
+                    {t('settings.lang.desc')}
+                  </p>
+                </div>
+                <div className="px-3 py-1.5 rounded-full bg-white/10 border border-white/15 backdrop-blur-md text-[11px] font-bold text-white flex items-center gap-1.5 shadow-inner">
+                  <span>{SUPPORTED_LANGUAGES.find(l => l.code === lang)?.flag}</span>
+                  <span>{SUPPORTED_LANGUAGES.find(l => l.code === lang)?.nativeName}</span>
+                </div>
+              </div>
+
+              {/* Apple visionOS Spatial Language Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {SUPPORTED_LANGUAGES.map((item) => {
+                  const isSelected = lang === item.code;
+                  return (
+                    <button
+                      key={item.code}
+                      onClick={() => {
+                        setLanguage(item.code);
+                      }}
+                      className={`p-4 rounded-2xl border text-left transition-all duration-200 flex items-center justify-between group relative backdrop-blur-xl ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-primary-500/20 to-primary-500/10 border-primary-400 text-white shadow-[0_10px_30px_rgba(var(--primary-500-rgb),0.25),inset_0_1px_1px_rgba(255,255,255,0.3)] scale-[1.01]'
+                          : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/[0.09] hover:border-white/25 hover:text-white active:scale-[0.99]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <span className="text-3xl filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]">
+                          {item.flag}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-black tracking-wide text-white">
+                              {item.nativeName}
+                            </span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-white/60 border border-white/10">
+                              {item.code.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="text-xs text-white/50 mt-0.5">
+                            {item.name} • {item.region}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isSelected ? (
+                        <div className="w-7 h-7 rounded-full bg-primary-500 text-black flex items-center justify-center font-bold text-sm shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.6)]">
+                          ✓
+                        </div>
+                      ) : (
+                        <div className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white/40">
+                          →
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* visionOS Info Card */}
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md flex items-center gap-3 text-xs text-white/60">
+                <span className="text-xl">✨</span>
+                <p className="leading-relaxed">
+                  Toàn bộ giao diện, thanh điều hướng, cài đặt và NKI AI Photo Studio sẽ được cập nhật tức thì sang ngôn ngữ bạn đã chọn.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* TAB 1: THƯ MỤC LƯU TRỮ */}
           {activeTab === 'storage' && (
             <div className="space-y-6">

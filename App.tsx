@@ -75,6 +75,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { BatchCollectionModal } from './components/BatchCollectionModal';
 import { UpdateNotificationToast } from './components/UpdateNotificationToast';
 import { PhotoStudioWorkspace } from './components/PhotoStudio/PhotoStudioWorkspace';
+import { useTranslation, SUPPORTED_LANGUAGES, AppLanguage } from './services/i18nService';
 import { syncFullCloudVault, pushVaultToCloud, pullVaultFromCloud } from './services/cloudVaultService';
 import { 
   loadAntiAiSettings, 
@@ -2186,6 +2187,22 @@ interface ErrorDetails {
 }
 
 const App: React.FC = () => {
+  // Internationalization & Language Switcher (visionOS)
+  const { lang, setLanguage, t, currentLanguageInfo } = useTranslation();
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState<boolean>(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close language menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Google Drive Integration States
   const [googleUser, setGoogleUser] = useState<User | null>(null);
   const [driveSavingId, setDriveSavingId] = useState<string | null>(null);
@@ -5047,8 +5064,8 @@ const App: React.FC = () => {
                 ))}
              </div>
              <nav className="flex bg-white/5 p-1 rounded-xl gap-1 border border-white/10 items-center">
-                <button onClick={() => handleModuleClick('complex_imagen')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${isComplexImagenGroup ? 'bg-primary-500 text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.4)]' : 'text-white/40 hover:text-white'}`}>Complex Imagen</button>
-                <button onClick={() => handleModuleClick('scenario_director')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${[AppMode.SCENARIO_EDITOR, AppMode.VEO3_PROPARSE_CREATOR || AppMode.VEO3_PROMPT_CREATOR].includes(activeTab) ? 'bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.4)]' : 'text-white/40 hover:text-white'}`}>Scenario Builder</button>
+                <button onClick={() => handleModuleClick('complex_imagen')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${isComplexImagenGroup ? 'bg-primary-500 text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.4)]' : 'text-white/40 hover:text-white'}`}>{t('nav.complexImagen')}</button>
+                <button onClick={() => handleModuleClick('scenario_director')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${[AppMode.SCENARIO_EDITOR, AppMode.VEO3_PROPARSE_CREATOR || AppMode.VEO3_PROMPT_CREATOR].includes(activeTab) ? 'bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.4)]' : 'text-white/40 hover:text-white'}`}>{t('nav.sceneDirector')}</button>
                 <button 
                   onClick={() => handleModuleClick('ai_studio')} 
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
@@ -5059,7 +5076,7 @@ const App: React.FC = () => {
                   title="Photo Studio 2026: Chỉnh màu nâng cao & Canva AI"
                 >
                   <span className="text-[11px]">🎨</span>
-                  <span>AI Studio</span>
+                  <span>{t('nav.studio')}</span>
                 </button>
                 <button onClick={() => setIsDarkMode(!isDarkMode)} className={`w-8 h-8 flex items-center justify-center rounded-lg glass-card transition-all ${isDarkMode ? 'text-amber-400' : 'text-slate-600 shadow-inner'}`} title="Chuyển chế độ sáng/tối">
                     {isDarkMode ? (
@@ -5140,6 +5157,58 @@ const App: React.FC = () => {
                   <span className="text-[9px]">🔑</span>
                   <span>{hasApiKey ? 'Gemini API' : 'Nhập Key'}</span>
                 </button>
+                {/* Apple visionOS Quick Language Switcher Dropdown */}
+                <div className="relative" ref={langMenuRef}>
+                  <button
+                    onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+                    className="px-2 py-1 border rounded-lg text-[8.5px] font-black tracking-wider uppercase transition-all flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/90 border-white/10 hover:border-white/20 backdrop-blur-xl shadow-sm active:scale-95"
+                    title={t('settings.lang.title')}
+                  >
+                    <span className="text-[11px] leading-none">{currentLanguageInfo.flag}</span>
+                    <span className="font-bold tracking-normal">{currentLanguageInfo.code.toUpperCase()}</span>
+                    <svg className={`w-2 h-2 text-white/60 transition-transform ${isLangMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {isLangMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-52 bg-slate-900/95 backdrop-blur-3xl border border-white/20 rounded-2xl p-2 shadow-[0_25px_60px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)] z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1">
+                      <div className="px-2 py-1 text-[8.5px] font-black tracking-widest uppercase text-white/40 border-b border-white/10 flex items-center justify-between">
+                        <span>{t('settings.tab.language')}</span>
+                        <span className="text-xs">🌐</span>
+                      </div>
+                      {SUPPORTED_LANGUAGES.map((langItem) => {
+                        const isActive = lang === langItem.code;
+                        return (
+                          <button
+                            key={langItem.code}
+                            onClick={() => {
+                              setLanguage(langItem.code);
+                              setIsLangMenuOpen(false);
+                            }}
+                            className={`w-full px-2.5 py-1.5 rounded-xl text-left transition-all flex items-center justify-between text-xs ${
+                              isActive
+                                ? 'bg-primary-500/25 text-white font-bold border border-primary-500/40 shadow-[0_0_14px_rgba(var(--primary-500-rgb),0.35)]'
+                                : 'text-white/70 hover:text-white hover:bg-white/10 border border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm leading-none">{langItem.flag}</span>
+                              <div className="flex flex-col leading-tight">
+                                <span className="text-[11px] font-medium text-white">{langItem.nativeName}</span>
+                                <span className="text-[8px] text-white/40">{langItem.name}</span>
+                              </div>
+                            </div>
+                            {isActive && (
+                              <span className="text-primary-400 font-black text-xs">✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => setIsSettingsOpen(true)}
                   className="px-2 py-1 border rounded-lg text-[8.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1 bg-white/5 text-white/60 border-white/10 hover:border-primary-500/30 hover:text-primary-300"
@@ -5149,11 +5218,11 @@ const App: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
-                  <span>Cài Đặt</span>
+                  <span>{t('nav.settings')}</span>
                 </button>
                 <div className="w-px h-6 bg-white/10 mx-1"></div>
-                <button onClick={() => handleModuleClick('library')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${activeTab === AppMode.GALLERY ? 'bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white'}`}>Gallery</button>
-                <button onClick={() => handleModuleClick('history')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${activeTab === AppMode.LOGS ? 'bg-primary-500 text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.4)]' : 'text-white/40 hover:text-white'}`}>History</button>
+                <button onClick={() => handleModuleClick('library')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${activeTab === AppMode.GALLERY ? 'bg-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.4)]' : 'text-white/40 hover:text-white'}`}>{t('nav.gallery')}</button>
+                <button onClick={() => handleModuleClick('history')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${activeTab === AppMode.LOGS ? 'bg-primary-500 text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.4)]' : 'text-white/40 hover:text-white'}`}>{t('nav.history')}</button>
              </nav>
           </div>
         </div>
@@ -5166,14 +5235,14 @@ const App: React.FC = () => {
           {isComplexImagenGroup && (
             <div className="bg-white/[0.03] p-1 rounded-2xl inline-flex border border-white/10 gap-1 backdrop-blur-xl shadow-inner">
               {[ 
-                { id: AppMode.IMG_TO_JSON, label: 'Analysis', icon: '🔍' }, 
-                { id: AppMode.JSON_CONVERTER, label: 'Converter', icon: '⚡' }, 
-                { id: AppMode.JSON_TO_IMG, label: 'Generator', icon: '🎨' }, 
-                { id: AppMode.POSE_VARIANTS, label: 'Pose', icon: '🏃' }, 
-                { id: AppMode.COMPOSE_IMAGE, label: 'Compose', icon: '🧩' },
-                { id: AppMode.REFERENCE_CREATION, label: 'Reference', icon: '🎭' },
-                { id: AppMode.UPSCALE_IMAGE, label: 'Upscale', icon: '✨' },
-                { id: AppMode.AI_STUDIO, label: 'Studio AI', icon: '🖌️' }
+                { id: AppMode.IMG_TO_JSON, label: t('subnav.analysis'), icon: '🔍' }, 
+                { id: AppMode.JSON_CONVERTER, label: t('subnav.converter'), icon: '⚡' }, 
+                { id: AppMode.JSON_TO_IMG, label: t('subnav.generator'), icon: '🎨' }, 
+                { id: AppMode.POSE_VARIANTS, label: t('subnav.pose'), icon: '🏃' }, 
+                { id: AppMode.COMPOSE_IMAGE, label: t('subnav.compose'), icon: '🧩' },
+                { id: AppMode.REFERENCE_CREATION, label: t('subnav.reference'), icon: '🎭' },
+                { id: AppMode.UPSCALE_IMAGE, label: t('subnav.upscale'), icon: '✨' },
+                { id: AppMode.AI_STUDIO, label: t('subnav.studio'), icon: '🖌️' }
               ].map(sub => (
                 <button 
                   key={sub.id} 
@@ -5195,8 +5264,8 @@ const App: React.FC = () => {
           {(activeTab === AppMode.SCENARIO_EDITOR || activeTab === AppMode.VEO3_PROMPT_CREATOR) && (
             <div className="bg-white/[0.03] p-1 rounded-2xl inline-flex border border-white/10 gap-1 backdrop-blur-xl shadow-inner">
               {[ 
-                { id: AppMode.SCENARIO_EDITOR, label: 'Scripting', icon: '🎬' }, 
-                { id: AppMode.VEO3_PROMPT_CREATOR, label: 'Veo 3 Pro', icon: '🎥' } 
+                { id: AppMode.SCENARIO_EDITOR, label: t('subnav.scripting'), icon: '🎬' }, 
+                { id: AppMode.VEO3_PROMPT_CREATOR, label: t('subnav.veo3'), icon: '🎥' } 
               ].map(sub => (
                 <button 
                   key={sub.id} 

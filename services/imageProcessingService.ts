@@ -595,3 +595,38 @@ export const loadImageElement = (src: string): Promise<HTMLImageElement> => {
     img.src = src;
   });
 };
+
+/**
+ * Custom User Color Presets (Saved to localStorage)
+ */
+export interface CustomColorPreset {
+  id: string;
+  name: string;
+  createdAt: number;
+  adjustments: ColorGradingAdjustments;
+}
+
+const CUSTOM_PRESETS_STORAGE_KEY = 'nki_studio_custom_presets';
+
+export const loadCustomColorPresets = (): CustomColorPreset[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CUSTOM_PRESETS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    console.error('Failed to load custom presets from localStorage', e);
+    return [];
+  }
+};
+
+export const saveCustomColorPresets = (presets: CustomColorPreset[]): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CUSTOM_PRESETS_STORAGE_KEY, JSON.stringify(presets));
+  } catch (e) {
+    console.error('Failed to save custom presets to localStorage', e);
+  }
+};
+
