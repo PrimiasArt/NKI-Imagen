@@ -83,6 +83,11 @@ const LANGUAGE_CHANGE_EVENT = 'nki_language_change';
  */
 export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
   "vi": {
+    "prompt.clean": "Làm sạch prompt",
+    "prompt.cleanTooltip": "1-Click làm sạch prompt về khung rỗng để nhập mới",
+    "prompt.cleanSuccess": "Đã làm sạch prompt thành công!",
+    "prompt.cleanDeduplicate": "Lọc sạch từ lặp & Chuẩn hóa",
+    "prompt.resetDefault": "Khôi phục mẫu mặc định",
     "apikey.statusLabel": "Trạng thái cấu hình:",
     "apikey.statusLocal": "Đã lưu trên Trình duyệt (LocalStorage)",
     "apikey.statusEnv": "Đang dùng từ file .env / System",
@@ -369,6 +374,11 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     "studio.trans.history": "Lịch Sử Thao Tác"
   },
   "en": {
+    "prompt.clean": "Clean Prompt",
+    "prompt.cleanTooltip": "1-Click clean prompt to blank template",
+    "prompt.cleanSuccess": "Prompt cleaned successfully!",
+    "prompt.cleanDeduplicate": "Deduplicate & Sanitize",
+    "prompt.resetDefault": "Reset to Default",
     "apikey.statusLabel": "Configuration Status:",
     "apikey.statusLocal": "Saved in Browser (LocalStorage)",
     "apikey.statusEnv": "Active from .env / System",
@@ -655,6 +665,11 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     "studio.trans.history": "Action History"
   },
   "zh": {
+    "prompt.clean": "清理 Prompt",
+    "prompt.cleanTooltip": "1 键将 Prompt 清空为新模板",
+    "prompt.cleanSuccess": "Prompt 已成功清理！",
+    "prompt.cleanDeduplicate": "过滤重复词与规范化",
+    "prompt.resetDefault": "恢复默认模板",
     "apikey.statusLabel": "配置状态:",
     "apikey.statusLocal": "已保存在浏览器 (LocalStorage)",
     "apikey.statusEnv": "来自 .env / 系统变量",
@@ -941,6 +956,11 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     "studio.trans.history": "操作历史记录"
   },
   "th": {
+    "prompt.clean": "ล้าง Prompt",
+    "prompt.cleanTooltip": "1 คลิกเพื่อล้าง Prompt เป็นเทมเพลตว่าง",
+    "prompt.cleanSuccess": "ล้าง Prompt สำเร็จแล้ว!",
+    "prompt.cleanDeduplicate": "กรองคำซ้ำและจัดรูปแบบ",
+    "prompt.resetDefault": "รีเซ็ตเป็นค่าเริ่มต้น",
     "apikey.statusLabel": "สถานะการกำหนดค่า:",
     "apikey.statusLocal": "บันทึกในเบราว์เซอร์แล้ว (LocalStorage)",
     "apikey.statusEnv": "ใช้งานจากไฟล์ .env / ระบบ",
@@ -1227,6 +1247,11 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     "studio.trans.history": "ประวัติการดำเนินการ"
   },
   "ko": {
+    "prompt.clean": "Prompt 정리",
+    "prompt.cleanTooltip": "1클릭으로 Prompt를 빈 템플릿으로 초기화",
+    "prompt.cleanSuccess": "Prompt가 성공적으로 정리되었습니다!",
+    "prompt.cleanDeduplicate": "중복 단어 필터링 및 표준화",
+    "prompt.resetDefault": "기본 템플릿 복원",
     "apikey.statusLabel": "구성 상태:",
     "apikey.statusLocal": "브라우저에 저장됨 (LocalStorage)",
     "apikey.statusEnv": ".env 파일 / 시스템에서 사용 중",
@@ -1513,6 +1538,11 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     "studio.trans.history": "작업 히스토리"
   },
   "es": {
+    "prompt.clean": "Limpiar Prompt",
+    "prompt.cleanTooltip": "1-Clic para limpiar el Prompt a una plantilla vacía",
+    "prompt.cleanSuccess": "¡Prompt limpiado con éxito!",
+    "prompt.cleanDeduplicate": "Desduplicar y Normalizar",
+    "prompt.resetDefault": "Restaurar por Defecto",
     "apikey.statusLabel": "Estado de Configuración:",
     "apikey.statusLocal": "Guardado en el Navegador (LocalStorage)",
     "apikey.statusEnv": "Usando desde .env / Sistema",
@@ -1799,6 +1829,11 @@ export const TRANSLATIONS: Record<AppLanguage, Record<string, string>> = {
     "studio.trans.history": "Historial de Operaciones"
   },
   "ru": {
+    "prompt.clean": "Очистить Prompt",
+    "prompt.cleanTooltip": "1 клик для очистки Prompt в пустой шаблон",
+    "prompt.cleanSuccess": "Prompt успешно очищен!",
+    "prompt.cleanDeduplicate": "Удалить дубликаты и нормализовать",
+    "prompt.resetDefault": "Сбросить на стандартный",
     "apikey.statusLabel": "Статус конфигурации:",
     "apikey.statusLocal": "Сохранено в браузере (LocalStorage)",
     "apikey.statusEnv": "Используется из .env / Системы",

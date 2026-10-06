@@ -160,6 +160,33 @@ const DEFAULT_JSON: ImagePromptJson = {
   additional_details: "Flying cars, holographic billboards, rain-slicked streets"
 };
 
+const BLANK_PROMPT_JSON: ImagePromptJson = {
+  subject: "",
+  art_style: "",
+  posing: "",
+  lighting: "",
+  color_palette: "",
+  composition: "",
+  camera_angle: "",
+  texture: "",
+  skin_texture: "",
+  font: "",
+  mood: "",
+  additional_details: ""
+};
+
+/**
+ * Utility to clean prompt text: deduplicate comma-separated tags, trim whitespace
+ */
+const sanitizeAndDeduplicatePrompt = (text: string): string => {
+  if (!text) return "";
+  return text
+    .split(',')
+    .map(s => s.trim())
+    .filter((val, idx, arr) => val.length > 0 && arr.indexOf(val) === idx)
+    .join(', ');
+};
+
 const IMAGE_MODELS = DEFAULT_IMAGE_MODELS;
 
 const PRESETS: Record<string, Partial<ImagePromptJson>> = {
@@ -2581,6 +2608,71 @@ const App: React.FC = () => {
       const next = jsonHistoryIdx + 1;
       setJsonHistoryIdx(next);
       setJsonInput(jsonHistory[next]);
+    }
+  };
+
+  // Quick Prompt Clean Toast
+  const [cleanToast, setCleanToast] = useState<string | null>(null);
+  const showCleanToast = (msg: string) => {
+    setCleanToast(msg);
+    setTimeout(() => setCleanToast(null), 2500);
+  };
+
+  // 1-Click Clean Prompt in Image Analysis (Phân tích)
+  const handleCleanAnalysisPrompt = () => {
+    setJsonResult(null);
+    setUploadedImage(null);
+    setImageURLInput('');
+    setRefinePrompt('');
+    setShowRefineInput(false);
+    showCleanToast(t('prompt.cleanSuccess', 'Đã làm sạch prompt & ảnh phân tích!'));
+  };
+
+  // 1-Click Clean Prompt in Linguistic Converter (Chuyển đổi)
+  const handleCleanConverterPrompt = () => {
+    setConverterInput('');
+    setConverterResult(null);
+    showCleanToast(t('prompt.cleanSuccess', 'Đã làm sạch prompt chuyển đổi!'));
+  };
+
+  // 1-Click Clean Prompt in Generator (Tạo ảnh)
+  const handleCleanGeneratorPrompt = (mode: 'blank' | 'sanitize' | 'default' = 'blank') => {
+    if (mode === 'blank') {
+      updateJsonInput(JSON.stringify(BLANK_PROMPT_JSON, null, 2));
+      handleApplyPreset('');
+      showCleanToast(t('prompt.cleanSuccess', 'Đã làm sạch prompt về khung rỗng! (Bấm ↶ để hoàn tác)'));
+    } else if (mode === 'sanitize') {
+      try {
+        const parsed = JSON.parse(jsonInput);
+        const cleaned: any = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v === 'string') {
+            cleaned[k] = sanitizeAndDeduplicatePrompt(v);
+          } else {
+            cleaned[k] = v;
+          }
+        }
+        updateJsonInput(JSON.stringify(cleaned, null, 2));
+        showCleanToast(t('prompt.cleanDeduplicate', 'Đã lọc sạch các từ khóa trùng lặp!'));
+      } catch {
+        updateJsonInput(sanitizeAndDeduplicatePrompt(jsonInput));
+        showCleanToast(t('prompt.cleanDeduplicate', 'Đã lọc sạch các từ khóa trùng lặp!'));
+      }
+    } else if (mode === 'default') {
+      updateJsonInput(JSON.stringify(DEFAULT_JSON, null, 2));
+      handleApplyPreset('');
+      showCleanToast(t('prompt.resetDefault', 'Đã khôi phục prompt mặc định!'));
+    }
+  };
+
+  // 1-Click Clean Prompt in currently active tab (Phân tích / Chuyển đổi / Tạo ảnh)
+  const handleQuickCleanCurrentTabPrompt = () => {
+    if (activeTab === AppMode.IMG_TO_JSON) {
+      handleCleanAnalysisPrompt();
+    } else if (activeTab === AppMode.JSON_CONVERTER) {
+      handleCleanConverterPrompt();
+    } else if (activeTab === AppMode.JSON_TO_IMG) {
+      handleCleanGeneratorPrompt('blank');
     }
   };
 
@@ -5239,30 +5331,44 @@ const App: React.FC = () => {
         <div className="max-w-[1720px] mx-auto flex flex-wrap items-center justify-between gap-3">
           {/* Sub Navigation Dock for Complex Imagen */}
           {isComplexImagenGroup && (
-            <div className="bg-white/[0.03] p-1 rounded-2xl inline-flex border border-white/10 gap-1 backdrop-blur-xl shadow-inner">
-              {[ 
-                { id: AppMode.IMG_TO_JSON, label: t('subnav.analysis'), icon: '🔍' }, 
-                { id: AppMode.JSON_CONVERTER, label: t('subnav.converter'), icon: '⚡' }, 
-                { id: AppMode.JSON_TO_IMG, label: t('subnav.generator'), icon: '🎨' }, 
-                { id: AppMode.POSE_VARIANTS, label: t('subnav.pose'), icon: '🏃' }, 
-                { id: AppMode.COMPOSE_IMAGE, label: t('subnav.compose'), icon: '🧩' },
-                { id: AppMode.REFERENCE_CREATION, label: t('subnav.reference'), icon: '🎭' },
-                { id: AppMode.UPSCALE_IMAGE, label: t('subnav.upscale'), icon: '✨' },
-                { id: AppMode.AI_STUDIO, label: t('subnav.studio'), icon: '🖌️' }
-              ].map(sub => (
-                <button 
-                  key={sub.id} 
-                  onClick={() => setActiveTab(sub.id)} 
-                  className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1.5 ${
-                    activeTab === sub.id 
-                      ? 'bg-primary-500/20 text-primary-300 border border-primary-500/40 shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.25)] font-bold' 
-                      : 'text-white/40 hover:text-white/90 hover:bg-white/5'
-                  }`}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="bg-white/[0.03] p-1 rounded-2xl inline-flex border border-white/10 gap-1 backdrop-blur-xl shadow-inner">
+                {[ 
+                  { id: AppMode.IMG_TO_JSON, label: t('subnav.analysis'), icon: '🔍' }, 
+                  { id: AppMode.JSON_CONVERTER, label: t('subnav.converter'), icon: '⚡' }, 
+                  { id: AppMode.JSON_TO_IMG, label: t('subnav.generator'), icon: '🎨' }, 
+                  { id: AppMode.POSE_VARIANTS, label: t('subnav.pose'), icon: '🏃' }, 
+                  { id: AppMode.COMPOSE_IMAGE, label: t('subnav.compose'), icon: '🧩' },
+                  { id: AppMode.REFERENCE_CREATION, label: t('subnav.reference'), icon: '🎭' },
+                  { id: AppMode.UPSCALE_IMAGE, label: t('subnav.upscale'), icon: '✨' },
+                  { id: AppMode.AI_STUDIO, label: t('subnav.studio'), icon: '🖌️' }
+                ].map(sub => (
+                  <button 
+                    key={sub.id} 
+                    onClick={() => setActiveTab(sub.id)} 
+                    className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1.5 ${
+                      activeTab === sub.id 
+                        ? 'bg-primary-500/20 text-primary-300 border border-primary-500/40 shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.25)] font-bold' 
+                        : 'text-white/40 hover:text-white/90 hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="text-[11px]">{sub.icon}</span>
+                    <span>{sub.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {(activeTab === AppMode.IMG_TO_JSON || activeTab === AppMode.JSON_CONVERTER || activeTab === AppMode.JSON_TO_IMG) && (
+                <button
+                  type="button"
+                  onClick={handleQuickCleanCurrentTabPrompt}
+                  className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 active:scale-95 shadow-[0_0_12px_rgba(244,63,94,0.15)] animate-in fade-in"
+                  title={t('prompt.cleanTooltip')}
                 >
-                  <span className="text-[11px]">{sub.icon}</span>
-                  <span>{sub.label}</span>
+                  <span className="text-[11px]">🧹</span>
+                  <span>{t('prompt.clean')}</span>
                 </button>
-              ))}
+              )}
             </div>
           )}
 
@@ -5319,6 +5425,16 @@ const App: React.FC = () => {
           <div className="glass-card px-4 py-3 rounded-2xl border border-primary-500/40 bg-slate-950/90 backdrop-blur-xl flex items-center gap-3 text-xs font-bold text-white shadow-2xl shadow-primary-950/80">
             <span className="text-lg">☁️</span>
             <span className="text-primary-200">{cloudVaultSyncStatus}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Prompt Clean Toast Banner */}
+      {cleanToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-3 fade-in duration-200">
+          <div className="glass-card px-5 py-2.5 rounded-2xl border border-rose-500/40 bg-slate-950/95 backdrop-blur-2xl flex items-center gap-2.5 text-xs font-bold text-white shadow-2xl shadow-rose-950/60 ring-1 ring-white/10">
+            <span className="text-base">🧹</span>
+            <span className="text-rose-200 tracking-wide">{cleanToast}</span>
           </div>
         </div>
       )}
@@ -5419,26 +5535,39 @@ const App: React.FC = () => {
                               </div>
                               <h3 className="text-xs font-black uppercase text-white/70 tracking-widest ml-2">{t('analysis.resultTitle', 'Forensic Prompt (Structural JSON)')}</h3>
                             </div>
-                            {jsonResult && (
-                              <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
+                              {(jsonResult || uploadedImage || imageURLInput || refinePrompt) && (
                                 <button 
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(JSON.stringify(jsonResult, null, 2));
-                                  }} 
-                                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-white/70 hover:text-white border border-white/10 text-[10px] font-bold uppercase tracking-wider transition-all"
-                                  title={t('common.copy', 'Sao chép')}
+                                  type="button"
+                                  onClick={handleCleanAnalysisPrompt}
+                                  className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 shadow-sm"
+                                  title={t('prompt.cleanTooltip')}
                                 >
-                                  {t('common.copy', 'Copy')} JSON
+                                  <span>🧹</span>
+                                  <span>{t('prompt.clean')}</span>
                                 </button>
-                                <button 
-                                  onClick={() => { setJsonInput(JSON.stringify(jsonResult, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); }} 
-                                  className="bg-primary-500 hover:bg-primary-600 text-black font-black px-4 py-1.5 rounded-xl shadow-lg text-[10px] tracking-widest uppercase transition-all flex items-center gap-1.5 active:scale-95"
-                                >
-                                  <span>{t('generator.generateBtn', 'Tạo Ảnh Ngay')}</span>
-                                  <span>→</span>
-                                </button>
-                              </div>
-                            )}
+                              )}
+                              {jsonResult && (
+                                <>
+                                  <button 
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(JSON.stringify(jsonResult, null, 2));
+                                    }} 
+                                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-white/70 hover:text-white border border-white/10 text-[10px] font-bold uppercase tracking-wider transition-all"
+                                    title={t('common.copy', 'Sao chép')}
+                                  >
+                                    {t('common.copy', 'Copy')} JSON
+                                  </button>
+                                  <button 
+                                    onClick={() => { setJsonInput(JSON.stringify(jsonResult, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); }} 
+                                    className="bg-primary-500 hover:bg-primary-600 text-black font-black px-4 py-1.5 rounded-xl shadow-lg text-[10px] tracking-widest uppercase transition-all flex items-center gap-1.5 active:scale-95"
+                                  >
+                                    <span>{t('generator.generateBtn', 'Tạo Ảnh Ngay')}</span>
+                                    <span>→</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
                         </div>
 
                         <div className="bg-zinc-950/80 border border-white/5 rounded-2xl p-4 font-mono text-xs text-white/80 whitespace-pre-wrap shadow-inner min-h-[260px] max-h-[440px] overflow-auto custom-scrollbar leading-relaxed">
@@ -5488,7 +5617,23 @@ const App: React.FC = () => {
                             <h2 className="text-3xl font-black text-white tracking-tighter">{t('converter.title', 'Linguistic Converter')}</h2>
                             <p className="text-sm text-white/40 mt-1">{t('converter.desc', 'Translate natural language descriptions into structured neural instructions.')}</p>
                         </div>
-                        <textarea value={converterInput} onChange={(e) => setConverterInput(e.target.value)} placeholder={t('converter.placeholder', 'Describe your image idea in plain language...')} className="w-full h-36 glass-input rounded-2xl p-5 text-sm font-medium shadow-inner focus:ring-primary-500 resize-y" />
+                        <div className="flex flex-col space-y-2">
+                            <div className="flex justify-between items-center px-1">
+                                <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.15em] block">{t('converter.placeholder', 'Mô tả ý tưởng')}</label>
+                                {(converterInput || converterResult) && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCleanConverterPrompt}
+                                        className="px-3 py-1 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 shadow-sm"
+                                        title={t('prompt.cleanTooltip')}
+                                    >
+                                        <span>🧹</span>
+                                        <span>{t('prompt.clean')}</span>
+                                    </button>
+                                )}
+                            </div>
+                            <textarea value={converterInput} onChange={(e) => setConverterInput(e.target.value)} placeholder={t('converter.placeholder', 'Describe your image idea in plain language...')} className="w-full h-36 glass-input rounded-2xl p-5 text-sm font-medium shadow-inner focus:ring-primary-500 resize-y" />
+                        </div>
                         <button onClick={handleConvertTextToJson} disabled={isConverting || !converterInput.trim()} className="w-full bg-gradient-to-r from-primary-600 to-primary-400 text-white font-black py-4 rounded-2xl shadow-xl active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-xs disabled:opacity-30">
                             {isConverting ? t('common.processing', 'Translating...') : t('converter.convertBtn', 'Translate to JSON')}
                         </button>
@@ -5583,23 +5728,34 @@ const App: React.FC = () => {
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center px-1">
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em]">Prompt Parameters</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            try {
-                                                const current = JSON.parse(jsonInput);
-                                                const sanitized = sanitizePromptJsonAntiAi(current, loadAntiAiSettings().cameraPreset);
-                                                updateJsonInput(JSON.stringify(sanitized, null, 2));
-                                            } catch (e) {
-                                                updateJsonInput(sanitizePromptAntiAi(jsonInput));
-                                            }
-                                        }}
-                                        className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-widest flex items-center gap-1 transition-colors bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/20"
-                                        title="Tự động khử các từ khóa bẫy AI (photorealistic, 8k, octane...) và đệm chi tiết máy ảnh thật"
-                                    >
-                                        <span>🛡️</span>
-                                        <span>Khử Bẫy AI</span>
-                                    </button>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleCleanGeneratorPrompt('blank')}
+                                            className="text-[9px] text-rose-300 hover:text-rose-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2.5 py-1 rounded-lg border border-rose-500/30 active:scale-95 shadow-sm"
+                                            title={t('prompt.cleanTooltip')}
+                                        >
+                                            <span>🧹</span>
+                                            <span>{t('prompt.clean')}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                try {
+                                                    const current = JSON.parse(jsonInput);
+                                                    const sanitized = sanitizePromptJsonAntiAi(current, loadAntiAiSettings().cameraPreset);
+                                                    updateJsonInput(JSON.stringify(sanitized, null, 2));
+                                                } catch (e) {
+                                                    updateJsonInput(sanitizePromptAntiAi(jsonInput));
+                                                }
+                                            }}
+                                            className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-widest flex items-center gap-1 transition-colors bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/20"
+                                            title="Tự động khử các từ khóa bẫy AI (photorealistic, 8k, octane...) và đệm chi tiết máy ảnh thật"
+                                        >
+                                            <span>🛡️</span>
+                                            <span>Khử Bẫy AI</span>
+                                        </button>
+                                    </div>
                                 </div>
                                 <JsonPromptEditor 
                                     value={jsonInput} 
