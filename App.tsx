@@ -65,7 +65,8 @@ import {
   downloadDriveFile,
   refreshGoogleDriveSession,
   clearDriveAutoConnect,
-  executeWithExponentialBackoff
+  executeWithExponentialBackoff,
+  blobToDataUrl
 } from './services/googleService';
 import { User } from 'firebase/auth';
 import { SettingsModal } from './components/SettingsModal';
@@ -921,6 +922,7 @@ const MasonryImage: React.FC<{
     onGoogleDrive, isSavingDrive, driveFileId, collectionId, collections, item, density = 'medium' 
 }) => {
     const [isLoaded, setIsLoaded] = useState(false);
+    const [hasError, setHasError] = useState(false);
     const aspectClass = density === 'large' ? 'aspect-[4/5]' : density === 'small' ? 'aspect-square' : 'aspect-[4/5]';
 
     return (
@@ -935,20 +937,33 @@ const MasonryImage: React.FC<{
         >
             {/* Image Container with Consistent Aspect Ratio */}
             <div className={`relative w-full ${aspectClass} bg-black/40 overflow-hidden flex items-center justify-center`}>
-                {!isLoaded && (
+                {!isLoaded && !hasError && (
                     <div className="absolute inset-0 bg-white/5 animate-pulse flex items-center justify-center">
                         <svg className="w-8 h-8 text-white/10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                     </div>
                 )}
-                <img 
-                    src={src} 
-                    alt={alt} 
-                    className={`w-full h-full object-cover block transform group-hover:scale-105 transition-transform duration-500 ${isLoaded ? 'opacity-100 image-render-reveal' : 'opacity-0'}`} 
-                    loading="lazy" 
-                    onLoad={() => setIsLoaded(true)}
-                />
+                {hasError ? (
+                    <div className="absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center p-3 text-center z-0">
+                        <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mb-1">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </div>
+                        <span className="text-[10px] text-white/70 font-semibold">Nhấp để mở & tải lại</span>
+                        {driveFileId && (
+                            <span className="text-[8px] text-emerald-400 mt-0.5">Cloud Drive</span>
+                        )}
+                    </div>
+                ) : (
+                    <img 
+                        src={src} 
+                        alt={alt} 
+                        className={`w-full h-full object-cover block transform group-hover:scale-105 transition-transform duration-500 ${isLoaded ? 'opacity-100 image-render-reveal' : 'opacity-0'}`} 
+                        loading="lazy" 
+                        onLoad={() => setIsLoaded(true)}
+                        onError={() => setHasError(true)}
+                    />
+                )}
 
                 {/* Top Badges: Google Drive & Aspect Ratio */}
                 <div className="absolute top-2 left-2 flex items-center gap-1.5 z-10">
@@ -1068,6 +1083,7 @@ const GalleryListItem: React.FC<{
     onInspect, onDownload, onUpscale, onUpscale4k, onGoogleDrive, isSavingDrive, collections
 }) => {
     const matchedCol = collections?.find(c => c.id === item.collectionId);
+    const [thumbError, setThumbError] = useState(false);
 
     return (
         <div 
@@ -1097,12 +1113,20 @@ const GalleryListItem: React.FC<{
                     className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-none relative group/thumb cursor-pointer border border-white/10 shadow-md bg-black/40"
                     title="Nhấp để xem chi tiết ảnh"
                 >
-                    <img 
-                        src={item.src} 
-                        alt={item.description || "Mini artifact"} 
-                        className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300"
-                        loading="lazy"
-                    />
+                    {thumbError ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-amber-400 p-1">
+                            <svg className="w-5 h-5 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            <span className="text-[8px] text-white/50">Mở để tải</span>
+                        </div>
+                    ) : (
+                        <img 
+                            src={item.src} 
+                            alt={item.description || "Mini artifact"} 
+                            className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300"
+                            loading="lazy"
+                            onError={() => setThumbError(true)}
+                        />
+                    )}
                     {item.driveFileId && (
                         <div className="absolute top-1 left-1 bg-emerald-500 text-black p-0.5 rounded-full shadow" title="Đã đồng bộ Google Drive">
                             <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7" /></svg>
@@ -1472,6 +1496,9 @@ interface InspectorModalProps {
   collections?: Collection[];
   onMoveToCollection?: (itemId: string, collectionId: string | undefined) => void;
   onGoogleDrive?: (src: string, description?: string, itemId?: string) => void;
+  onGoogleSignIn?: () => void;
+  onGoogleSignOut?: () => void;
+  onUpdateItem?: (updatedItem: GalleryItem) => void;
 }
 
 const InspectorModal: React.FC<InspectorModalProps> = ({ 
@@ -1491,12 +1518,63 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
   driveSaveStatus,
   collections,
   onMoveToCollection,
-  onGoogleDrive
+  onGoogleDrive,
+  onGoogleSignIn,
+  onUpdateItem
 }) => {
+    const [displaySrc, setDisplaySrc] = useState<string>(item.src);
+    const [isRecovering, setIsRecovering] = useState<boolean>(false);
+    const [recoverError, setRecoverError] = useState<string | null>(null);
     const [copySuccess, setCopySuccess] = useState<string | null>(null);
     const [compareMode, setCompareMode] = useState<'single' | 'split' | 'side-by-side'>('single');
     const [sliderPos, setSliderPos] = useState(50);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    const recoverFromDrive = async () => {
+        const driveId = (item as any).driveFileId;
+        if (!driveId) return;
+
+        setIsRecovering(true);
+        setRecoverError(null);
+        try {
+            const token = await getAccessToken();
+            if (!token) {
+                setRecoverError("Cần đăng nhập Google Drive để tải lại ảnh này.");
+                setIsRecovering(false);
+                return;
+            }
+            const { blob } = await executeWithExponentialBackoff(() => downloadDriveFile(token, driveId));
+            const permanentData = await blobToDataUrl(blob);
+            setDisplaySrc(permanentData);
+            if (onUpdateItem) {
+                onUpdateItem({ ...item, src: permanentData });
+            }
+        } catch (err: any) {
+            console.error("[InspectorModal] Failed to restore image from Drive:", err);
+            setRecoverError(err?.message || "Không thể tải ảnh từ Google Drive. Vui lòng thử lại.");
+        } finally {
+            setIsRecovering(false);
+        }
+    };
+
+    const handleImageError = () => {
+        if (!isRecovering && (item as any).driveFileId) {
+            recoverFromDrive();
+        } else if (!isRecovering) {
+            setRecoverError("Không thể tải hình ảnh này.");
+        }
+    };
+
+    useEffect(() => {
+        setDisplaySrc(item.src);
+        setIsRecovering(false);
+        setRecoverError(null);
+
+        // If item.src is a temporary blob: URL (revoked across page reloads), recover immediately
+        if (item.src?.startsWith('blob:') && (item as any).driveFileId) {
+            recoverFromDrive();
+        }
+    }, [item.id, item.src]);
 
     const handleSliderMove = (clientX: number) => {
         if (!containerRef.current) return;
@@ -1625,7 +1703,7 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                              <div className="flex flex-col items-center justify-center gap-3">
                                  <span className="text-[10px] font-bold text-primary-400 uppercase tracking-widest bg-primary-500/10 px-3 py-1 border border-primary-500/15 rounded-full">Enhanced Super-Res</span>
                                  <div className="flex-1 flex items-center justify-center overflow-hidden">
-                                     <img src={item.src} className="max-w-full max-h-[50vh] object-contain rounded-xl shadow-2xl border border-white/5" alt="Upscaled Frame" />
+                                     <img src={displaySrc} className="max-w-full max-h-[50vh] object-contain rounded-xl shadow-2xl border border-white/5" alt="Upscaled Frame" onError={handleImageError} />
                                  </div>
                              </div>
                          </div>
@@ -1644,7 +1722,7 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                                  className="absolute inset-0 flex items-center justify-center pointer-events-none animate-in fade-in duration-300"
                                  style={{ clipPath: `inset(0 0 0 ${sliderPos}%)` }}
                              >
-                                 <img src={item.src} className="max-w-full max-h-[50vh] object-contain rounded-lg pointer-events-none" alt="Upscaled" />
+                                 <img src={displaySrc} className="max-w-full max-h-[50vh] object-contain rounded-lg pointer-events-none" alt="Upscaled" onError={handleImageError} />
                              </div>
                              
                              {/* Vertical Slider divider line */}
@@ -1666,7 +1744,45 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                               </div>
                          </div>
                      ) : (
-                         <img src={item.src} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" alt="Inspect" />
+                         <div className="relative max-w-full max-h-full flex items-center justify-center">
+                             <img 
+                                 src={displaySrc} 
+                                 className={`max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-opacity duration-300 ${isRecovering ? 'opacity-20' : 'opacity-100'}`} 
+                                 alt="Inspect" 
+                                 onError={handleImageError}
+                             />
+                             {isRecovering && (
+                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-md rounded-2xl p-6 text-center z-20">
+                                     <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin mb-4" />
+                                     <span className="text-white text-sm font-bold tracking-wide">Đang khôi phục ảnh từ Google Drive...</span>
+                                     <span className="text-white/40 text-xs mt-1">Đang chuyển đổi sang bộ nhớ vĩnh viễn trên máy</span>
+                                 </div>
+                             )}
+                             {recoverError && (
+                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 backdrop-blur-md rounded-2xl p-6 text-center z-20">
+                                     <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mb-3">
+                                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                     </div>
+                                     <p className="text-amber-200 text-sm font-semibold max-w-xs">{recoverError}</p>
+                                     {onGoogleSignIn && !googleUser ? (
+                                         <button 
+                                             onClick={onGoogleSignIn} 
+                                             className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-2"
+                                         >
+                                             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/></svg>
+                                             Kết nối Google Drive
+                                         </button>
+                                     ) : (
+                                         <button 
+                                             onClick={recoverFromDrive} 
+                                             className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg"
+                                         >
+                                             Thử tải lại từ Drive
+                                         </button>
+                                     )}
+                                 </div>
+                             )}
+                         </div>
                      )}
                      {hasPrev && (
                          <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-6 top-1/2 -translate-y-1/2 p-4 bg-white/5 hover:bg-white/10 text-white rounded-full transition backdrop-blur-md opacity-0 group-hover:opacity-100">
@@ -1850,7 +1966,7 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 Remix
                             </button>
-                            <button onClick={() => onCompose(item)} className="py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                                 Compose
                             </button>
@@ -1858,7 +1974,7 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                         <div className="flex flex-col gap-3">
                             {onGoogleDrive && !(item as any).driveFileId && (
                                 <button 
-                                    onClick={() => onGoogleDrive(item.src, item.description, item.id)} 
+                                    onClick={() => onGoogleDrive(displaySrc, item.description, item.id)} 
                                     disabled={isSavingDrive}
                                     className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-wait"
                                 >
@@ -1889,7 +2005,7 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
 
                             <div className="flex gap-4">
                                  <button 
-                                     onClick={() => onDownload(item.src, item.description)} 
+                                     onClick={() => onDownload(displaySrc, item.description)} 
                                      disabled={isSavingDrive}
                                      className="flex-[2] py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-80 disabled:cursor-wait"
                                  >
@@ -2230,6 +2346,66 @@ const App: React.FC = () => {
       console.error("[IndexedDB] Error persisting collections:", err);
     });
   }, [collections]);
+
+  // Auto-heal any legacy items that have temporary 'blob:' URLs using Drive file IDs
+  const failedHealingIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let isCancelled = false;
+    const healLegacyBlobItems = async () => {
+      if (!googleUser) return;
+      const brokenItems = galleryItems.filter(
+        item => item.src?.startsWith('blob:') && (item as any).driveFileId && !failedHealingIdsRef.current.has(item.id)
+      );
+      if (brokenItems.length === 0) return;
+
+      try {
+        const token = await getAccessToken();
+        if (!token || isCancelled) return;
+
+        console.log(`[Auto-Heal] Found ${brokenItems.length} items with temporary blob URLs. Healing from Google Drive...`);
+        let healedAny = false;
+        const healedMap = new Map<string, string>();
+
+        for (const broken of brokenItems) {
+          if (isCancelled) break;
+          const fileId = (broken as any).driveFileId;
+          try {
+            const { blob } = await executeWithExponentialBackoff(() => downloadDriveFile(token, fileId));
+            const permanentData = await blobToDataUrl(blob);
+            healedMap.set(broken.id, permanentData);
+            healedAny = true;
+          } catch (err) {
+            console.warn(`[Auto-Heal] Could not restore file ${fileId}:`, err);
+            failedHealingIdsRef.current.add(broken.id);
+          }
+        }
+
+        if (healedAny && !isCancelled) {
+          setGalleryItems(prev => {
+            const updated = prev.map(item => {
+              if (healedMap.has(item.id)) {
+                return { ...item, src: healedMap.get(item.id)! };
+              }
+              return item;
+            });
+            saveAllGalleryItemsDB(updated).catch(console.error);
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error("[Auto-Heal] Error healing legacy blob items:", err);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      healLegacyBlobItems();
+    }, 1500);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [googleUser, galleryItems]);
 
   // Session ref to avoid auto-saving same image repeatedly in the same session, initialized with all pre-existing gallery IDs
   const syncedIdsRef = useRef<Set<string>>(new Set(
@@ -3570,13 +3746,13 @@ const App: React.FC = () => {
 
         for (const file of files) {
           const fileId = file.id;
-          const alreadyExists = galleryItems.some(item => item.driveFileId === fileId);
-          if (alreadyExists) continue;
+          const existingItem = galleryItems.find(item => item.driveFileId === fileId);
+          if (existingItem && !existingItem.src?.startsWith('blob:')) continue;
 
           try {
             // Wrap file download with exponential backoff retry
             const { blob } = await fetchWithRetry(() => downloadDriveFile(token, fileId));
-            const srcUrl = URL.createObjectURL(blob);
+            const srcUrl = await blobToDataUrl(blob);
             const timestamp = file.createdTime ? new Date(file.createdTime).getTime() : Date.now();
             
             const cleanName = file.name
@@ -3586,12 +3762,13 @@ const App: React.FC = () => {
               .trim();
 
             allFetchedItems.push({
-              id: "drive-" + fileId,
+              id: existingItem?.id || ("drive-" + fileId),
               src: srcUrl,
-              type: 'JSON_TO_IMG',
-              createdAt: timestamp,
-              description: cleanName || 'Drive Shared Art',
+              type: existingItem?.type || 'JSON_TO_IMG',
+              createdAt: existingItem?.createdAt || timestamp,
+              description: existingItem?.description || cleanName || 'Drive Shared Art',
               collectionId: colId,
+              metadata: existingItem?.metadata,
               driveFileId: fileId
             } as any);
           } catch (fileErr) {
@@ -3605,13 +3782,13 @@ const App: React.FC = () => {
       const rootFiles = await fetchWithRetry(() => listDriveFiles(token, rootFolderId));
       for (const file of rootFiles) {
         const fileId = file.id;
-        const alreadyExists = galleryItems.some(item => item.driveFileId === fileId);
-        if (alreadyExists) continue;
+        const existingItem = galleryItems.find(item => item.driveFileId === fileId);
+        if (existingItem && !existingItem.src?.startsWith('blob:')) continue;
 
         try {
           // Wrap file download with exponential backoff retry
           const { blob } = await fetchWithRetry(() => downloadDriveFile(token, fileId));
-          const srcUrl = URL.createObjectURL(blob);
+          const srcUrl = await blobToDataUrl(blob);
           const timestamp = file.createdTime ? new Date(file.createdTime).getTime() : Date.now();
           
           const cleanName = file.name
@@ -3621,11 +3798,12 @@ const App: React.FC = () => {
             .trim();
 
           allFetchedItems.push({
-            id: "drive-" + fileId,
+            id: existingItem?.id || ("drive-" + fileId),
             src: srcUrl,
-            type: 'JSON_TO_IMG',
-            createdAt: timestamp,
-            description: cleanName || 'Drive Shared Art',
+            type: existingItem?.type || 'JSON_TO_IMG',
+            createdAt: existingItem?.createdAt || timestamp,
+            description: existingItem?.description || cleanName || 'Drive Shared Art',
+            metadata: existingItem?.metadata,
             driveFileId: fileId
           } as any);
         } catch (fileErr) {
@@ -3635,9 +3813,18 @@ const App: React.FC = () => {
 
       if (allFetchedItems.length > 0) {
         setGalleryItems(prev => {
-          // Remove potential duplicates
-          const filteredPrev = prev.filter(item => !allFetchedItems.some(news => news.driveFileId === item.driveFileId));
-          return [...allFetchedItems, ...filteredPrev];
+          const fetchedMap = new Map(allFetchedItems.map(item => [(item as any).driveFileId, item]));
+          const updated = prev.map(item => {
+            const driveId = (item as any).driveFileId;
+            if (driveId && fetchedMap.has(driveId)) {
+              const fetched = fetchedMap.get(driveId)!;
+              fetchedMap.delete(driveId);
+              return { ...item, ...fetched, src: fetched.src };
+            }
+            return item;
+          });
+          const remainingNew = Array.from(fetchedMap.values());
+          return [...remainingNew, ...updated];
         });
       }
 
@@ -4415,6 +4602,11 @@ const App: React.FC = () => {
             collections={collections}
             onMoveToCollection={handleMoveToCollection}
             onGoogleDrive={handleSaveToGoogleDrive}
+            onUpdateItem={(updatedItem) => {
+              setInspectorItem(updatedItem);
+              setGalleryItems(prev => prev.map(g => g.id === updatedItem.id ? updatedItem : g));
+              saveGalleryItemDB(updatedItem).catch(console.error);
+            }}
           />
       )}
       {isCollectionHubOpen && (

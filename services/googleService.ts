@@ -497,6 +497,22 @@ export const fetchImageAsBlob = async (src: string): Promise<{ blob: Blob; mimeT
   }
 };
 
+// Convert a Blob to a permanent Base64 Data URL (data:image/png;base64,...)
+export const blobToDataUrl = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed converting blob to data URL.'));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
 // Find Google Drive folder by name
 export const getFolderIdByName = async (
   accessToken: string,
