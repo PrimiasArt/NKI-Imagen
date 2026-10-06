@@ -72,6 +72,12 @@ import { User } from 'firebase/auth';
 import { SettingsModal } from './components/SettingsModal';
 import { UpdateNotificationToast } from './components/UpdateNotificationToast';
 import { syncFullCloudVault, pushVaultToCloud, pullVaultFromCloud } from './services/cloudVaultService';
+import { 
+  loadAntiAiSettings, 
+  applyAntiAiCamouflage, 
+  sanitizePromptAntiAi, 
+  sanitizePromptJsonAntiAi 
+} from './services/antiAiCamouflageService';
 import {
   getAllGalleryItemsDB,
   saveGalleryItemDB,
@@ -1490,7 +1496,7 @@ interface InspectorModalProps {
   hasPrev: boolean;
   requestConfirm: (msg: string, onConfirm: () => void) => void;
   googleUser: any;
-  onDownload: (src: string, description?: string) => void;
+  onDownload: (src: string, description?: string, forceAntiAi?: boolean) => void;
   isSavingDrive: boolean;
   driveSaveStatus: { id: string; success: boolean; message: string } | null;
   collections?: Collection[];
@@ -1528,6 +1534,9 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
     const [copySuccess, setCopySuccess] = useState<string | null>(null);
     const [compareMode, setCompareMode] = useState<'single' | 'split' | 'side-by-side'>('single');
     const [sliderPos, setSliderPos] = useState(50);
+    const [isAntiAiActive, setIsAntiAiActive] = useState<boolean>(() => {
+        return loadAntiAiSettings().enabled;
+    });
     const containerRef = useRef<HTMLDivElement>(null);
 
     const recoverFromDrive = async () => {
@@ -2003,16 +2012,50 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                                 </div>
                             )}
 
+                            {/* Anti-AI Camouflage Toggle */}
+                            <div className="flex items-center justify-between px-3 py-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isAntiAiActive} 
+                                        onChange={(e) => setIsAntiAiActive(e.target.checked)}
+                                        className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-400 bg-black/40 border-white/20 accent-emerald-500 cursor-pointer"
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1 leading-tight">
+                                            <span>🛡️</span> Khử Dấu AI (Bypass Detector)
+                                        </span>
+                                        <span className="text-[9px] text-white/40 leading-tight">
+                                            Bơm hạt cảm biến Film Grain & Cấy EXIF máy ảnh thật
+                                        </span>
+                                    </div>
+                                </label>
+                                {isAntiAiActive && (
+                                    <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                                        JPG + EXIF
+                                    </span>
+                                )}
+                            </div>
+
                             <div className="flex gap-4">
                                  <button 
-                                     onClick={() => onDownload(displaySrc, item.description)} 
+                                     onClick={() => onDownload(displaySrc, item.description, isAntiAiActive)} 
                                      disabled={isSavingDrive}
-                                     className="flex-[2] py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-80 disabled:cursor-wait"
+                                     className={`flex-[2] py-3 text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-80 disabled:cursor-wait ${
+                                         isAntiAiActive 
+                                             ? 'bg-emerald-600 hover:bg-emerald-500 text-black shadow-emerald-500/20' 
+                                             : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                                     }`}
                                  >
                                     {isSavingDrive && !!(item as any).driveFileId ? (
                                         <>
-                                            <span className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
                                             Saving to Drive...
+                                        </>
+                                    ) : isAntiAiActive ? (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                            Tải Khử Dấu AI
                                         </>
                                     ) : (
                                         <>
@@ -3595,10 +3638,30 @@ const App: React.FC = () => {
     if (item) setInspectorItem(item);
   };
 
-  const handleDownloadImage = async (src: string, promptSnippet?: string) => {
+  const handleDownloadImage = async (src: string, promptSnippet?: string, forceAntiAi?: boolean) => {
+    const settings = loadAntiAiSettings();
+    const shouldCamouflage = forceAntiAi ?? settings.enabled;
+
+    let downloadUrl = src;
+    if (shouldCamouflage) {
+      try {
+        const { dataUrl, applied } = await applyAntiAiCamouflage(src, settings);
+        if (applied) {
+          downloadUrl = dataUrl;
+        }
+      } catch (err) {
+        console.warn("[Download] Failed to apply Anti-AI camouflage, using original:", err);
+      }
+    }
+
+    const baseName = getFormattedFileName(promptSnippet);
+    const finalName = shouldCamouflage 
+      ? baseName.replace(/\.png$/i, '_real_cam.jpg') 
+      : baseName;
+
     const link = document.createElement('a');
-    link.href = src;
-    link.download = getFormattedFileName(promptSnippet);
+    link.href = downloadUrl;
+    link.download = finalName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -5135,7 +5198,27 @@ const App: React.FC = () => {
                             </div>
 
                             {/* Prompt Editor */}
-                            <div className="space-y-4">
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center px-1">
+                                    <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em]">Prompt Parameters</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            try {
+                                                const current = JSON.parse(jsonInput);
+                                                const sanitized = sanitizePromptJsonAntiAi(current, loadAntiAiSettings().cameraPreset);
+                                                updateJsonInput(JSON.stringify(sanitized, null, 2));
+                                            } catch (e) {
+                                                updateJsonInput(sanitizePromptAntiAi(jsonInput));
+                                            }
+                                        }}
+                                        className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-widest flex items-center gap-1 transition-colors bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/20"
+                                        title="Tự động khử các từ khóa bẫy AI (photorealistic, 8k, octane...) và đệm chi tiết máy ảnh thật"
+                                    >
+                                        <span>🛡️</span>
+                                        <span>Khử Bẫy AI</span>
+                                    </button>
+                                </div>
                                 <JsonPromptEditor 
                                     value={jsonInput} 
                                     onChange={(val) => updateJsonInput(val)} 

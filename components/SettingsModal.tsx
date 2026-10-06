@@ -22,6 +22,13 @@ import {
   isRunningStandalone,
   triggerSwUpdate
 } from '../services/updateService';
+import { 
+  loadAntiAiSettings, 
+  saveAntiAiSettings, 
+  CAMERA_PROFILES,
+  sanitizePromptAntiAi
+} from '../services/antiAiCamouflageService';
+import { AntiAiCamouflageSettings, CameraPresetType } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -48,7 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSyncCloudVault,
   isCloudVaultSyncing,
 }) => {
-  const [activeTab, setActiveTab] = useState<'storage' | 'gallery' | 'drive' | 'update'>('storage');
+  const [activeTab, setActiveTab] = useState<'storage' | 'gallery' | 'drive' | 'update' | 'anti-ai'>('storage');
   const [driveFolderInput, setDriveFolderInput] = useState(storageSettings.driveFolderName || 'NK Imagen Storage');
   const [prefixInput, setPrefixInput] = useState(storageSettings.customPrefix || 'NKI_');
   const [namingPattern, setNamingPattern] = useState(storageSettings.namingPattern || 'subject_timestamp');
@@ -57,6 +64,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [autoSaveLocalDisk, setAutoSaveLocalDisk] = useState(storageSettings.autoSaveToLocalDisk);
   const [localFolderName, setLocalFolderName] = useState<string | undefined>(storageSettings.localFolderName);
   const [hasLocalDirectory, setHasLocalDirectory] = useState(storageSettings.hasLocalDirectory);
+  
+  // Anti-AI Camouflage State
+  const [antiAiSettings, setAntiAiSettings] = useState<AntiAiCamouflageSettings>(loadAntiAiSettings);
+  const [sanitizePromptInput, setSanitizePromptInput] = useState<string>(
+    'A hyperrealistic, 8k masterpiece portrait of a beautiful woman, octane render, unreal engine 5, smooth plastic skin, cinematic lighting'
+  );
+  const [sanitizedPromptResult, setSanitizedPromptResult] = useState<string>('');
+
+  const updateAntiAi = (patch: Partial<AntiAiCamouflageSettings>) => {
+    const updated = { ...antiAiSettings, ...patch };
+    setAntiAiSettings(updated);
+    saveAntiAiSettings(updated);
+  };
   
   const [galleryEstimate, setGalleryEstimate] = useState<{ count: number; formattedSize: string }>({
     count: galleryCount,
@@ -294,6 +314,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <span>Cập Nhật & App</span>
             {updateInfo?.hasUpdate && (
               <span className="w-2 h-2 rounded-full bg-primary-400 animate-ping"></span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('anti-ai')}
+            className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
+              activeTab === 'anti-ai'
+                ? 'border-emerald-400 text-emerald-300 bg-white/[0.03]'
+                : 'border-transparent text-white/50 hover:text-white/80'
+            }`}
+          >
+            <span>🛡️</span>
+            <span>Khử Dấu AI (Bypass)</span>
+            {antiAiSettings.enabled && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             )}
           </button>
         </div>
@@ -1016,6 +1050,192 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <strong className="text-white/90">An toàn dữ liệu:</strong> Toàn bộ ảnh trong Gallery và Prompt JSON trong IndexedDB được lưu an toàn tuyệt đối ở máy tính, không bao giờ bị xóa khi cập nhật.
                   </li>
                 </ul>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: KHỬ DẤU VẾT AI (ANTI-AI CAMOUFLAGE) */}
+          {activeTab === 'anti-ai' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              {/* Banner Header */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/10 border border-emerald-500/30 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-none text-xl border border-emerald-500/30">
+                  🛡️
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    Bộ Lọc Khử Dấu Vết AI & Ngụy Trang Máy Ảnh Thật
+                    <span className="text-[9px] uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                      Anti-AI Camouflage
+                    </span>
+                  </h4>
+                  <p className="text-xs text-white/60 leading-relaxed">
+                    Giải pháp toàn diện giúp hình ảnh vượt qua các bộ quét nhận diện AI (Facebook, TikTok, Sightengine, Hive...) bằng cách phá vỡ thủy ấn số <strong className="text-emerald-300">SynthID</strong> của Google, làm sạch siêu dữ liệu và cấy EXIF máy ảnh chuyên nghiệp.
+                  </p>
+                </div>
+              </div>
+
+              {/* Section 1: Master Switch */}
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>Tự Động Kích Hoạt Khi Tải Ảnh</span>
+                    </label>
+                    <p className="text-xs text-white/40">
+                      Mỗi khi tải ảnh về máy từ Gallery hoặc Inspector, hệ thống sẽ tự động chuyển đổi sang ảnh chụp quang học chân thực (.jpg).
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={antiAiSettings.enabled}
+                      onChange={(e) => updateAntiAi({ enabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Section 2: Camera Profile Selection */}
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                <label className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
+                  1. Cấu Hình Máy Ảnh Giả Lập (Camera Hardware Profile)
+                </label>
+                <p className="text-xs text-white/50">
+                  Siêu dữ liệu EXIF sẽ được nhúng các thông số vật lý của cảm biến và ống kính thực tế để đánh lừa các thuật toán kiểm tra:
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {(Object.keys(CAMERA_PROFILES) as CameraPresetType[]).map((key) => {
+                    const prof = CAMERA_PROFILES[key];
+                    const isSelected = antiAiSettings.cameraPreset === key;
+                    return (
+                      <div
+                        key={key}
+                        onClick={() => updateAntiAi({ cameraPreset: key })}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-emerald-500/10 border-emerald-500/50 shadow-md ring-1 ring-emerald-500/30'
+                            : 'bg-white/[0.01] border-white/5 hover:border-white/20 hover:bg-white/[0.03]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-white/20'}`}></span>
+                            {prof.make} {prof.model}
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-300/80 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            ISO {prof.iso}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/50 truncate font-mono">{prof.lens}</p>
+                        <div className="flex items-center gap-2 mt-2 text-[10px] text-white/40 font-mono">
+                          <span>f/{prof.fNumber[0]/prof.fNumber[1]}</span>
+                          <span>•</span>
+                          <span>{prof.exposureTime[0]}/{prof.exposureTime[1]}s</span>
+                          <span>•</span>
+                          <span>{prof.focalLength[0]/prof.focalLength[1]}mm</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Section 3: Sensor Grain & SynthID Disruption */}
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
+                <label className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
+                  2. Tinh Chỉnh Quang Học Phá Thủy Ấn SynthID
+                </label>
+
+                {/* Grain slider */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-white/90">Hạt Nhiễu Cảm Biến Quang Học (Analog Sensor Grain):</span>
+                    <span className="font-mono text-emerald-400 font-bold">
+                      {(antiAiSettings.grainIntensity * 100).toFixed(1)}% ({antiAiSettings.grainIntensity <= 0.015 ? 'Siêu Mịn' : antiAiSettings.grainIntensity <= 0.028 ? 'Chuẩn Cảm Biến' : 'Đậm Hạt Film'})
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.008"
+                    max="0.045"
+                    step="0.002"
+                    value={antiAiSettings.grainIntensity}
+                    onChange={(e) => updateAntiAi({ grainIntensity: parseFloat(e.target.value) })}
+                    className="w-full accent-emerald-500 bg-white/10 rounded-lg h-2 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-white/30 font-mono">
+                    <span>0.8% (Siêu mịn)</span>
+                    <span>2.2% (Tự nhiên khuyên dùng)</span>
+                    <span>4.5% (Đậm chất Film cổ điển)</span>
+                  </div>
+                </div>
+
+                <hr className="border-white/5" />
+
+                {/* Micro-Resampling Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-semibold text-white/90">Vi Điều Chỉnh Điểm Ảnh (Micro-Resampling Jitter 0.4%)</span>
+                    <p className="text-[11px] text-white/40">
+                      Tái cấu trúc 0.4% biên ảnh để bẻ gãy tính tuần hoàn của watermark SynthID của Google Imagen.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={antiAiSettings.microResample}
+                      onChange={(e) => updateAntiAi({ microResample: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Section 4: Prompt Sanitizer Sandbox */}
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
+                    3. Công Cụ Khử "Từ Khóa Bẫy AI" Trong Prompt
+                  </label>
+                  <span className="text-[10px] text-white/40">Test nhanh Prompt</span>
+                </div>
+                <p className="text-xs text-white/50 leading-relaxed">
+                  Các từ như <code>photorealistic, 8k, octane, masterpiece</code> là mồi nhử khiến AI bị phát hiện. Nhập thử prompt dưới đây để thanh lọc:
+                </p>
+
+                <textarea
+                  value={sanitizePromptInput}
+                  onChange={(e) => setSanitizePromptInput(e.target.value)}
+                  className="w-full h-16 bg-black/40 border border-white/10 rounded-xl p-3 text-xs text-white placeholder-white/20 focus:border-emerald-500 resize-none font-mono"
+                  placeholder="Nhập câu prompt chứa từ khóa cần khử..."
+                />
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      const cleaned = sanitizePromptAntiAi(sanitizePromptInput);
+                      setSanitizedPromptResult(cleaned);
+                    }}
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md"
+                  >
+                    <span>🧹</span>
+                    <span>Làm Sạch Prompt Ngay</span>
+                  </button>
+                </div>
+
+                {sanitizedPromptResult && (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-1 animate-in fade-in duration-300">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400">Kết quả Prompt đã khử bẫy AI:</span>
+                    <p className="text-xs font-mono text-emerald-100 select-all leading-relaxed">
+                      {sanitizedPromptResult}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}

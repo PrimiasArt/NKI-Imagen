@@ -117,3 +117,14 @@ export interface PersonalPreset {
   data: Partial<ImagePromptJson>;
   createdAt: number;
 }
+
+export type CameraPresetType = 'SONY_A7IV' | 'FUJIFILM_XT4' | 'CANON_R5' | 'IPHONE_15_PRO';
+
+export interface AntiAiCamouflageSettings {
+  enabled: boolean;
+  grainIntensity: number; // 0.012 to 0.045
+  microResample: boolean; // Subtle cropping and spatial jitter to break SynthID grids
+  cameraPreset: CameraPresetType;
+  stripMetadata: boolean;
+  jpegQuality: number; // e.g. 0.93
+}
