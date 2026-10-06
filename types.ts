@@ -28,6 +28,9 @@ export enum AppMode {
   SCENARIO_EDITOR = 'SCENARIO_EDITOR',
   VEO3_PROMPT_CREATOR = 'VEO3_PROMPT_CREATOR',
   
+  // AI Photo Studio (Photoshop 2026 + Canva AI)
+  AI_STUDIO = 'AI_STUDIO',
+  
   // Others
   GALLERY = 'GALLERY',
   LOGS = 'LOGS',

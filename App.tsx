@@ -74,6 +74,7 @@ import { User } from 'firebase/auth';
 import { SettingsModal } from './components/SettingsModal';
 import { BatchCollectionModal } from './components/BatchCollectionModal';
 import { UpdateNotificationToast } from './components/UpdateNotificationToast';
+import { PhotoStudioWorkspace } from './components/PhotoStudio/PhotoStudioWorkspace';
 import { syncFullCloudVault, pushVaultToCloud, pullVaultFromCloud } from './services/cloudVaultService';
 import { 
   loadAntiAiSettings, 
@@ -441,12 +442,17 @@ const ActionButton = ({ onClick, title, children, colorClass }: { onClick: (e: R
 );
 
 const FunctionalButtonGroup = ({ 
-  onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k 
+  onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio 
 }: { 
-  onVeoStart: (e: React.MouseEvent) => void, onVeoEnd: (e: React.MouseEvent) => void, onPose: (e: React.MouseEvent) => void, onCompose: (e: React.MouseEvent) => void, onInspect: (e: React.MouseEvent) => void, onDownload: (e: React.MouseEvent) => void, onUpscale: (e: React.MouseEvent) => void, onUpscale4k: (e: React.MouseEvent) => void 
+  onVeoStart: (e: React.MouseEvent) => void, onVeoEnd: (e: React.MouseEvent) => void, onPose: (e: React.MouseEvent) => void, onCompose: (e: React.MouseEvent) => void, onInspect: (e: React.MouseEvent) => void, onDownload: (e: React.MouseEvent) => void, onUpscale: (e: React.MouseEvent) => void, onUpscale4k: (e: React.MouseEvent) => void, onStudio?: (e: React.MouseEvent) => void 
 }) => (
   <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0 z-20">
     <div className="flex justify-center items-center gap-1.5 w-full">
+      {onStudio && (
+        <ActionButton onClick={onStudio} title="Photo Studio AI (Chỉnh sửa ảnh)" colorClass="text-emerald-400">
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+        </ActionButton>
+      )}
       <ActionButton onClick={onVeoStart} title="Veo Start" colorClass="text-rose-400">
         <span className="text-[8px] tracking-tighter">V-S</span>
       </ActionButton>
@@ -923,6 +929,7 @@ const MasonryImage: React.FC<{
     onDownload: (e: React.MouseEvent) => void;
     onUpscale: (e: React.MouseEvent) => void;
     onUpscale4k: (e: React.MouseEvent) => void;
+    onStudio?: (e: React.MouseEvent) => void;
     onGoogleDrive?: (e: React.MouseEvent) => void;
     isSavingDrive?: boolean;
     driveFileId?: string;
@@ -932,7 +939,7 @@ const MasonryImage: React.FC<{
     density?: GalleryDensity;
 }> = ({ 
     src, alt, selected, onSelect, onClick, selectionMode, index = 0, 
-    onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, 
+    onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio, 
     onGoogleDrive, isSavingDrive, driveFileId, collectionId, collections, item, density = 'medium' 
 }) => {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -1037,6 +1044,7 @@ const MasonryImage: React.FC<{
                     onDownload={onDownload} 
                     onUpscale={onUpscale}
                     onUpscale4k={onUpscale4k}
+                    onStudio={onStudio}
                 />
             </div>
 
@@ -1093,12 +1101,13 @@ const GalleryListItem: React.FC<{
     onDownload: (e: React.MouseEvent) => void;
     onUpscale: (e: React.MouseEvent) => void;
     onUpscale4k: (e: React.MouseEvent) => void;
+    onStudio?: (e: React.MouseEvent) => void;
     onGoogleDrive?: (e: React.MouseEvent) => void;
     isSavingDrive?: boolean;
     collections?: Collection[];
 }> = ({
     item, selected, onSelect, onClick, onVeoStart, onVeoEnd, onPose, onCompose,
-    onInspect, onDownload, onUpscale, onUpscale4k, onGoogleDrive, isSavingDrive, collections
+    onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onGoogleDrive, isSavingDrive, collections
 }) => {
     const matchedCol = collections?.find(c => c.id === item.collectionId);
     const [thumbError, setThumbError] = useState(false);
@@ -1201,6 +1210,11 @@ const GalleryListItem: React.FC<{
 
             {/* Right Section: Compact Functional Button Group */}
             <div className="flex items-center gap-1.5 self-end md:self-center flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                {onStudio && (
+                    <ActionButton onClick={onStudio} title="Mở trong AI Photo Studio (Sửa ảnh)" colorClass="text-emerald-400">
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    </ActionButton>
+                )}
                 <ActionButton onClick={onInspect} title="Xem lớn & Chi tiết">
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
                 </ActionButton>
@@ -1521,6 +1535,7 @@ interface InspectorModalProps {
   onGoogleSignIn?: () => void;
   onGoogleSignOut?: () => void;
   onUpdateItem?: (updatedItem: GalleryItem) => void;
+  onStudio?: (item: GalleryItem) => void;
 }
 
 const InspectorModal: React.FC<InspectorModalProps> = ({ 
@@ -1542,7 +1557,8 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
   onMoveToCollection,
   onGoogleDrive,
   onGoogleSignIn,
-  onUpdateItem
+  onUpdateItem,
+  onStudio
 }) => {
     const [displaySrc, setDisplaySrc] = useState<string>(item.src);
     const [isRecovering, setIsRecovering] = useState<boolean>(false);
@@ -1986,13 +2002,23 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                         )}
                     </div>
                     <div className="p-8 border-t border-white/10 bg-black/20 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <button onClick={() => onRemix(item)} className="py-4 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        <div className="grid grid-cols-3 gap-3">
+                            {onStudio && (
+                                <button 
+                                    onClick={() => onStudio({ ...item, src: displaySrc })} 
+                                    className="py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs"
+                                    title="Mở ảnh trong Photo Studio 2026 để chỉnh màu nâng cao & AI Inpaint"
+                                >
+                                    <span className="text-sm">🎨</span>
+                                    <span>Studio AI</span>
+                                </button>
+                            )}
+                            <button onClick={() => onRemix(item)} className="py-3.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 Remix
                             </button>
-                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                                 Compose
                             </button>
                         </div>
@@ -2233,6 +2259,17 @@ const App: React.FC = () => {
   }, [googleUser]);
 
   const [activeTab, setActiveTab] = useState<AppMode>(AppMode.IMG_TO_JSON);
+  const [studioInitialImage, setStudioInitialImage] = useState<string | null>(null);
+
+  const handleOpenStudio = (src?: string) => {
+    if (src) {
+      setStudioInitialImage(src);
+    } else if (galleryItems && galleryItems.length > 0 && !studioInitialImage) {
+      setStudioInitialImage(galleryItems[0].src);
+    }
+    setActiveTab(AppMode.AI_STUDIO);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string>("Processing...");
@@ -4735,11 +4772,12 @@ const App: React.FC = () => {
   const handleModuleClick = (module: string) => {
     if (module === 'complex_imagen') setActiveTab(AppMode.IMG_TO_JSON);
     else if (module === 'scenario_director') setActiveTab(AppMode.SCENARIO_EDITOR);
+    else if (module === 'ai_studio') handleOpenStudio();
     else if (module === 'library') setActiveTab(AppMode.GALLERY);
     else if (module === 'history') setActiveTab(AppMode.LOGS);
   };
 
-  const isComplexImagenGroup = [AppMode.IMG_TO_JSON, AppMode.JSON_CONVERTER, AppMode.JSON_TO_IMG, AppMode.POSE_VARIANTS, AppMode.COMPOSE_IMAGE, AppMode.REFERENCE_CREATION, AppMode.UPSCALE_IMAGE].includes(activeTab);
+  const isComplexImagenGroup = [AppMode.IMG_TO_JSON, AppMode.JSON_CONVERTER, AppMode.JSON_TO_IMG, AppMode.POSE_VARIANTS, AppMode.COMPOSE_IMAGE, AppMode.REFERENCE_CREATION, AppMode.UPSCALE_IMAGE, AppMode.AI_STUDIO].includes(activeTab);
 
   return (
     <div className="min-h-screen flex flex-col font-sans transition-all duration-700">
@@ -4892,6 +4930,7 @@ const App: React.FC = () => {
           <InspectorModal 
             item={inspectorItem} 
             onClose={() => setInspectorItem(null)} 
+            onStudio={(item) => { handleOpenStudio(item.src); setInspectorItem(null); }}
             onRemix={(item) => { if(item.metadata?.promptJson) { setJsonInput(JSON.stringify(item.metadata.promptJson, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); setInspectorItem(null); window.scrollTo(0,0); } }}
             onCompose={(item) => { handleUseInCompose(item.src); setInspectorItem(null); }}
             onDelete={(id) => removeFromGallery(id)} 
@@ -5010,6 +5049,18 @@ const App: React.FC = () => {
              <nav className="flex bg-white/5 p-1 rounded-xl gap-1 border border-white/10 items-center">
                 <button onClick={() => handleModuleClick('complex_imagen')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${isComplexImagenGroup ? 'bg-primary-500 text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.4)]' : 'text-white/40 hover:text-white'}`}>Complex Imagen</button>
                 <button onClick={() => handleModuleClick('scenario_director')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all ${[AppMode.SCENARIO_EDITOR, AppMode.VEO3_PROPARSE_CREATOR || AppMode.VEO3_PROMPT_CREATOR].includes(activeTab) ? 'bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.4)]' : 'text-white/40 hover:text-white'}`}>Scenario Builder</button>
+                <button 
+                  onClick={() => handleModuleClick('ai_studio')} 
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 ${
+                    activeTab === AppMode.AI_STUDIO 
+                      ? 'bg-emerald-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.5)] font-bold' 
+                      : 'text-white/40 hover:text-white'
+                  }`}
+                  title="Photo Studio 2026: Chỉnh màu nâng cao & Canva AI"
+                >
+                  <span className="text-[11px]">🎨</span>
+                  <span>AI Studio</span>
+                </button>
                 <button onClick={() => setIsDarkMode(!isDarkMode)} className={`w-8 h-8 flex items-center justify-center rounded-lg glass-card transition-all ${isDarkMode ? 'text-amber-400' : 'text-slate-600 shadow-inner'}`} title="Chuyển chế độ sáng/tối">
                     {isDarkMode ? (
                         <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" /></svg>
@@ -5121,7 +5172,8 @@ const App: React.FC = () => {
                 { id: AppMode.POSE_VARIANTS, label: 'Pose', icon: '🏃' }, 
                 { id: AppMode.COMPOSE_IMAGE, label: 'Compose', icon: '🧩' },
                 { id: AppMode.REFERENCE_CREATION, label: 'Reference', icon: '🎭' },
-                { id: AppMode.UPSCALE_IMAGE, label: 'Upscale', icon: '✨' } 
+                { id: AppMode.UPSCALE_IMAGE, label: 'Upscale', icon: '✨' },
+                { id: AppMode.AI_STUDIO, label: 'Studio AI', icon: '🖌️' }
               ].map(sub => (
                 <button 
                   key={sub.id} 
@@ -5645,6 +5697,7 @@ const App: React.FC = () => {
                                                   onPose={() => handleUseAsPoseBase(src)} 
                                                   onCompose={() => handleUseInCompose(src)} 
                                                   onInspect={() => handleInspectImage(src)} 
+                                                  onStudio={() => handleOpenStudio(src)}
                                                   onDownload={() => handleDownloadImage(src, JSON.parse(jsonInput).subject)} 
                                                   onUpscale={() => handleUpscale(src, false)}
                                                   onUpscale4k={() => {
@@ -5823,6 +5876,7 @@ const App: React.FC = () => {
                                                       onPose={() => handleUseAsPoseBase(variantImages[idx])} 
                                                       onCompose={() => handleUseInCompose(variantImages[idx])} 
                                                       onInspect={() => handleInspectImage(variantImages[idx])} 
+                                                      onStudio={() => handleOpenStudio(variantImages[idx])}
                                                       onDownload={() => handleDownloadImage(variantImages[idx], variant.subject)} 
                                                       onUpscale={() => handleUpscale(variantImages[idx], false)}
                                                       onUpscale4k={() => {
@@ -6005,6 +6059,7 @@ const App: React.FC = () => {
                                               onPose={() => handleUseAsPoseBase(src)} 
                                               onCompose={() => handleUseInCompose(src)} 
                                               onInspect={() => handleInspectImage(src)} 
+                                              onStudio={() => handleOpenStudio(src)}
                                               onDownload={() => handleDownloadImage(src, composePrompt)} 
                                               onUpscale={() => handleUpscale(src, false)}
                                               onUpscale4k={() => {
@@ -6188,6 +6243,7 @@ const App: React.FC = () => {
                                               onPose={() => handleUseAsPoseBase(src)} 
                                               onCompose={() => handleUseInCompose(src)} 
                                               onInspect={() => handleInspectImage(src)} 
+                                              onStudio={() => handleOpenStudio(src)}
                                               onDownload={() => handleDownloadImage(src, "Reference Creation")} 
                                               onUpscale={() => handleUpscale(src, false)}
                                               onUpscale4k={() => {
@@ -7603,6 +7659,7 @@ const App: React.FC = () => {
                                 onPose={(e) => { e.stopPropagation(); handleUseAsPoseBase(item.src); }}
                                 onCompose={(e) => { e.stopPropagation(); handleUseInCompose(item.src); }}
                                 onInspect={(e) => { e.stopPropagation(); handleInspectImage(item.src); }}
+                                onStudio={(e) => { e.stopPropagation(); handleOpenStudio(item.src); }}
                                 onDownload={(e) => { e.stopPropagation(); handleDownloadImage(item.src, item.description); }}
                                 onUpscale={(e) => { e.stopPropagation(); handleUpscale(item.src, false); }}
                                 onUpscale4k={(e) => { 
@@ -7641,6 +7698,7 @@ const App: React.FC = () => {
                                 onPose={(e) => { e.stopPropagation(); handleUseAsPoseBase(item.src); }}
                                 onCompose={(e) => { e.stopPropagation(); handleUseInCompose(item.src); }}
                                 onInspect={(e) => { e.stopPropagation(); handleInspectImage(item.src); }}
+                                onStudio={(e) => { e.stopPropagation(); handleOpenStudio(item.src); }}
                                 onDownload={(e) => { e.stopPropagation(); handleDownloadImage(item.src, item.description); }}
                                 onUpscale={(e) => { e.stopPropagation(); handleUpscale(item.src, false); }}
                                 onUpscale4k={(e) => { 
@@ -7693,6 +7751,21 @@ const App: React.FC = () => {
         )}
       </main>
       
+      {/* AI Photo Studio 2026 Workspace (Fullscreen Pro Mode) */}
+      {activeTab === AppMode.AI_STUDIO && (
+        <PhotoStudioWorkspace
+          initialImageSrc={studioInitialImage || (galleryItems.length > 0 ? galleryItems[0].src : null)}
+          onClose={() => {
+            setActiveTab(AppMode.GALLERY);
+          }}
+          onSaveToGallery={(newItem) => {
+            setGalleryItems(prev => [newItem, ...prev]);
+            addToHistory('Studio Edit', 'Đã lưu tác phẩm AI Studio vào Gallery', newItem.id);
+          }}
+          galleryItems={galleryItems}
+        />
+      )}
+
       {/* Floating Batch Action Bar Dock for Gallery */}
       {activeTab === AppMode.GALLERY && gallerySelection.size > 0 && (
         <div className="fixed bottom-6 inset-x-4 sm:inset-x-8 max-w-4xl mx-auto z-40 bg-slate-950/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-3 sm:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-6 duration-300">

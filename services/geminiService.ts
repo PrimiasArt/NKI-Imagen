@@ -256,7 +256,7 @@ export const fetchLatestImageModels = async (): Promise<{ models: ImageModelOpti
 
 
 // --- Helper for inline data sanitization ---
-function prepareInlineData(input: string | null | undefined, fallbackMime = "image/jpeg") {
+export function prepareInlineData(input: string | null | undefined, fallbackMime = "image/jpeg") {
   if (!input) return null;
   let base64 = input.trim();
   let mimeType = fallbackMime;
@@ -331,7 +331,7 @@ export const compressBase64Image = async (
 /**
  * Executes a Gemini API call with automatic retry on Rate Limit / Quota Exceeded errors (429 / RESOURCE_EXHAUSTED).
  */
-async function callWithRetry<T>(
+export async function callWithRetry<T>(
   fn: () => Promise<T>,
   maxRetries = 4,
   initialDelayMs = 3000
