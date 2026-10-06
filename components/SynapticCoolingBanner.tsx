@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { generationQueue, GenerationQueueState } from '../services/generationQueueService';
+import { useTranslation } from '../services/i18nService';
 
 interface SynapticCoolingBannerProps {
   onOpenQueueDrawer?: () => void;
@@ -10,6 +11,7 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
   onOpenQueueDrawer,
   className = ''
 }) => {
+  const { t } = useTranslation();
   const [queueState, setQueueState] = useState<GenerationQueueState>(() => generationQueue.getState());
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -44,11 +46,11 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
     item => item.status === 'queued' || item.status === 'cooling' || item.status === 'retrying'
   ).length;
 
-  // Minimized floating pill view
+  // Minimized floating pill view (Apple visionOS floating pill)
   if (isMinimized) {
     return (
       <div className="fixed bottom-6 left-6 z-50 animate-in slide-in-from-bottom-5 duration-300">
-        <div className="flex items-center gap-3 bg-zinc-950/90 border border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.35)] backdrop-blur-2xl px-4 py-2.5 rounded-full text-white">
+        <div className="flex items-center gap-3 bg-zinc-950/85 border border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.35)] backdrop-blur-2xl px-4 py-2.5 rounded-full text-white">
           <div className="relative flex items-center justify-center">
             <span className="w-3 h-3 bg-cyan-400 rounded-full animate-ping absolute"></span>
             <span className="w-2.5 h-2.5 bg-cyan-400 rounded-full"></span>
@@ -63,14 +65,14 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
           </div>
           <button
             onClick={() => generationQueue.forceRetryNow()}
-            title="Thử lại ngay lập tức"
-            className="text-[9px] font-black bg-cyan-500 hover:bg-cyan-400 text-zinc-950 px-2.5 py-1 rounded-full uppercase tracking-wider transition-all"
+            title={t('cooling.retryNow', 'Thử lại ngay')}
+            className="text-[9px] font-black bg-cyan-500 hover:bg-cyan-400 text-zinc-950 px-2.5 py-1 rounded-full uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(6,182,212,0.4)]"
           >
-            Retry Now
+            {t('cooling.retryNow', 'Retry Now')}
           </button>
           <button
             onClick={() => setIsMinimized(false)}
-            title="Mở rộng bảng làm mát"
+            title="Expand"
             className="text-white/40 hover:text-white transition-colors text-xs p-1"
           >
             ▲
@@ -82,7 +84,7 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
 
   return (
     <div
-      className={`w-full relative overflow-hidden rounded-3xl border border-cyan-500/40 bg-zinc-950/90 backdrop-blur-2xl shadow-[0_0_50px_rgba(6,182,212,0.25)] p-6 my-4 transition-all duration-500 animate-in fade-in zoom-in-95 ${className}`}
+      className={`w-full relative overflow-hidden rounded-[2rem] border border-cyan-500/40 bg-zinc-950/85 backdrop-blur-3xl shadow-[0_0_50px_rgba(6,182,212,0.25)] p-6 my-4 transition-all duration-500 animate-in fade-in zoom-in-95 ${className}`}
     >
       {/* High-tech animated cybernetic background glow */}
       <div className="absolute -top-24 -right-24 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
@@ -139,16 +141,16 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
                 Backoff Attempt {cooling.retryAttempt}/{cooling.maxRetries}
               </span>
               <span className="text-[9px] text-white/40 font-mono hidden sm:inline">
-                {pendingCount} yêu cầu đang tạm dừng
+                {pendingCount} {t('cooling.pausedRequests', 'yêu cầu đang tạm dừng')}
               </span>
             </div>
 
             <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
-              <span>Hạn ngạch Google API 429 • Tự động hạ nhiệt & thử lại</span>
+              <span>{t('cooling.title', 'Hạn ngạch Google API 429 • Tự động hạ nhiệt & thử lại')}</span>
             </h3>
 
             <p className="text-xs text-white/60 leading-relaxed max-w-xl">
-              Tác vụ <span className="text-cyan-300 font-bold">"{cooling.failedTaskTitle || 'Image Generation'}"</span> tạm chạm giới hạn tần suất. Hàng đợi được tạm dừng tự động và áp dụng chiến thuật <span className="text-white font-medium">Exponential Backoff</span> để bảo vệ hạn ngạch.
+              {t('cooling.desc', 'Tác vụ tạm chạm giới hạn tần suất. Hàng đợi được tạm dừng tự động và áp dụng chiến thuật Exponential Backoff để bảo vệ hạn ngạch.')}
             </p>
           </div>
         </div>
@@ -157,20 +159,20 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
         <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
           <button
             onClick={() => generationQueue.forceRetryNow()}
-            className="flex-1 md:flex-initial px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-zinc-950 font-black rounded-xl text-[10px] tracking-widest uppercase transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] active:scale-95 flex items-center justify-center gap-1.5"
+            className="flex-1 md:flex-initial px-4 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-zinc-950 font-black rounded-xl text-[10px] tracking-widest uppercase transition-all shadow-[0_0_20px_rgba(6,182,212,0.4)] active:scale-95 flex items-center justify-center gap-1.5"
           >
             <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
               <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
             </svg>
-            <span>Thử lại ngay</span>
+            <span>{t('cooling.retryNow', 'Thử lại ngay')}</span>
           </button>
 
           <button
             onClick={() => generationQueue.cancelAllPending()}
             className="px-3.5 py-2.5 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40 border border-white/10 text-white/60 font-bold rounded-xl text-[10px] tracking-wider uppercase transition-all"
-            title="Hủy toàn bộ yêu cầu đang chờ"
+            title={t('cooling.cancelAll', 'Hủy toàn bộ yêu cầu đang chờ')}
           >
-            Hủy hàng đợi
+            {t('cooling.cancelAll', 'Hủy hàng đợi')}
           </button>
 
           {onOpenQueueDrawer && (
@@ -179,7 +181,7 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
               className="px-3 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 font-bold rounded-xl text-[10px] tracking-wider uppercase transition-all"
               title="Xem danh sách hàng đợi"
             >
-              Hàng đợi ({pendingCount})
+              {t('cooling.queueCount', 'Hàng đợi')} ({pendingCount})
             </button>
           )}
 
@@ -198,9 +200,9 @@ export const SynapticCoolingBanner: React.FC<SynapticCoolingBannerProps> = ({
       {/* Bottom Linear Progress Bar */}
       <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-white/40 font-mono">
         <div className="flex items-center gap-2">
-          <span>Thời gian hạ nhiệt: {cooling.totalDurationSeconds}s</span>
+          <span>{t('cooling.duration', 'Thời gian hạ nhiệt:')} {cooling.totalDurationSeconds}s</span>
           <span>•</span>
-          <span className="text-cyan-400 font-bold">Tự động khởi động lại sau {remaining}s</span>
+          <span className="text-cyan-400 font-bold">{t('cooling.autoRestart', 'Tự động khởi động lại sau')} {remaining}s</span>
         </div>
         <div className="w-32 bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/10">
           <div

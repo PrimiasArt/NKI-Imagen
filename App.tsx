@@ -2203,6 +2203,11 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Update window and document title (visionOS)
+  useEffect(() => {
+    document.title = 'NKI Studio v4.3 - NKI Standalone Studio - Next-gen Kinetic Integration';
+  }, []);
+
   // Google Drive Integration States
   const [googleUser, setGoogleUser] = useState<User | null>(null);
   const [driveSavingId, setDriveSavingId] = useState<string | null>(null);
@@ -5035,8 +5040,8 @@ const App: React.FC = () => {
         onCreateAndMove={handleBatchCreateAndMove}
       />
 
-      {/* Compact Glass Header (Single-Screen Fit) */}
-      <header className="flex-none z-40 w-full backdrop-blur-2xl bg-black/40 border-b border-white/10 shadow-lg">
+      {/* Apple visionOS Spatial Frosted Header */}
+      <header className="flex-none z-40 w-full backdrop-blur-3xl bg-slate-950/75 border-b border-white/[0.12] shadow-[0_8px_32px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.15)] sticky top-0">
         <div className="max-w-[1720px] mx-auto flex items-center justify-between gap-3 py-2 px-4 lg:px-6">
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setActiveTab(AppMode.IMG_TO_JSON)}>
             <div className="relative w-9 h-9 rounded-xl p-1 bg-white/5 border border-white/15 flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary-500-rgb),0.25)] group-hover:scale-105 group-hover:border-primary-400/50 transition-all backdrop-blur-md overflow-hidden flex-shrink-0">
@@ -5051,7 +5056,8 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col">
                 <h1 className="text-lg font-black text-white tracking-tight flex items-center leading-tight">
-                  NKI Imagen <span className="text-[10px] font-semibold text-primary-300 ml-1.5 tracking-normal px-1.5 py-0.5 rounded-full bg-primary-500/15 border border-primary-500/30">v4.3</span>
+                  NKI Studio <span className="text-[10px] font-semibold text-primary-300 ml-1.5 tracking-normal px-1.5 py-0.5 rounded-full bg-primary-500/15 border border-primary-500/30">v4.3</span>
+                  <span className="text-[9px] font-bold text-white/40 ml-2 hidden md:inline tracking-normal font-sans border-l border-white/10 pl-2">NKI Standalone Studio</span>
                 </h1>
                 <span className="text-[8.5px] font-bold text-white/50 uppercase tracking-[0.16em]">Next-gen Kinetic Integration</span>
             </div>
@@ -5330,12 +5336,12 @@ const App: React.FC = () => {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="flex items-center gap-2">
-                            <h2 className="text-2xl font-black text-white tracking-tight">Image Analysis</h2>
+                            <h2 className="text-2xl font-black text-white tracking-tight">{t('analysis.title', 'Image Analysis')}</h2>
                             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-primary-500/15 text-primary-300 border border-primary-500/30">
                               Forensic Vision
                             </span>
                           </div>
-                          <p className="text-xs text-white/50 mt-1">Dịch ngược phong cách, ánh sáng, góc máy và bố cục ảnh thành prompt JSON cấu trúc.</p>
+                          <p className="text-xs text-white/50 mt-1">{t('analysis.desc', 'Dịch ngược phong cách, ánh sáng, góc máy và bố cục ảnh thành prompt JSON cấu trúc.')}</p>
                         </div>
                       </div>
                       
@@ -5343,7 +5349,7 @@ const App: React.FC = () => {
                         <div className="relative flex-1">
                           <input 
                             type="text" 
-                            placeholder="Dán link ảnh (https://...)..." 
+                            placeholder={t('analysis.urlPlaceholder', 'Dán link ảnh (https://...)...')} 
                             value={imageURLInput} 
                             onChange={(e) => setImageURLInput(e.target.value)} 
                             className="w-full glass-input rounded-xl pl-3 pr-8 py-2.5 text-xs text-white placeholder-white/30 focus:ring-1 focus:ring-primary-500 border border-white/10" 
@@ -5357,7 +5363,7 @@ const App: React.FC = () => {
                           disabled={!imageURLInput.trim() || isAnalyzing}
                           className="bg-primary-500 hover:bg-primary-600 disabled:opacity-40 text-black px-5 py-2.5 rounded-xl font-black text-xs tracking-wider uppercase transition-all shadow-lg active:scale-95 flex-none"
                         >
-                          Analyze
+                          {t('analysis.startBtn', 'Analyze')}
                         </button>
                       </div>
 
@@ -5377,7 +5383,7 @@ const App: React.FC = () => {
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleClearImage(); }} 
                                 className="absolute top-2 right-2 bg-black/60 hover:bg-red-500/80 backdrop-blur-xl p-2 rounded-full text-white/80 hover:text-white border border-white/10 shadow-xl transition-all"
-                                title="Xóa ảnh"
+                                title={t('common.delete', 'Xóa ảnh')}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                   <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -5392,8 +5398,8 @@ const App: React.FC = () => {
                                   </svg>
                                 </div>
                                 <div>
-                                  <span className="text-sm font-bold text-white/80 block">Kéo thả ảnh vào đây</span>
-                                  <span className="text-xs text-white/40 mt-1 block">Hoặc bấm để duyệt tệp từ máy tính (PNG, JPG, WebP)</span>
+                                  <span className="text-sm font-bold text-white/80 block">{t('analysis.uploadPrompt', 'Kéo thả ảnh vào đây')}</span>
+                                  <span className="text-xs text-white/40 mt-1 block">{t('analysis.orBrowse', 'Hoặc bấm để duyệt tệp từ máy tính (PNG, JPG, WebP)')}</span>
                                 </div>
                             </div>
                         )}
@@ -5411,7 +5417,7 @@ const App: React.FC = () => {
                                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500/60 inline-block"></span>
                                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60 inline-block"></span>
                               </div>
-                              <h3 className="text-xs font-black uppercase text-white/70 tracking-widest ml-2">Forensic Prompt (Structural JSON)</h3>
+                              <h3 className="text-xs font-black uppercase text-white/70 tracking-widest ml-2">{t('analysis.resultTitle', 'Forensic Prompt (Structural JSON)')}</h3>
                             </div>
                             {jsonResult && (
                               <div className="flex items-center gap-2">
@@ -5420,15 +5426,15 @@ const App: React.FC = () => {
                                     navigator.clipboard.writeText(JSON.stringify(jsonResult, null, 2));
                                   }} 
                                   className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-white/70 hover:text-white border border-white/10 text-[10px] font-bold uppercase tracking-wider transition-all"
-                                  title="Sao chép JSON"
+                                  title={t('common.copy', 'Sao chép')}
                                 >
-                                  Copy JSON
+                                  {t('common.copy', 'Copy')} JSON
                                 </button>
                                 <button 
                                   onClick={() => { setJsonInput(JSON.stringify(jsonResult, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); }} 
                                   className="bg-primary-500 hover:bg-primary-600 text-black font-black px-4 py-1.5 rounded-xl shadow-lg text-[10px] tracking-widest uppercase transition-all flex items-center gap-1.5 active:scale-95"
                                 >
-                                  <span>Tạo Ảnh Ngay</span>
+                                  <span>{t('generator.generateBtn', 'Tạo Ảnh Ngay')}</span>
                                   <span>→</span>
                                 </button>
                               </div>
@@ -5479,18 +5485,18 @@ const App: React.FC = () => {
                 {activeTab === AppMode.JSON_CONVERTER && (
                     <div className="max-w-4xl mx-auto w-full glass-card p-8 lg:p-10 rounded-[2.5rem] flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500 shadow-2xl">
                         <div className="text-center">
-                            <h2 className="text-3xl font-black text-white tracking-tighter">Linguistic Converter</h2>
-                            <p className="text-sm text-white/40 mt-1">Translate natural language descriptions into structured neural instructions.</p>
+                            <h2 className="text-3xl font-black text-white tracking-tighter">{t('converter.title', 'Linguistic Converter')}</h2>
+                            <p className="text-sm text-white/40 mt-1">{t('converter.desc', 'Translate natural language descriptions into structured neural instructions.')}</p>
                         </div>
-                        <textarea value={converterInput} onChange={(e) => setConverterInput(e.target.value)} placeholder="Describe your image idea in plain language..." className="w-full h-36 glass-input rounded-2xl p-5 text-sm font-medium shadow-inner focus:ring-primary-500 resize-y" />
+                        <textarea value={converterInput} onChange={(e) => setConverterInput(e.target.value)} placeholder={t('converter.placeholder', 'Describe your image idea in plain language...')} className="w-full h-36 glass-input rounded-2xl p-5 text-sm font-medium shadow-inner focus:ring-primary-500 resize-y" />
                         <button onClick={handleConvertTextToJson} disabled={isConverting || !converterInput.trim()} className="w-full bg-gradient-to-r from-primary-600 to-primary-400 text-white font-black py-4 rounded-2xl shadow-xl active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-xs disabled:opacity-30">
-                            {isConverting ? 'Translating...' : 'Translate to JSON'}
+                            {isConverting ? t('common.processing', 'Translating...') : t('converter.convertBtn', 'Translate to JSON')}
                         </button>
                         {converterResult && (
                             <div className="mt-4 bg-black/30 rounded-2xl p-5 border border-white/5 flex flex-col space-y-3 animate-in slide-in-from-bottom-2 duration-300">
                                 <div className="flex justify-between items-center">
                                     <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.25em]">Translated Output</span>
-                                    <button onClick={() => { setJsonInput(JSON.stringify(converterResult, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); }} className="bg-primary-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-primary-400 transition-all">Use in Generator →</button>
+                                    <button onClick={() => { setJsonInput(JSON.stringify(converterResult, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); }} className="bg-primary-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:bg-primary-400 transition-all">{t('analysis.sendToGenerator', 'Use in Generator')} →</button>
                                 </div>
                                 <pre className="text-xs font-mono text-white/70 whitespace-pre-wrap max-h-96 overflow-auto custom-scrollbar p-3 bg-black/20 rounded-xl">{JSON.stringify(converterResult, null, 2)}</pre>
                             </div>
@@ -5507,7 +5513,7 @@ const App: React.FC = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-1">
                                     <div className="flex items-center gap-2">
-                                        <h2 className="text-2xl font-black text-white tracking-tighter">Image Generator</h2>
+                                        <h2 className="text-2xl font-black text-white tracking-tighter">{t('generator.title', 'Image Generator')}</h2>
                                         <div className="group relative">
                                             <svg className="h-4 w-4 text-white/30 hover:text-primary-400 transition-colors cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -5738,7 +5744,7 @@ const App: React.FC = () => {
                                     disabled={isGenerating} 
                                     className="w-full bg-primary-600 hover:bg-primary-500 text-white font-black py-4 px-8 rounded-2xl shadow-[0_10px_25px_rgba(var(--primary-500-rgb),0.35)] active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-xs flex items-center justify-center gap-2"
                                 >
-                                    <span>Execute Generation</span>
+                                    <span>{t('generator.generateBtn', 'Execute Generation')}</span>
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                     </svg>
@@ -5801,8 +5807,8 @@ const App: React.FC = () => {
                         {/* Left Column: Pose Controls & Base */}
                         <div className="lg:col-span-5 glass-card p-6 lg:p-7 rounded-[2rem] space-y-5 shadow-2xl flex flex-col">
                             <div>
-                                <h2 className="text-2xl font-black text-white tracking-tighter">Pose Engine</h2>
-                                <p className="text-xs text-white/40 mt-1">Animate characters with new kinetic actions.</p>
+                                <h2 className="text-2xl font-black text-white tracking-tighter">{t('pose.title', 'Pose Engine')}</h2>
+                                <p className="text-xs text-white/40 mt-1">{t('pose.desc', 'Animate characters with new kinetic actions.')}</p>
                                 <div className="mt-3">
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em] block mb-1.5">Synth Engine</label>
                                     <ModelSelector value={selectedModel} onChange={setSelectedModel} />
@@ -5921,7 +5927,7 @@ const App: React.FC = () => {
                                     disabled={isGeneratingVariants || !poseBaseImage} 
                                     className="w-full bg-gradient-to-r from-primary-600 to-primary-400 text-white font-black py-4 px-8 rounded-2xl shadow-xl active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-xs flex items-center justify-center gap-2 disabled:opacity-40"
                                 >
-                                    <span>Execute Iterations</span>
+                                    <span>{t('pose.generateVariants', 'Execute Iterations')}</span>
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                     </svg>
@@ -5985,8 +5991,8 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
                         <div className="lg:col-span-5 glass-card p-6 lg:p-7 rounded-[2rem] space-y-5 shadow-2xl flex flex-col">
                             <div>
-                                <h2 className="text-2xl font-black text-white tracking-tighter">Neural Compositor</h2>
-                                <p className="text-xs text-white/40 mt-1">Merge multiple visual artifacts into a cohesive single entity.</p>
+                                <h2 className="text-2xl font-black text-white tracking-tighter">{t('compose.title', 'Neural Compositor')}</h2>
+                                <p className="text-xs text-white/40 mt-1">{t('compose.desc', 'Merge multiple visual artifacts into a cohesive single entity.')}</p>
                                 <div className="mt-3">
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em] block mb-1.5">Synth Engine</label>
                                     <ModelSelector value={selectedModel} onChange={setSelectedModel} />
@@ -6104,7 +6110,7 @@ const App: React.FC = () => {
                                     disabled={isComposing || composeImageElements.length === 0} 
                                     className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 px-8 rounded-2xl shadow-[0_10px_25px_rgba(99,102,241,0.35)] tracking-widest uppercase text-xs active:scale-[0.98] transition-all disabled:opacity-30"
                                 >
-                                    Execute Fusion
+                                    {t('compose.execute', 'Execute Fusion')}
                                 </button>
                             </div>
                         </div>
@@ -6161,9 +6167,9 @@ const App: React.FC = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
                         <div className="lg:col-span-5 glass-card p-6 lg:p-7 rounded-[2rem] space-y-5 shadow-2xl flex flex-col">
                             <div>
-                                <h2 className="text-2xl font-black text-white tracking-tighter">Reference Creation</h2>
+                                <h2 className="text-2xl font-black text-white tracking-tighter">{t('reference.title', 'Reference Creation')}</h2>
                                 <p className="text-xs text-white/40 mt-1">
-                                    Upload a character and multiple outfit references to dress them up seamlessly in the original context.
+                                    {t('reference.desc', 'Upload a character and multiple outfit references to dress them up seamlessly in the original context.')}
                                 </p>
                                 <div className="mt-3">
                                     <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em] block mb-1.5">Engine</label>
@@ -6292,7 +6298,7 @@ const App: React.FC = () => {
                                     disabled={isRefCreating || !refCharImage || refOutfitImages.length === 0} 
                                     className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 px-8 rounded-2xl shadow-[0_10px_25px_rgba(99,102,241,0.35)] tracking-widest uppercase text-xs active:scale-[0.98] transition-all disabled:opacity-30"
                                 >
-                                    Synthesize Wardrobes
+                                    {t('reference.generate', 'Synthesize Wardrobes')}
                                 </button>
                             </div>
                         </div>
@@ -6347,18 +6353,18 @@ const App: React.FC = () => {
                     <div className="lg:col-span-6 glass-card p-6 lg:p-8 rounded-[2rem] flex flex-col space-y-5 shadow-2xl">
                       <div>
                         <h2 className="text-2xl font-black text-white tracking-tighter flex items-center gap-2">
-                          Image Upscaler
+                          {t('upscale.title', 'Image Upscaler')}
                           <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-full uppercase tracking-widest font-black border border-indigo-500/30">
                             Pro
                           </span>
                         </h2>
-                        <p className="text-xs text-white/40 mt-1">Nâng cấp độ phân giải, làm nét chi tiết bằng AI siêu phân giải (Super-Resolution).</p>
+                        <p className="text-xs text-white/40 mt-1">{t('upscale.desc', 'Nâng cấp độ phân giải, làm nét chi tiết bằng AI siêu phân giải (Super-Resolution).')}</p>
                       </div>
 
                       {/* Quick Select from Gallery */}
                       {galleryItems.filter(i => i.src && !i.src.includes('video')).length > 0 && (
                         <div>
-                          <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block mb-2">Chọn nhanh từ Thư viện</label>
+                          <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block mb-2">{t('studio.orSelectGallery', 'Chọn nhanh từ Thư viện')}</label>
                           <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
                             {galleryItems.filter(i => i.src && !i.src.includes('video')).slice(0, 10).map((item, idx) => (
                               <button 
@@ -6730,12 +6736,12 @@ const App: React.FC = () => {
                 {activeTab === AppMode.SCENARIO_EDITOR && (
                     <div className="max-w-4xl mx-auto glass-card p-6 lg:p-10 rounded-[2.5rem] shadow-2xl">
                         <div className="text-center mb-8">
-                            <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tighter">Scenario Director</h2>
-                            <p className="text-white/40 mt-2 text-sm">Deconstruct movie ideas into cinematic visual sequences.</p>
+                            <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tighter">{t('scenario.title', 'Scenario Director')}</h2>
+                            <p className="text-white/40 mt-2 text-sm">{t('scenario.desc', 'Deconstruct movie ideas into cinematic visual sequences.')}</p>
                         </div>
                         <textarea value={scenarioIdea} onChange={(e) => setScenarioIdea(e.target.value)} placeholder="A lone cyborg enters a forgotten library in the clouds..." className="w-full h-36 lg:h-44 glass-input rounded-2xl p-5 text-base font-medium shadow-inner focus:ring-rose-500 mb-6" />
                         <button onClick={handleGenerateBreakdown} disabled={isBreakingDown || !scenarioIdea.trim()} className="w-full bg-rose-600 hover:bg-rose-500 text-white font-black py-4 lg:py-5 rounded-2xl shadow-xl active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-xs disabled:opacity-30">
-                            {isBreakingDown ? 'Analyzing Narrative...' : 'Generate Breakdown'}
+                            {isBreakingDown ? t('common.processing', 'Analyzing Narrative...') : t('scenario.generateScript', 'Generate Breakdown')}
                         </button>
 
                         {scriptScenes.length > 0 && (
@@ -6767,8 +6773,8 @@ const App: React.FC = () => {
                 {activeTab === AppMode.VEO3_PROMPT_CREATOR && (
                     <div className="max-w-4xl mx-auto glass-card p-6 lg:p-10 rounded-[2.5rem] shadow-2xl">
                         <div className="text-center mb-8">
-                            <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tighter">Veo 3 Pro Prompt</h2>
-                            <p className="text-white/40 mt-2 text-sm">Generate hyper-detailed motion prompts with visual anchors.</p>
+                            <h2 className="text-3xl lg:text-4xl font-black text-white tracking-tighter">{t('veo3.title', 'Veo 3 Pro Prompt')}</h2>
+                            <p className="text-white/40 mt-2 text-sm">{t('veo3.desc', 'Generate hyper-detailed motion prompts with visual anchors.')}</p>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -7261,7 +7267,7 @@ const App: React.FC = () => {
                                 type="text"
                                 value={gallerySearch}
                                 onChange={(e) => setGallerySearch(e.target.value)}
-                                placeholder="Tìm theo prompt, model, tỷ lệ..."
+                                placeholder={t('gallery.search', 'Tìm theo prompt, model, tỷ lệ...')}
                                 className="w-full glass-input rounded-xl py-2.5 pl-11 pr-8 text-xs font-bold outline-none border border-white/10 hover:border-white/20 focus:border-primary-500/40 transition-all placeholder:text-white/30"
                             />
                             {gallerySearch && (
@@ -7278,7 +7284,7 @@ const App: React.FC = () => {
                         <div className="flex items-center bg-black/40 border border-white/10 rounded-xl p-1 gap-1">
                             <button
                                 onClick={() => setGalleryDensity('large')}
-                                title="Grid Lớn (2-3 cột, chi tiết cao)"
+                                title="Grid Lớn"
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                                     galleryDensity === 'large' 
                                         ? 'bg-primary-500 text-black shadow-md' 
@@ -7289,12 +7295,12 @@ const App: React.FC = () => {
                                     <rect x="3" y="3" width="8" height="18" rx="2" />
                                     <rect x="13" y="3" width="8" height="18" rx="2" />
                                 </svg>
-                                <span className="hidden sm:inline">Lớn</span>
+                                <span className="hidden sm:inline">{t('common.large', 'Lớn')}</span>
                             </button>
 
                             <button
                                 onClick={() => setGalleryDensity('medium')}
-                                title="Grid Vừa (3-5 cột, tiêu chuẩn)"
+                                title="Grid Vừa"
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                                     galleryDensity === 'medium' 
                                         ? 'bg-primary-500 text-black shadow-md' 
@@ -7306,12 +7312,12 @@ const App: React.FC = () => {
                                     <rect x="9.5" y="3" width="5" height="18" rx="1.5" />
                                     <rect x="16" y="3" width="5" height="18" rx="1.5" />
                                 </svg>
-                                <span className="hidden sm:inline">Vừa</span>
+                                <span className="hidden sm:inline">{t('common.medium', 'Vừa')}</span>
                             </button>
 
                             <button
                                 onClick={() => setGalleryDensity('small')}
-                                title="Grid Nhỏ (5-7 cột, quét nhanh)"
+                                title="Grid Nhỏ"
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                                     galleryDensity === 'small' 
                                         ? 'bg-primary-500 text-black shadow-md' 
@@ -7321,12 +7327,12 @@ const App: React.FC = () => {
                                 <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                                 </svg>
-                                <span className="hidden sm:inline">Nhỏ</span>
+                                <span className="hidden sm:inline">{t('common.small', 'Nhỏ')}</span>
                             </button>
 
                             <button
                                 onClick={() => setGalleryDensity('list')}
-                                title="Danh sách mini (Hiển thị tiêu đề kèm hình mini)"
+                                title="Danh sách"
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
                                     galleryDensity === 'list' 
                                         ? 'bg-primary-500 text-black shadow-md' 
@@ -7341,7 +7347,7 @@ const App: React.FC = () => {
                                     <rect x="3" y="16" width="4" height="4" rx="1" />
                                     <line x1="10" y1="18" x2="21" y2="18" />
                                 </svg>
-                                <span className="hidden sm:inline">Danh sách</span>
+                                <span className="hidden sm:inline">{t('common.list', 'Danh sách')}</span>
                             </button>
                         </div>
                     </div>
@@ -7836,44 +7842,45 @@ const App: React.FC = () => {
       )}
 
       {/* Floating Batch Action Bar Dock for Gallery */}
+      {/* Floating Batch Action Bar Dock for Gallery (Apple visionOS Floating Capsule Dock) */}
       {activeTab === AppMode.GALLERY && gallerySelection.size > 0 && (
-        <div className="fixed bottom-6 inset-x-4 sm:inset-x-8 max-w-4xl mx-auto z-40 bg-slate-950/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-3 sm:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-6 duration-300">
+        <div className="fixed bottom-6 inset-x-4 sm:inset-x-8 max-w-4xl mx-auto z-40 vision-modal p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-6 duration-300">
           <div className="flex items-center gap-3">
-            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 flex items-center gap-2">
+            <div className="px-3.5 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center gap-2 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs font-black">Đã chọn {gallerySelection.size} ảnh</span>
+              <span className="text-xs font-black">{t('collection.selectedCount', 'Đã chọn')} {gallerySelection.size} {t('collection.photos', 'ảnh')}</span>
             </div>
             <button 
               onClick={handleSelectAll} 
-              className="text-xs font-bold text-white/60 hover:text-white transition-colors underline-offset-4 hover:underline"
+              className="text-xs font-bold text-white/70 hover:text-white transition-colors underline-offset-4 hover:underline"
             >
-              {gallerySelection.size === sortedGallery.length ? 'Bỏ chọn' : 'Chọn tất cả'}
+              {gallerySelection.size === sortedGallery.length ? t('common.deselectAll', 'Bỏ chọn') : t('common.selectAll', 'Chọn tất cả')}
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setIsBatchCollectionModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
-              title="Gom các ảnh đã chọn vào Album / Bộ sưu tập"
+              className="px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/40 text-indigo-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md backdrop-blur-md"
+              title={t('gallery.moveToCollection', 'Gom vào Album')}
             >
-              <span>📁</span> Gom vào Album
+              <span>📁</span> {t('gallery.moveToCollection', 'Gom vào Album')}
             </button>
 
             <button
               onClick={handleBatchDownloadAntiAi}
               disabled={isBatchDownloading}
               className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-emerald-500/20 disabled:opacity-50"
-              title="Tải ảnh đã khử hoàn toàn dấu vết AI (C2PA, SynthID, nhúng EXIF)"
+              title={t('studio.downloadAntiAi', 'Tải ảnh đã khử hoàn toàn dấu vết AI')}
             >
               {isBatchDownloading ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  Đang tải...
+                  {t('common.processing', 'Đang tải...')}
                 </>
               ) : (
                 <>
-                  <span>🛡️</span> Tải Khử Dấu AI
+                  <span>🛡️</span> {t('studio.downloadAntiAi', 'Tải Khử Dấu AI')}
                 </>
               )}
             </button>
@@ -7881,8 +7888,8 @@ const App: React.FC = () => {
             <button
               onClick={handleExportZip}
               disabled={isExportingZip}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-              title="Tải gói ZIP chứa toàn bộ ảnh đã chọn"
+              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 backdrop-blur-md"
+              title="ZIP"
             >
               {isExportingZip ? (
                 <>
@@ -7900,13 +7907,13 @@ const App: React.FC = () => {
               <button
                 onClick={handleBatchSyncToGoogleDrive}
                 disabled={isBatchSavingDrive}
-                className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
-                title="Đồng bộ ảnh đã chọn lên Google Drive"
+                className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 backdrop-blur-md"
+                title={t('gallery.syncDrive', 'Đồng bộ Drive')}
               >
                 {isBatchSavingDrive ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
-                    Đang tải...
+                    {t('common.processing', 'Đang tải...')}
                   </>
                 ) : (
                   <>
@@ -7919,24 +7926,24 @@ const App: React.FC = () => {
             {gallerySelection.size === 2 && (
               <button
                 onClick={() => setIsComparing(true)}
-                className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+                className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 backdrop-blur-md"
               >
-                <span>⚖️</span> So sánh
+                <span>⚖️</span> {t('studio.compareOriginal', 'So sánh')}
               </button>
             )}
 
             <button
               onClick={handleBatchDelete}
-              className="px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
-              title="Xóa vĩnh viễn các ảnh đã chọn"
+              className="px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 backdrop-blur-md"
+              title={t('common.delete', 'Xóa')}
             >
-              <span>🗑️</span> Xóa ({gallerySelection.size})
+              <span>🗑️</span> {t('common.delete', 'Xóa')} ({gallerySelection.size})
             </button>
 
             <button
               onClick={() => setGallerySelection(new Set())}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors ml-1"
-              title="Bỏ chọn tất cả"
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/50 hover:text-white transition-colors flex items-center justify-center border border-white/10 ml-1 active:scale-95"
+              title={t('common.deselectAll', 'Bỏ chọn tất cả')}
             >
               ✕
             </button>

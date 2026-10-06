@@ -27,8 +27,8 @@ export default defineConfig(({ mode }) => {
             '256x256.png'
           ],
           manifest: {
-            name: 'NKI Studio v4.3 - Google Gemini Imagen',
-            short_name: 'NKI v4.3',
+            name: 'NKI Studio v4.3 - NKI Standalone Studio - Next-gen Kinetic Integration',
+            short_name: 'NKI Studio v4.3',
             description: 'Chuyên gia xử lý ảnh, tạo ảnh JSON, phân tích và biến thể tư thế với Gemini AI',
             theme_color: '#0a0f1a',
             background_color: '#0a0f1a',
