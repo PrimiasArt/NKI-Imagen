@@ -668,9 +668,9 @@ export const getSubfolders = async (
 export const listDriveFiles = async (
   accessToken: string,
   folderId: string
-): Promise<Array<{ id: string; name: string; mimeType: string; createdTime?: string }>> => {
+): Promise<Array<{ id: string; name: string; mimeType: string; createdTime?: string; size?: string; md5Checksum?: string }>> => {
   const query = `'${folderId}' in parents and trashed = false and mimeType starts with 'image/'`;
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,createdTime)&orderBy=createdTime desc`;
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,createdTime,size,md5Checksum)&orderBy=createdTime desc`;
   
   const response = await fetch(url, {
     method: 'GET',
@@ -686,6 +686,102 @@ export const listDriveFiles = async (
 
   const data = await response.json();
   return data.files || [];
+};
+
+// Permanently delete a file from Google Drive
+export const deleteDriveFile = async (
+  accessToken: string,
+  fileId: string
+): Promise<boolean> => {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (response.status === 204 || response.ok) {
+    return true;
+  }
+  if (response.status === 404) {
+    return true; // Already deleted
+  }
+  const errText = await response.text();
+  throw parseDriveApiError(response.status, errText);
+};
+
+export interface DriveDeduplicationReport {
+  totalScanned: number;
+  duplicatesFound: number;
+  deletedFiles: Array<{ id: string; name: string }>;
+  foldersScanned: number;
+}
+
+/**
+ * Quét toàn bộ thư mục gốc và thư mục con trên Google Drive,
+ * phát hiện và xóa vĩnh viễn các file trùng lặp (trùng tên hoặc trùng md5Checksum).
+ * Luôn giữ lại 1 bản mới nhất duy nhất cho mỗi ảnh.
+ */
+export const purgeDriveDuplicates = async (
+  accessToken: string,
+  rootFolderId: string
+): Promise<DriveDeduplicationReport> => {
+  const report: DriveDeduplicationReport = {
+    totalScanned: 0,
+    duplicatesFound: 0,
+    deletedFiles: [],
+    foldersScanned: 0
+  };
+
+  try {
+    const subfolders = await getSubfolders(accessToken, rootFolderId);
+    const targetFolders = [
+      { id: rootFolderId, name: 'Root' },
+      ...subfolders
+    ];
+
+    for (const folder of targetFolders) {
+      report.foldersScanned++;
+      const files = await listDriveFiles(accessToken, folder.id);
+      report.totalScanned += files.length;
+
+      // Group files by hash/name to find duplicates
+      const seenFiles = new Map<string, typeof files[0]>();
+      const duplicatesToDelete: typeof files[0][] = [];
+
+      for (const file of files) {
+        // Normalize name: strip extension and non-alphanumeric
+        const cleanName = file.name.toLowerCase().replace(/\.(png|jpe?g|webp)$/i, '').trim();
+        const key = file.md5Checksum 
+          ? `md5:${file.md5Checksum}` 
+          : `name:${cleanName}`;
+
+        if (seenFiles.has(key)) {
+          // Since files are ordered by createdTime desc, seenFiles has the newest one.
+          // This one is an older duplicate copy!
+          duplicatesToDelete.push(file);
+        } else {
+          seenFiles.set(key, file);
+        }
+      }
+
+      // Purge the duplicate files from Google Drive
+      for (const dup of duplicatesToDelete) {
+        try {
+          await deleteDriveFile(accessToken, dup.id);
+          report.duplicatesFound++;
+          report.deletedFiles.push({ id: dup.id, name: dup.name });
+        } catch (err) {
+          console.warn(`[purgeDriveDuplicates] Could not delete duplicate file ${dup.id} (${dup.name}):`, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[purgeDriveDuplicates] Error during Drive deduplication scan:', err);
+  }
+
+  return report;
 };
 
 // Download Drive file as local blob URL for temporary image display

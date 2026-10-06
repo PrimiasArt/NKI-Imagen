@@ -63,6 +63,8 @@ import {
   getSubfolders,
   listDriveFiles,
   downloadDriveFile,
+  deleteDriveFile,
+  purgeDriveDuplicates,
   refreshGoogleDriveSession,
   clearDriveAutoConnect,
   executeWithExponentialBackoff,
@@ -3827,12 +3829,22 @@ const App: React.FC = () => {
         const rawFiles = await fetchWithRetry(() => listDriveFiles(token, folder.id));
         const colId = folder.id;
 
-        // Deduplicate files returned from Drive by name (keep newest)
+        // Deduplicate files returned from Drive by name & md5 (keep newest, delete older duplicates from Drive)
         const uniqueDriveFiles = new Map<string, typeof rawFiles[0]>();
         for (const file of rawFiles) {
-          const prevFile = uniqueDriveFiles.get(file.name);
-          if (!prevFile || (file.createdTime && new Date(file.createdTime) > new Date(prevFile.createdTime || 0))) {
-            uniqueDriveFiles.set(file.name, file);
+          const cleanName = file.name.toLowerCase().replace(/\.(png|jpe?g|webp)$/i, '').trim();
+          const key = file.md5Checksum ? `md5:${file.md5Checksum}` : `name:${cleanName}`;
+          const prevFile = uniqueDriveFiles.get(key);
+
+          if (!prevFile) {
+            uniqueDriveFiles.set(key, file);
+          } else if (file.createdTime && new Date(file.createdTime) > new Date(prevFile.createdTime || 0)) {
+            // New file is newer, delete the older one from Drive
+            deleteDriveFile(token, prevFile.id).catch(e => console.warn('Drive dup delete error:', e));
+            uniqueDriveFiles.set(key, file);
+          } else {
+            // Older duplicate copy on Drive, delete it
+            deleteDriveFile(token, file.id).catch(e => console.warn('Drive dup delete error:', e));
           }
         }
 
@@ -3900,9 +3912,17 @@ const App: React.FC = () => {
       const rawRootFiles = await fetchWithRetry(() => listDriveFiles(token, rootFolderId));
       const uniqueRootFiles = new Map<string, typeof rawRootFiles[0]>();
       for (const file of rawRootFiles) {
-        const prevFile = uniqueRootFiles.get(file.name);
-        if (!prevFile || (file.createdTime && new Date(file.createdTime) > new Date(prevFile.createdTime || 0))) {
-          uniqueRootFiles.set(file.name, file);
+        const cleanName = file.name.toLowerCase().replace(/\.(png|jpe?g|webp)$/i, '').trim();
+        const key = file.md5Checksum ? `md5:${file.md5Checksum}` : `name:${cleanName}`;
+        const prevFile = uniqueRootFiles.get(key);
+
+        if (!prevFile) {
+          uniqueRootFiles.set(key, file);
+        } else if (file.createdTime && new Date(file.createdTime) > new Date(prevFile.createdTime || 0)) {
+          deleteDriveFile(token, prevFile.id).catch(e => console.warn('Drive root dup delete error:', e));
+          uniqueRootFiles.set(key, file);
+        } else {
+          deleteDriveFile(token, file.id).catch(e => console.warn('Drive root dup delete error:', e));
         }
       }
 
@@ -4656,7 +4676,10 @@ const App: React.FC = () => {
 
   const handleDeduplicateGallery = useCallback(() => {
     const { deduplicated, removedCount } = deduplicateGalleryItems(galleryItems);
-    if (removedCount === 0) {
+    const token = getAccessToken();
+    const hasDrive = Boolean(googleUser && token);
+
+    if (removedCount === 0 && !hasDrive) {
       setDriveSaveStatus({
         id: 'dedup',
         success: true,
@@ -4666,22 +4689,48 @@ const App: React.FC = () => {
       return;
     }
 
+    const driveNotice = hasDrive 
+      ? ` Đồng thời sẽ quét toàn bộ Google Drive để xóa vĩnh viễn các file trùng lặp trên Drive.` 
+      : '';
+
     setConfirmAction({
-      message: `Phát hiện ${removedCount} ảnh trùng lặp (do đồng bộ nhiều lần hoặc lưu lặp). Bạn có muốn dọn dẹp và gộp về 1 bản đầy đủ metadata nhất?`,
+      message: `Phát hiện ${removedCount} ảnh trùng lặp.${driveNotice} Bạn có muốn dọn dẹp và gộp về 1 bản đầy đủ metadata nhất?`,
       onConfirm: async () => {
         setGalleryItems(deduplicated);
         await saveAllGalleryItemsDB(deduplicated);
         setGallerySelection(new Set());
+
+        let drivePurgedCount = 0;
+        if (hasDrive && token) {
+          try {
+            setDriveSaveStatus({
+              id: 'dedup',
+              success: true,
+              message: 'Đang quét và xóa các file trùng lặp trên Google Drive...'
+            });
+            const rootFolderName = storageSettings.driveFolderName || "NK Imagen Storage";
+            const rootFolderId = await getOrCreateFolder(token, rootFolderName);
+            const driveReport = await purgeDriveDuplicates(token, rootFolderId);
+            drivePurgedCount = driveReport.duplicatesFound;
+          } catch (driveErr) {
+            console.warn('[Deduplication] Drive purge warning:', driveErr);
+          }
+        }
+
+        const successMsg = drivePurgedCount > 0
+          ? `Đã dọn sạch ${removedCount} ảnh trên máy & xóa vĩnh viễn ${drivePurgedCount} file trùng lặp trên Google Drive!`
+          : `Đã dọn sạch ${removedCount} ảnh trùng lặp! Thư viện hiện còn ${deduplicated.length} ảnh.`;
+
         setDriveSaveStatus({
           id: 'dedup',
           success: true,
-          message: `Đã dọn sạch ${removedCount} ảnh trùng lặp! Thư viện hiện còn ${deduplicated.length} ảnh.`
+          message: successMsg
         });
-        setTimeout(() => setDriveSaveStatus(null), 5000);
-        addToHistory('Gallery Dedup', `Đã loại bỏ ${removedCount} ảnh trùng lặp, giữ lại ${deduplicated.length} ảnh.`, 'Dọn trùng lặp');
+        setTimeout(() => setDriveSaveStatus(null), 6000);
+        addToHistory('Gallery Dedup', successMsg, 'Dọn trùng lặp Drive & Máy');
       }
     });
-  }, [galleryItems]);
+  }, [galleryItems, googleUser, storageSettings]);
 
   const handleModuleClick = (module: string) => {
     if (module === 'complex_imagen') setActiveTab(AppMode.IMG_TO_JSON);
