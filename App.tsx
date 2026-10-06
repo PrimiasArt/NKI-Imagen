@@ -3701,7 +3701,7 @@ const App: React.FC = () => {
       setGalleryItems(updatedGallery);
 
       // 3. Also sync image files from Drive into gallery
-      await handleSyncDriveImages(true);
+      await syncDriveImages(true);
 
       const msg = `Đã đồng bộ thành công! (+${report.promptsAdded} prompt mới, tổng ${report.totalCloudPrompts} prompt trên Drive)`;
       if (!silent) {
