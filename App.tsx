@@ -70,6 +70,7 @@ import {
 } from './services/googleService';
 import { User } from 'firebase/auth';
 import { SettingsModal } from './components/SettingsModal';
+import { BatchCollectionModal } from './components/BatchCollectionModal';
 import { UpdateNotificationToast } from './components/UpdateNotificationToast';
 import { syncFullCloudVault, pushVaultToCloud, pullVaultFromCloud } from './services/cloudVaultService';
 import { 
@@ -78,6 +79,11 @@ import {
   sanitizePromptAntiAi, 
   sanitizePromptJsonAntiAi 
 } from './services/antiAiCamouflageService';
+import {
+  deduplicateGalleryItems,
+  countDuplicates,
+  normalizeImageTitle
+} from './services/galleryDeduplicationService';
 import {
   getAllGalleryItemsDB,
   saveGalleryItemDB,
@@ -995,19 +1001,23 @@ const MasonryImage: React.FC<{
                     )}
                 </div>
 
-                {/* Selection Checkbox */}
-                <div className={`absolute top-2 right-2 transition-all duration-300 z-10 ${selectionMode || selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                {/* Selection Checkbox - Always clearly visible for easy batch selection */}
+                <div className="absolute top-2 right-2 transition-all duration-300 z-20">
                     <button 
                         onClick={(e) => { e.stopPropagation(); onSelect(); }} 
-                        className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
-                            selected ? 'bg-primary-500 border-primary-500 shadow-lg text-black font-black' : 'bg-black/50 border-white/40 hover:border-white text-white'
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl border flex items-center justify-center transition-all ${
+                            selected 
+                                ? 'bg-emerald-500 border-emerald-400 shadow-lg shadow-emerald-500/30 text-black font-black scale-105 opacity-100 ring-2 ring-emerald-300/40' 
+                                : 'bg-black/60 hover:bg-black/85 border-white/40 hover:border-white text-white/50 backdrop-blur-md opacity-85 hover:opacity-100 hover:scale-105'
                         }`}
-                        title={selected ? "Bỏ chọn" : "Chọn ảnh"}
+                        title={selected ? "Bỏ chọn ảnh này" : "Chọn ảnh này"}
                     >
-                        {selected && (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        {selected ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black font-black" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 0 011.414-1.414L8 12.586l7.293-7.293a1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
+                        ) : (
+                            <div className="w-3.5 h-3.5 rounded-sm border border-white/60 hover:border-white" />
                         )}
                     </button>
                 </div>
@@ -1101,15 +1111,19 @@ const GalleryListItem: React.FC<{
             <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                 <button 
                     onClick={(e) => { e.stopPropagation(); onSelect(); }} 
-                    className={`w-6 h-6 flex-none rounded-lg border flex items-center justify-center transition-all ${
-                        selected ? 'bg-primary-500 border-primary-500 text-black font-black shadow-md' : 'bg-white/5 border-white/20 hover:border-white/50 text-white'
+                    className={`w-7 h-7 flex-none rounded-xl border flex items-center justify-center transition-all ${
+                        selected 
+                            ? 'bg-emerald-500 border-emerald-400 text-black font-black shadow-lg shadow-emerald-500/30 scale-105 ring-2 ring-emerald-300/40' 
+                            : 'bg-black/40 border-white/30 hover:border-white text-white/50 hover:text-white backdrop-blur-md'
                     }`}
-                    title={selected ? "Bỏ chọn" : "Chọn ảnh"}
+                    title={selected ? "Bỏ chọn ảnh này" : "Chọn ảnh này"}
                 >
-                    {selected && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    {selected ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black font-black" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 0 011.414-1.414L8 12.586l7.293-7.293a1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
+                    ) : (
+                        <div className="w-3.5 h-3.5 rounded-sm border border-white/50" />
                     )}
                 </button>
 
@@ -3799,41 +3813,83 @@ const App: React.FC = () => {
 
       setCollections(currentCollections);
 
-      const allFetchedItems: GalleryItem[] = [];
+      // Load freshest gallery snapshot from IndexedDB to avoid stale closures
+      let currentGallery = await getAllGalleryItemsDB();
+      if (!currentGallery || currentGallery.length === 0) {
+        currentGallery = [...galleryItems];
+      }
+
+      let newItemsAdded = 0;
+      let existingItemsLinked = 0;
 
       // 3. Scan images in each collection folder
       for (const folder of driveSubfolders) {
-        // Wrap files listing with exponential backoff retry
-        const files = await fetchWithRetry(() => listDriveFiles(token, folder.id));
+        const rawFiles = await fetchWithRetry(() => listDriveFiles(token, folder.id));
         const colId = folder.id;
 
-        for (const file of files) {
-          const fileId = file.id;
-          const existingItem = galleryItems.find(item => item.driveFileId === fileId);
-          if (existingItem && !existingItem.src?.startsWith('blob:')) continue;
+        // Deduplicate files returned from Drive by name (keep newest)
+        const uniqueDriveFiles = new Map<string, typeof rawFiles[0]>();
+        for (const file of rawFiles) {
+          const prevFile = uniqueDriveFiles.get(file.name);
+          if (!prevFile || (file.createdTime && new Date(file.createdTime) > new Date(prevFile.createdTime || 0))) {
+            uniqueDriveFiles.set(file.name, file);
+          }
+        }
 
+        for (const file of uniqueDriveFiles.values()) {
+          const fileId = file.id;
+          const normFileName = normalizeImageTitle(file.name);
+
+          // Find if this image already exists locally by driveFileId OR by title
+          const existingIdx = currentGallery.findIndex(item => 
+            item.driveFileId === fileId || 
+            (item.description && normalizeImageTitle(item.description) === normFileName)
+          );
+
+          if (existingIdx >= 0) {
+            // Already exists locally: link driveFileId and collectionId without duplicating
+            currentGallery[existingIdx] = {
+              ...currentGallery[existingIdx],
+              driveFileId: fileId,
+              collectionId: colId || currentGallery[existingIdx].collectionId
+            };
+            existingItemsLinked++;
+
+            // If local src is broken or blob, recover it
+            if (!currentGallery[existingIdx].src || currentGallery[existingIdx].src.startsWith('blob:')) {
+              try {
+                const { blob } = await fetchWithRetry(() => downloadDriveFile(token, fileId));
+                const permanentData = await blobToDataUrl(blob);
+                currentGallery[existingIdx].src = permanentData;
+              } catch (e) {
+                console.warn(`Could not recover src for ${file.name}:`, e);
+              }
+            }
+            continue;
+          }
+
+          // New image found on Drive: download and add
           try {
-            // Wrap file download with exponential backoff retry
             const { blob } = await fetchWithRetry(() => downloadDriveFile(token, fileId));
             const srcUrl = await blobToDataUrl(blob);
             const timestamp = file.createdTime ? new Date(file.createdTime).getTime() : Date.now();
             
             const cleanName = file.name
-              .replace(/\.png$/i, '')
+              .replace(/\.(png|jpe?g|webp)$/i, '')
               .replace(/^[A-Z0-9-]{14,}/, '')
               .replace(/-/g, ' ')
               .trim();
 
-            allFetchedItems.push({
-              id: existingItem?.id || ("drive-" + fileId),
+            currentGallery.push({
+              id: "drive-" + fileId,
               src: srcUrl,
-              type: existingItem?.type || 'JSON_TO_IMG',
-              createdAt: existingItem?.createdAt || timestamp,
-              description: existingItem?.description || cleanName || 'Drive Shared Art',
+              type: 'JSON_TO_IMG',
+              createdAt: timestamp,
+              description: cleanName || 'Drive Shared Art',
               collectionId: colId,
-              metadata: existingItem?.metadata,
               driveFileId: fileId
             } as any);
+            newItemsAdded++;
           } catch (fileErr) {
             console.error(`Error downloading file ${fileId} in collection ${folder.name}:`, fileErr);
           }
@@ -3841,64 +3897,85 @@ const App: React.FC = () => {
       }
 
       // 4. Scan loose images in the main root folder
-      // Wrap root files listing with exponential backoff retry
-      const rootFiles = await fetchWithRetry(() => listDriveFiles(token, rootFolderId));
-      for (const file of rootFiles) {
+      const rawRootFiles = await fetchWithRetry(() => listDriveFiles(token, rootFolderId));
+      const uniqueRootFiles = new Map<string, typeof rawRootFiles[0]>();
+      for (const file of rawRootFiles) {
+        const prevFile = uniqueRootFiles.get(file.name);
+        if (!prevFile || (file.createdTime && new Date(file.createdTime) > new Date(prevFile.createdTime || 0))) {
+          uniqueRootFiles.set(file.name, file);
+        }
+      }
+
+      for (const file of uniqueRootFiles.values()) {
         const fileId = file.id;
-        const existingItem = galleryItems.find(item => item.driveFileId === fileId);
-        if (existingItem && !existingItem.src?.startsWith('blob:')) continue;
+        const normFileName = normalizeImageTitle(file.name);
+
+        const existingIdx = currentGallery.findIndex(item => 
+          item.driveFileId === fileId || 
+          (item.description && normalizeImageTitle(item.description) === normFileName)
+        );
+
+        if (existingIdx >= 0) {
+          currentGallery[existingIdx] = {
+            ...currentGallery[existingIdx],
+            driveFileId: fileId
+          };
+          existingItemsLinked++;
+
+          if (!currentGallery[existingIdx].src || currentGallery[existingIdx].src.startsWith('blob:')) {
+            try {
+              const { blob } = await fetchWithRetry(() => downloadDriveFile(token, fileId));
+              const permanentData = await blobToDataUrl(blob);
+              currentGallery[existingIdx].src = permanentData;
+            } catch (e) {
+              console.warn(`Could not recover root src for ${file.name}:`, e);
+            }
+          }
+          continue;
+        }
 
         try {
-          // Wrap file download with exponential backoff retry
           const { blob } = await fetchWithRetry(() => downloadDriveFile(token, fileId));
           const srcUrl = await blobToDataUrl(blob);
           const timestamp = file.createdTime ? new Date(file.createdTime).getTime() : Date.now();
           
           const cleanName = file.name
-            .replace(/\.png$/i, '')
+            .replace(/\.(png|jpe?g|webp)$/i, '')
             .replace(/^[A-Z0-9-]{14,}/, '')
             .replace(/-/g, ' ')
             .trim();
 
-          allFetchedItems.push({
-            id: existingItem?.id || ("drive-" + fileId),
+          currentGallery.push({
+            id: "drive-" + fileId,
             src: srcUrl,
-            type: existingItem?.type || 'JSON_TO_IMG',
-            createdAt: existingItem?.createdAt || timestamp,
-            description: existingItem?.description || cleanName || 'Drive Shared Art',
-            metadata: existingItem?.metadata,
+            type: 'JSON_TO_IMG',
+            createdAt: timestamp,
+            description: cleanName || 'Drive Shared Art',
             driveFileId: fileId
           } as any);
+          newItemsAdded++;
         } catch (fileErr) {
           console.error(`Error downloading root file ${fileId}:`, fileErr);
         }
       }
 
-      if (allFetchedItems.length > 0) {
-        setGalleryItems(prev => {
-          const fetchedMap = new Map(allFetchedItems.map(item => [(item as any).driveFileId, item]));
-          const updated = prev.map(item => {
-            const driveId = (item as any).driveFileId;
-            if (driveId && fetchedMap.has(driveId)) {
-              const fetched = fetchedMap.get(driveId)!;
-              fetchedMap.delete(driveId);
-              return { ...item, ...fetched, src: fetched.src };
-            }
-            return item;
-          });
-          const remainingNew = Array.from(fetchedMap.values());
-          return [...remainingNew, ...updated];
-        });
-      }
+      // 5. Tự động khử toàn bộ trùng lặp sau khi đồng bộ
+      const { deduplicated, removedCount } = deduplicateGalleryItems(currentGallery);
+      setGalleryItems(deduplicated);
+      await saveAllGalleryItemsDB(deduplicated);
+
+      const summaryMsg = removedCount > 0
+        ? `Đã đồng bộ xong (+${newItemsAdded} mới, liên kết ${existingItemsLinked} ảnh, tự động dọn sạch ${removedCount} ảnh trùng lặp).`
+        : `Đã đồng bộ thành công (+${newItemsAdded} ảnh mới từ Drive, liên kết ${existingItemsLinked} ảnh).`;
 
       if (!quiet) {
         setDriveSaveStatus({
           id: 'global-sync',
           success: true,
-          message: `Fetched & Synced ${allFetchedItems.length} Google Drive image assets successfully.`
+          message: summaryMsg
         });
       }
-      addToHistory('Google Drive Export', `Synced ${allFetchedItems.length} images from Google Drive folder structure.`, 'Auto-Sync');
+      addToHistory('Google Drive Export', summaryMsg, 'Đồng bộ Google Drive');
     } catch (err: any) {
       if (quiet) {
         console.warn("Global Drive Sync Error (Quiet/Auto):", err);
@@ -4488,6 +4565,124 @@ const App: React.FC = () => {
   const hasNext = inspectorIndex !== -1 && inspectorIndex < sortedGallery.length - 1;
   const hasPrev = inspectorIndex > 0;
 
+  // Batch Operations & Deduplication
+  const [isBatchCollectionModalOpen, setIsBatchCollectionModalOpen] = useState(false);
+  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+
+  const duplicateCount = useMemo(() => countDuplicates(galleryItems), [galleryItems]);
+
+  const handleSelectAll = useCallback(() => {
+    if (gallerySelection.size === sortedGallery.length && sortedGallery.length > 0) {
+      setGallerySelection(new Set());
+    } else {
+      setGallerySelection(new Set(sortedGallery.map(i => i.id)));
+    }
+  }, [gallerySelection.size, sortedGallery]);
+
+  const handleBatchDelete = useCallback(() => {
+    const count = gallerySelection.size;
+    if (count === 0) return;
+    setConfirmAction({
+      message: `Bạn có chắc chắn muốn xóa vĩnh viễn ${count} ảnh đã chọn khỏi thư viện và máy?`,
+      onConfirm: async () => {
+        const remaining = galleryItems.filter(i => !gallerySelection.has(i.id));
+        setGalleryItems(remaining);
+        await saveAllGalleryItemsDB(remaining);
+        setGallerySelection(new Set());
+        addToHistory('Gallery Delete', `Đã xóa vĩnh viễn ${count} ảnh từ thư viện.`, 'Xóa hàng loạt');
+      }
+    });
+  }, [gallerySelection, galleryItems]);
+
+  const handleBatchMoveToCollection = useCallback(async (collectionId: string | undefined) => {
+    const count = gallerySelection.size;
+    if (count === 0) return;
+    const targetCol = collectionId ? collections.find(c => c.id === collectionId) : null;
+    const colName = targetCol ? targetCol.name : 'Feed chung';
+
+    const updated = galleryItems.map(item => {
+      if (gallerySelection.has(item.id)) {
+        return { ...item, collectionId };
+      }
+      return item;
+    });
+
+    setGalleryItems(updated);
+    await saveAllGalleryItemsDB(updated);
+
+    if (targetCol && (targetCol as any).autoSync && googleUser) {
+      handleBatchSyncToGoogleDrive();
+    }
+
+    setGallerySelection(new Set());
+    setDriveSaveStatus({
+      id: 'batch-collection',
+      success: true,
+      message: `Đã chuyển ${count} ảnh vào bộ sưu tập "${colName}".`
+    });
+    setTimeout(() => setDriveSaveStatus(null), 4000);
+    addToHistory('Collection Group', `Đã chuyển ${count} ảnh vào bộ sưu tập "${colName}".`, colName);
+  }, [gallerySelection, collections, galleryItems, googleUser]);
+
+  const handleBatchCreateAndMove = useCallback(async (name: string, autoSync: boolean) => {
+    const newCol: Collection = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      createdAt: Date.now(),
+      autoSync
+    };
+    setCollections(prev => [...prev, newCol]);
+    await handleBatchMoveToCollection(newCol.id);
+    setActiveCollectionId(newCol.id);
+  }, [handleBatchMoveToCollection]);
+
+  const handleBatchDownloadAntiAi = useCallback(async () => {
+    const itemsToDownload = galleryItems.filter(item => gallerySelection.has(item.id));
+    if (itemsToDownload.length === 0) return;
+
+    setIsBatchDownloading(true);
+    try {
+      for (let i = 0; i < itemsToDownload.length; i++) {
+        const item = itemsToDownload[i];
+        await handleDownloadImage(item.src, item.description, true);
+        await new Promise(r => setTimeout(r, 350));
+      }
+    } catch (e) {
+      console.error("Batch Anti-AI Download error:", e);
+    } finally {
+      setIsBatchDownloading(false);
+    }
+  }, [galleryItems, gallerySelection]);
+
+  const handleDeduplicateGallery = useCallback(() => {
+    const { deduplicated, removedCount } = deduplicateGalleryItems(galleryItems);
+    if (removedCount === 0) {
+      setDriveSaveStatus({
+        id: 'dedup',
+        success: true,
+        message: 'Thư viện ảnh sạch sẽ, không phát hiện ảnh trùng lặp nào!'
+      });
+      setTimeout(() => setDriveSaveStatus(null), 3000);
+      return;
+    }
+
+    setConfirmAction({
+      message: `Phát hiện ${removedCount} ảnh trùng lặp (do đồng bộ nhiều lần hoặc lưu lặp). Bạn có muốn dọn dẹp và gộp về 1 bản đầy đủ metadata nhất?`,
+      onConfirm: async () => {
+        setGalleryItems(deduplicated);
+        await saveAllGalleryItemsDB(deduplicated);
+        setGallerySelection(new Set());
+        setDriveSaveStatus({
+          id: 'dedup',
+          success: true,
+          message: `Đã dọn sạch ${removedCount} ảnh trùng lặp! Thư viện hiện còn ${deduplicated.length} ảnh.`
+        });
+        setTimeout(() => setDriveSaveStatus(null), 5000);
+        addToHistory('Gallery Dedup', `Đã loại bỏ ${removedCount} ảnh trùng lặp, giữ lại ${deduplicated.length} ảnh.`, 'Dọn trùng lặp');
+      }
+    });
+  }, [galleryItems]);
+
   const handleModuleClick = (module: string) => {
     if (module === 'complex_imagen') setActiveTab(AppMode.IMG_TO_JSON);
     else if (module === 'scenario_director') setActiveTab(AppMode.SCENARIO_EDITOR);
@@ -4722,6 +4917,17 @@ const App: React.FC = () => {
         galleryCount={galleryItems.length}
         onSyncCloudVault={() => handleSyncCloudVault(false)}
         isCloudVaultSyncing={isCloudVaultSyncing}
+      />
+
+      {/* Batch Collection Modal */}
+      <BatchCollectionModal
+        isOpen={isBatchCollectionModalOpen}
+        onClose={() => setIsBatchCollectionModalOpen(false)}
+        selectedCount={gallerySelection.size}
+        collections={collections}
+        galleryItems={galleryItems}
+        onMoveToCollection={handleBatchMoveToCollection}
+        onCreateAndMove={handleBatchCreateAndMove}
       />
 
       {/* Compact Glass Header (Single-Screen Fit) */}
@@ -7068,61 +7274,187 @@ const App: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Count Summary */}
-                        <div className="flex items-center gap-2 text-xs font-bold text-white/40">
-                            <span>Hiển thị <strong className="text-white font-black">{sortedGallery.length}</strong> / {galleryItems.length} ảnh</span>
+                        {/* Selection & Maintenance Tools */}
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Nút Dọn ảnh trùng lặp */}
+                            {duplicateCount > 0 ? (
+                                <button
+                                    onClick={handleDeduplicateGallery}
+                                    className="px-3 py-1.5 text-xs font-black bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 rounded-xl transition-all flex items-center gap-1.5 shadow-lg animate-pulse"
+                                    title="Phát hiện ảnh trùng lặp do đồng bộ nhiều lần, nhấp để dọn dẹp và gộp lại"
+                                >
+                                    <span>🧹</span>
+                                    <span>Dọn {duplicateCount} ảnh trùng lặp</span>
+                                </button>
+                            ) : galleryItems.length > 1 ? (
+                                <button
+                                    onClick={handleDeduplicateGallery}
+                                    className="px-2.5 py-1 text-[11px] font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors flex items-center gap-1"
+                                    title="Kiểm tra và dọn dẹp ảnh trùng lặp"
+                                >
+                                    <span>🧹</span>
+                                    <span>Dọn trùng</span>
+                                </button>
+                            ) : null}
+
+                            {/* Select All Toggle Button */}
+                            {sortedGallery.length > 0 && (
+                                <button
+                                    onClick={handleSelectAll}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all flex items-center gap-2 ${
+                                        gallerySelection.size === sortedGallery.length && sortedGallery.length > 0
+                                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                            : 'bg-white/5 border-white/10 hover:border-white/20 text-white/70 hover:text-white'
+                                    }`}
+                                    title={gallerySelection.size === sortedGallery.length ? "Bỏ chọn tất cả ảnh" : "Chọn tất cả ảnh đang hiển thị"}
+                                >
+                                    <div className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all ${
+                                        gallerySelection.size === sortedGallery.length && sortedGallery.length > 0
+                                            ? 'bg-emerald-500 border-emerald-400 text-black'
+                                            : 'border-white/40'
+                                    }`}>
+                                        {gallerySelection.size === sortedGallery.length && sortedGallery.length > 0 && (
+                                            <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 0 011.414-1.414L8 12.586l7.293-7.293a1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <span>
+                                        {gallerySelection.size === sortedGallery.length && sortedGallery.length > 0
+                                            ? 'Bỏ chọn tất cả'
+                                            : `Chọn tất cả (${sortedGallery.length})`}
+                                    </span>
+                                </button>
+                            )}
+
+                            {/* Count Summary */}
+                            <div className="flex items-center gap-2 text-xs font-bold text-white/40 ml-1">
+                                <span>Hiển thị <strong className="text-white font-black">{sortedGallery.length}</strong> / {galleryItems.length} ảnh</span>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Batch Actions Inline Bar */}
                     {gallerySelection.size > 0 && (
                         <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-4 bg-primary-500/20 px-5 py-2 rounded-xl border border-primary-500/30 animate-in zoom-in-95">
-                                <span className="text-[10px] font-black text-primary-400 uppercase tracking-widest">{gallerySelection.size} Selected</span>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setIsComparing(true)} className="text-[10px] font-black text-white hover:text-primary-400 transition-colors uppercase tracking-tighter">Compare</button>
-                                    <button onClick={() => setGallerySelection(new Set())} className="text-[10px] font-black text-white/60 hover:text-white transition-colors uppercase tracking-tighter">Unselect</button>
-                                    <button onClick={handleBatchDownload} className="text-[10px] font-black text-white hover:text-primary-400 transition-colors uppercase tracking-tighter">Raw Images</button>
+                            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 backdrop-blur-xl px-5 py-3 rounded-2xl border border-primary-500/30 shadow-xl animate-in zoom-in-95">
+                                <div className="flex items-center gap-3">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-xs font-black text-white uppercase tracking-wider">
+                                        Đã chọn <strong className="text-emerald-400">{gallerySelection.size}</strong> ảnh
+                                    </span>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {/* Gom vào Album */}
+                                    <button 
+                                        onClick={() => setIsBatchCollectionModalOpen(true)}
+                                        className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shadow-md"
+                                        title="Gom các ảnh đã chọn vào Album / Bộ sưu tập"
+                                    >
+                                        <span>📁</span> Gom vào Album
+                                    </button>
+
+                                    {/* Tải Khử Dấu AI */}
+                                    <button 
+                                        onClick={handleBatchDownloadAntiAi}
+                                        disabled={isBatchDownloading}
+                                        className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                                        title="Tải ảnh đã khử hoàn toàn dấu vết AI (C2PA, SynthID, nhúng EXIF)"
+                                    >
+                                        {isBatchDownloading ? (
+                                            <>
+                                                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                                                Đang tải...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span>🛡️</span> Tải Khử Dấu AI
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Xuất ZIP */}
                                     <button 
                                         onClick={handleExportZip} 
                                         disabled={isExportingZip}
-                                        className="text-[10px] font-black text-white hover:text-primary-400 disabled:opacity-50 transition-colors uppercase tracking-tighter flex items-center gap-1"
+                                        className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold disabled:opacity-50 transition-all flex items-center gap-1.5 active:scale-95"
+                                        title="Tải gói ZIP chứa toàn bộ ảnh đã chọn"
                                     >
                                         {isExportingZip ? (
                                             <>
-                                                <span className="w-2.5 h-2.5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                <span className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                                                 Zipping...
                                             </>
                                         ) : (
-                                            "Export ZIP"
-                                        )}
-                                    </button>
-                                    <button 
-                                        onClick={handleBatchSyncToGoogleDrive} 
-                                        disabled={isBatchSavingDrive}
-                                        className="text-[10px] font-black text-emerald-400 hover:text-emerald-300 disabled:opacity-50 transition-colors uppercase tracking-tighter flex items-center gap-1"
-                                    >
-                                        {isBatchSavingDrive ? (
                                             <>
-                                                <span className="w-2.5 h-2.5 border border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin" />
-                                                Syncing...
+                                                <span>📦</span> Xuất ZIP
                                             </>
-                                        ) : (
-                                            "Sync to Drive"
                                         )}
                                     </button>
-                                    <button onClick={() => { setConfirmAction({ message: `Erase ${gallerySelection.size} selected artifacts permanently?`, onConfirm: () => { setGalleryItems(prev => prev.filter(i => !gallerySelection.has(i.id))); setGallerySelection(new Set()); } }); }} className="text-[10px] font-black text-red-400 hover:text-red-300 transition-colors uppercase tracking-tighter">Erase</button>
+
+                                    {/* Đồng bộ Drive */}
+                                    {googleUser && (
+                                        <button 
+                                            onClick={handleBatchSyncToGoogleDrive} 
+                                            disabled={isBatchSavingDrive}
+                                            className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 disabled:opacity-50 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
+                                            title="Đồng bộ ảnh đã chọn lên Google Drive"
+                                        >
+                                            {isBatchSavingDrive ? (
+                                                <>
+                                                    <span className="w-3 h-3 border border-emerald-400/20 border-t-emerald-400 rounded-full animate-spin" />
+                                                    Đang tải...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>☁️</span> Drive
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+
+                                    {/* So sánh nếu chọn 2 ảnh */}
+                                    {gallerySelection.size === 2 && (
+                                        <button 
+                                            onClick={() => setIsComparing(true)} 
+                                            className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
+                                        >
+                                            <span>⚖️</span> So sánh
+                                        </button>
+                                    )}
+
+                                    {/* Xóa hàng loạt */}
+                                    <button 
+                                        onClick={handleBatchDelete} 
+                                        className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
+                                        title="Xóa vĩnh viễn các ảnh đã chọn"
+                                    >
+                                        <span>🗑️</span> Xóa ({gallerySelection.size})
+                                    </button>
+
+                                    {/* Bỏ chọn */}
+                                    <button 
+                                        onClick={() => setGallerySelection(new Set())} 
+                                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white text-xs font-bold transition-colors"
+                                        title="Bỏ chọn tất cả"
+                                    >
+                                        Bỏ chọn
+                                    </button>
                                 </div>
                             </div>
-                            {driveSaveStatus && driveSaveStatus.id === 'batch-sync' && (
-                                <div className={`flex items-center justify-between px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider animate-in slide-in-from-top-2 duration-300 border ${
+
+                            {driveSaveStatus && (driveSaveStatus.id === 'batch-sync' || driveSaveStatus.id === 'batch-collection' || driveSaveStatus.id === 'dedup') && (
+                                <div className={`flex items-center justify-between px-5 py-2.5 rounded-2xl text-xs font-bold animate-in slide-in-from-top-2 duration-300 border ${
                                     driveSaveStatus.success 
-                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' 
+                                        : 'bg-rose-500/10 border-rose-500/20 text-rose-300'
                                 }`}>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`w-1.5 h-1.5 rounded-full ${driveSaveStatus.success ? 'bg-emerald-400' : 'bg-rose-400'} ${isBatchSavingDrive ? 'animate-ping' : ''}`} />
+                                    <div className="flex items-center gap-2.5">
+                                        <span className={`w-2 h-2 rounded-full ${driveSaveStatus.success ? 'bg-emerald-400' : 'bg-rose-400'}`} />
                                         <span>{driveSaveStatus.message}</span>
                                     </div>
-                                    <button onClick={() => setDriveSaveStatus(null)} className="text-white/40 hover:text-white transition-colors uppercase text-[9px] font-bold">Dismiss</button>
+                                    <button onClick={() => setDriveSaveStatus(null)} className="text-white/40 hover:text-white transition-colors uppercase text-[10px] font-bold">✕ Đóng</button>
                                 </div>
                             )}
                         </div>
@@ -7312,6 +7644,115 @@ const App: React.FC = () => {
         )}
       </main>
       
+      {/* Floating Batch Action Bar Dock for Gallery */}
+      {activeTab === AppMode.GALLERY && gallerySelection.size > 0 && (
+        <div className="fixed bottom-6 inset-x-4 sm:inset-x-8 max-w-4xl mx-auto z-40 bg-slate-950/95 backdrop-blur-2xl border border-white/20 rounded-3xl p-3 sm:p-4 shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-bottom-6 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-black">Đã chọn {gallerySelection.size} ảnh</span>
+            </div>
+            <button 
+              onClick={handleSelectAll} 
+              className="text-xs font-bold text-white/60 hover:text-white transition-colors underline-offset-4 hover:underline"
+            >
+              {gallerySelection.size === sortedGallery.length ? 'Bỏ chọn' : 'Chọn tất cả'}
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsBatchCollectionModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md"
+              title="Gom các ảnh đã chọn vào Album / Bộ sưu tập"
+            >
+              <span>📁</span> Gom vào Album
+            </button>
+
+            <button
+              onClick={handleBatchDownloadAntiAi}
+              disabled={isBatchDownloading}
+              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black flex items-center gap-1.5 transition-all active:scale-95 shadow-md shadow-emerald-500/20 disabled:opacity-50"
+              title="Tải ảnh đã khử hoàn toàn dấu vết AI (C2PA, SynthID, nhúng EXIF)"
+            >
+              {isBatchDownloading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  Đang tải...
+                </>
+              ) : (
+                <>
+                  <span>🛡️</span> Tải Khử Dấu AI
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleExportZip}
+              disabled={isExportingZip}
+              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              title="Tải gói ZIP chứa toàn bộ ảnh đã chọn"
+            >
+              {isExportingZip ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Zipping...
+                </>
+              ) : (
+                <>
+                  <span>📦</span> ZIP
+                </>
+              )}
+            </button>
+
+            {googleUser && (
+              <button
+                onClick={handleBatchSyncToGoogleDrive}
+                disabled={isBatchSavingDrive}
+                className="px-3 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                title="Đồng bộ ảnh đã chọn lên Google Drive"
+              >
+                {isBatchSavingDrive ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                    Đang tải...
+                  </>
+                ) : (
+                  <>
+                    <span>☁️</span> Drive
+                  </>
+                )}
+              </button>
+            )}
+
+            {gallerySelection.size === 2 && (
+              <button
+                onClick={() => setIsComparing(true)}
+                className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <span>⚖️</span> So sánh
+              </button>
+            )}
+
+            <button
+              onClick={handleBatchDelete}
+              className="px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95"
+              title="Xóa vĩnh viễn các ảnh đã chọn"
+            >
+              <span>🗑️</span> Xóa ({gallerySelection.size})
+            </button>
+
+            <button
+              onClick={() => setGallerySelection(new Set())}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors ml-1"
+              title="Bỏ chọn tất cả"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <footer className="py-6 mt-16 text-center border-t border-white/5 bg-black/10 backdrop-blur-md">
           <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.5em]">Next-Gen Kinetic Integration © 2025</p>
       </footer>

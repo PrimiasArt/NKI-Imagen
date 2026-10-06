@@ -595,6 +595,19 @@ export const uploadFileToDrive = async (
   mimeType: string,
   folderId?: string
 ): Promise<{ id: string; name: string; mimeType: string }> => {
+  // Check if a file with the same name already exists in this folder to avoid creating duplicate files
+  if (folderId) {
+    try {
+      const existingId = await getFileIdByName(accessToken, filename, folderId);
+      if (existingId) {
+        await updateFileContentInDrive(accessToken, existingId, blob, mimeType);
+        return { id: existingId, name: filename, mimeType };
+      }
+    } catch (checkErr) {
+      console.warn('[uploadFileToDrive] Check existing file failed, proceeding to upload new:', checkErr);
+    }
+  }
+
   const metadata = {
     name: filename,
     mimeType: mimeType,
