@@ -32,6 +32,8 @@ interface SettingsModalProps {
   onConnectDrive: () => Promise<void>;
   onClearGallery?: () => Promise<void>;
   galleryCount: number;
+  onSyncCloudVault?: () => Promise<void>;
+  isCloudVaultSyncing?: boolean;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -43,6 +45,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onConnectDrive,
   onClearGallery,
   galleryCount,
+  onSyncCloudVault,
+  isCloudVaultSyncing,
 }) => {
   const [activeTab, setActiveTab] = useState<'storage' | 'gallery' | 'drive' | 'update'>('storage');
   const [driveFolderInput, setDriveFolderInput] = useState(storageSettings.driveFolderName || 'NK Imagen Storage');
@@ -644,6 +648,68 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Cloud Vault - Multi-device Sync Box */}
+              {googleUser && getAccessToken() && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-primary-950/40 via-black/40 to-indigo-950/40 border border-primary-500/30 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary-500/20 border border-primary-500/30 flex items-center justify-center text-primary-300 text-lg font-black shadow-lg">
+                        ☁️
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-white text-xs uppercase tracking-wide">
+                            Đồng Bộ Toàn Diện Đa Thiết Bị (Cloud Vault)
+                          </h3>
+                          <span className="text-[9px] bg-primary-500/20 text-primary-300 font-mono px-2 py-0.5 rounded-full border border-primary-500/30">
+                            Sync 2 Chiều
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/60">
+                          Đồng bộ cả Kho Prompt JSON, Bộ Sưu Tập, Presets và Thư Viện Ảnh dùng chung giữa các máy
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={onSyncCloudVault}
+                      disabled={isCloudVaultSyncing}
+                      className="px-4 py-2 bg-gradient-to-r from-primary-500 to-emerald-400 hover:from-primary-400 hover:to-emerald-300 text-black font-black uppercase text-xs rounded-xl shadow-lg shadow-primary-500/25 active:scale-95 transition-all flex items-center gap-1.5"
+                    >
+                      {isCloudVaultSyncing ? (
+                        <>
+                          <svg className="animate-spin h-3.5 w-3.5 text-black" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Đang đồng bộ...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>⚡</span>
+                          <span>Đồng Bộ Ngay</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-black/40 p-3 rounded-xl border border-white/5 font-mono text-white/70">
+                    <div>
+                      <span className="text-white/40 block text-[9px] uppercase">File Cloud Vault trên Drive:</span>
+                      <span className="text-emerald-400 font-bold">nki_cloud_vault.json</span>
+                    </div>
+                    <div>
+                      <span className="text-white/40 block text-[9px] uppercase">Lần đồng bộ gần nhất:</span>
+                      <span className="text-white">
+                        {localStorage.getItem('nki_cloud_vault_last_synced')
+                          ? new Date(Number(localStorage.getItem('nki_cloud_vault_last_synced'))).toLocaleString()
+                          : 'Chưa đồng bộ'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Domain & Host Diagnostic */}
               <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">

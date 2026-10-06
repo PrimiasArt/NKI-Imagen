@@ -691,3 +691,81 @@ export const refreshGoogleDriveSession = async (): Promise<{ user: User; accessT
     throw error;
   }
 };
+
+// Find a file by exact name in a specific parent folder
+export const getFileIdByName = async (
+  accessToken: string,
+  fileName: string,
+  parentId?: string
+): Promise<string | null> => {
+  let query = `name = '${fileName}' and trashed = false`;
+  if (parentId) {
+    query += ` and '${parentId}' in parents`;
+  }
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw parseDriveApiError(response.status, errorText);
+  }
+
+  const data = await response.json();
+  if (data.files && data.files.length > 0) {
+    return data.files[0].id;
+  }
+  return null;
+};
+
+// Update existing file content on Google Drive
+export const updateFileContentInDrive = async (
+  accessToken: string,
+  fileId: string,
+  blob: Blob,
+  mimeType: string
+): Promise<{ id: string; name: string }> => {
+  const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': mimeType,
+    },
+    body: blob,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw parseDriveApiError(response.status, errText);
+  }
+
+  return response.json();
+};
+
+// Download Drive file as UTF-8 text (e.g. JSON database)
+export const downloadDriveFileAsText = async (
+  accessToken: string,
+  fileId: string
+): Promise<string> => {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw parseDriveApiError(response.status, errText);
+  }
+
+  return response.text();
+};
+

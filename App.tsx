@@ -70,6 +70,7 @@ import {
 import { User } from 'firebase/auth';
 import { SettingsModal } from './components/SettingsModal';
 import { UpdateNotificationToast } from './components/UpdateNotificationToast';
+import { syncFullCloudVault, pushVaultToCloud, pullVaultFromCloud } from './services/cloudVaultService';
 import {
   getAllGalleryItemsDB,
   saveGalleryItemDB,
@@ -3664,6 +3665,71 @@ const App: React.FC = () => {
     }
   };
 
+  const [isCloudVaultSyncing, setIsCloudVaultSyncing] = useState(false);
+  const [cloudVaultSyncStatus, setCloudVaultSyncStatus] = useState<string | null>(null);
+
+  const handleSyncCloudVault = async (silent: boolean = false) => {
+    const token = getAccessToken();
+    if (!googleUser || !token) {
+      if (!silent) {
+        handleConnectGoogleDrive();
+      }
+      return;
+    }
+
+    setIsCloudVaultSyncing(true);
+    if (!silent) {
+      setCloudVaultSyncStatus("Đang đồng bộ Kho Prompt, Gallery & Cài đặt với Google Drive...");
+    }
+
+    try {
+      const rootFolderName = storageSettings.driveFolderName || "NK Imagen Storage";
+      const rootFolderId = await getOrCreateFolder(token, rootFolderName);
+
+      // 1. Sync full cloud vault (Prompts, Collections, Presets, Gallery metadata)
+      const report = await syncFullCloudVault(token, rootFolderId, historyItems);
+
+      // 2. Refresh local state
+      const [updatedPrompts, updatedCollections, updatedGallery] = await Promise.all([
+        getAllPromptItemsDB(),
+        getAllCollectionsDB(),
+        getAllGalleryItemsDB()
+      ]);
+
+      setPromptHistoryItems(updatedPrompts);
+      setCollections(updatedCollections);
+      setGalleryItems(updatedGallery);
+
+      // 3. Also sync image files from Drive into gallery
+      await handleSyncDriveImages(true);
+
+      const msg = `Đã đồng bộ thành công! (+${report.promptsAdded} prompt mới, tổng ${report.totalCloudPrompts} prompt trên Drive)`;
+      if (!silent) {
+        setCloudVaultSyncStatus(msg);
+        setTimeout(() => setCloudVaultSyncStatus(null), 4000);
+      }
+      addToHistory('Cloud Vault Sync', msg, 'Đồng bộ đám mây');
+    } catch (err: any) {
+      console.error("[Cloud Vault Sync] Error:", err);
+      if (!silent) {
+        setCloudVaultSyncStatus(`Lỗi đồng bộ Cloud: ${err.message || 'Không thể kết nối'}`);
+        setTimeout(() => setCloudVaultSyncStatus(null), 5000);
+      }
+    } finally {
+      setIsCloudVaultSyncing(false);
+    }
+  };
+
+  // Auto-sync Cloud Vault (Prompts, Gallery, Collections) on launch/login
+  useEffect(() => {
+    if (googleUser && getAccessToken()) {
+      const waitTimer = setTimeout(() => {
+        handleSyncCloudVault(true);
+      }, 2500);
+      return () => clearTimeout(waitTimer);
+    }
+  }, [googleUser]);
+
   const [isSyncingCollection, setIsSyncingCollection] = useState<string | null>(null);
 
   const handleSyncCollectionToDrive = async (collectionId: string) => {
@@ -4399,6 +4465,8 @@ const App: React.FC = () => {
           setGallerySelection(new Set());
         }}
         galleryCount={galleryItems.length}
+        onSyncCloudVault={() => handleSyncCloudVault(false)}
+        isCloudVaultSyncing={isCloudVaultSyncing}
       />
 
       {/* Compact Glass Header (Single-Screen Fit) */}
@@ -4458,6 +4526,33 @@ const App: React.FC = () => {
                       <polygon points="12,2 2,22 22,22" fill="none" stroke="currentColor" strokeWidth={2.5} />
                     </svg>
                     Drive
+                  </button>
+                )}
+                {googleUser && getAccessToken() && (
+                  <button
+                    onClick={() => handleSyncCloudVault(false)}
+                    disabled={isCloudVaultSyncing}
+                    className={`px-2 py-1 border rounded-lg text-[8.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1 ${
+                      isCloudVaultSyncing
+                        ? 'bg-primary-500/20 text-primary-300 border-primary-500/40 animate-pulse'
+                        : 'bg-white/5 hover:bg-primary-500/10 text-white/60 hover:text-primary-300 border-white/10 hover:border-primary-500/30'
+                    }`}
+                    title="Đồng bộ 2 chiều toàn bộ Kho Prompt, Gallery và Lịch Sử với Google Drive"
+                  >
+                    {isCloudVaultSyncing ? (
+                      <>
+                        <svg className="animate-spin h-2.5 w-2.5 text-primary-400" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Đang Sync...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[9px]">☁️</span>
+                        <span>Sync Vault</span>
+                      </>
+                    )}
                   </button>
                 )}
                 <button
@@ -4580,6 +4675,16 @@ const App: React.FC = () => {
 
       {/* Visual Synaptic Cooling Countdown & Queue Alerts */}
       <SynapticCoolingBanner onOpenQueueDrawer={() => setIsQueueDrawerOpen(true)} />
+
+      {/* Cloud Vault Sync Toast Banner */}
+      {cloudVaultSyncStatus && (
+        <div className="fixed top-16 right-6 z-[9999] animate-in slide-in-from-top-3 duration-300">
+          <div className="glass-card px-4 py-3 rounded-2xl border border-primary-500/40 bg-slate-950/90 backdrop-blur-xl flex items-center gap-3 text-xs font-bold text-white shadow-2xl shadow-primary-950/80">
+            <span className="text-lg">☁️</span>
+            <span className="text-primary-200">{cloudVaultSyncStatus}</span>
+          </div>
+        </div>
+      )}
 
       {/* Main Workspace with Natural Scroll & Sticky Preview */}
       <main className="flex-1 w-full max-w-[1720px] mx-auto p-4 lg:p-6 flex flex-col">
