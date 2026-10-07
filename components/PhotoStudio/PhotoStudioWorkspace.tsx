@@ -25,6 +25,20 @@ import {
 import { getCachedImageModels, ImageModelOption } from '../../services/geminiService';
 import { applyAntiAiCamouflage, loadAntiAiSettings } from '../../services/antiAiCamouflageService';
 import { saveGalleryItemDB } from '../../services/indexedDbService';
+import { SmartSegmentToolbar } from './SmartSegmentToolbar';
+import { LayerStackPanel } from './LayerStackPanel';
+import { GoboProjectorPanel } from './GoboProjectorPanel';
+import { VirtualWardrobePanel } from './VirtualWardrobePanel';
+import { ExpressionSculptorPanel } from './ExpressionSculptorPanel';
+import { AtmosphereWeatherPanel } from './AtmosphereWeatherPanel';
+import {
+  StudioLayer,
+  StudioBlendMode,
+  createBaseLayer,
+  createAiLayer,
+  compositeLayersToCanvas,
+  flattenLayers
+} from '../../services/studioLayerService';
 
 export interface PhotoStudioWorkspaceProps {
   initialImageSrc?: string | null;
@@ -34,7 +48,15 @@ export interface PhotoStudioWorkspaceProps {
 }
 
 type StudioTool = 'select' | 'brush' | 'eraser' | 'crop' | 'color' | 'hand';
-type RightSidebarTab = 'ai_magic' | 'color_grading' | 'transform';
+type RightSidebarTab =
+  | 'ai_magic'
+  | 'color_grading'
+  | 'layers'
+  | 'gobo'
+  | 'wardrobe'
+  | 'expression'
+  | 'atmosphere'
+  | 'transform';
 type AiMagicAction = 'inpaint' | 'eraser' | 'expand' | 'bg_replace';
 
 /**
@@ -207,6 +229,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   const [history, setHistory] = useState<string[]>(initialImageSrc ? [initialImageSrc] : []);
   const [historyIndex, setHistoryIndex] = useState<number>(0);
 
+  // Multi-Layer Neural Composite State (v4.3 / v5.0)
+  const [layers, setLayers] = useState<StudioLayer[]>(() =>
+    initialImageSrc ? [createBaseLayer(initialImageSrc)] : []
+  );
+  const [activeLayerId, setActiveLayerId] = useState<string>('layer-base');
+
   // Active Tool & Mode
   const [activeTool, setActiveTool] = useState<StudioTool>('brush');
   const [activeTab, setActiveTab] = useState<RightSidebarTab>('ai_magic');
@@ -327,6 +355,172 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     setIsMaskVisible(true);
   }, []);
 
+  // Sync base layer when initialImageSrc changes
+  useEffect(() => {
+    if (initialImageSrc && layers.length === 0) {
+      setLayers([createBaseLayer(initialImageSrc)]);
+    }
+  }, [initialImageSrc, layers.length]);
+
+  // Apply Smart Segment Mask onto mask canvas (SAM 2)
+  const handleApplyMaskDataUrl = useCallback((maskDataUrl: string) => {
+    const maskImg = new Image();
+    maskImg.crossOrigin = 'anonymous';
+    maskImg.onload = () => {
+      const maskCanvas = maskCanvasRef.current;
+      if (maskCanvas) {
+        const ctx = maskCanvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+          ctx.drawImage(maskImg, 0, 0, maskCanvas.width, maskCanvas.height);
+
+          // Convert white pixels to red 60% overlay
+          const imgData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i] > 120 || d[i + 1] > 120 || d[i + 2] > 120) {
+              d[i] = 239;     // R
+              d[i + 1] = 68;  // G
+              d[i + 2] = 68;  // B
+              d[i + 3] = 160; // A
+            } else {
+              d[i + 3] = 0;   // Transparent
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+        }
+      }
+      setHasMask(true);
+      setIsMaskVisible(true);
+      showToast('✨ Đã tự động bóc tách vùng chọn (SAM 2)!');
+    };
+    maskImg.src = maskDataUrl;
+  }, []);
+
+  // Invert active mask
+  const handleInvertMask = useCallback(() => {
+    const maskCanvas = maskCanvasRef.current;
+    if (!maskCanvas) return;
+    const ctx = maskCanvas.getContext('2d');
+    if (!ctx) return;
+    const imgData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 20) {
+        d[i + 3] = 0;
+      } else {
+        d[i] = 239;
+        d[i + 1] = 68;
+        d[i + 2] = 68;
+        d[i + 3] = 160;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    setHasMask(true);
+    showToast('🔄 Đã đảo ngược vùng chọn mask!');
+  }, []);
+
+  // Layer Operations
+  const handleAddLayer = useCallback(() => {
+    if (!currentImageSrc) return;
+    const newLayer = createAiLayer('', `Layer ${layers.length + 1}`, 'paint');
+    setLayers((prev) => [...prev, newLayer]);
+    setActiveLayerId(newLayer.id);
+    showToast('Đã thêm Layer mới');
+  }, [currentImageSrc, layers.length]);
+
+  const handleDeleteLayer = useCallback((id: string) => {
+    setLayers((prev) => prev.filter((l) => l.id !== id));
+    setActiveLayerId('layer-base');
+    showToast('Đã xóa Layer');
+  }, []);
+
+  const handleDuplicateLayer = useCallback((id: string) => {
+    const target = layers.find((l) => l.id === id);
+    if (!target) return;
+    const dup: StudioLayer = {
+      ...target,
+      id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 3)}`,
+      name: `${target.name} (Bản sao)`
+    };
+    setLayers((prev) => [...prev, dup]);
+    setActiveLayerId(dup.id);
+    showToast('Đã nhân bản Layer');
+  }, [layers]);
+
+  const handleFlattenLayers = useCallback(async () => {
+    if (layers.length <= 1) return;
+    try {
+      const flattened = await flattenLayers(layers, imageSize.width, imageSize.height);
+      setLayers([createBaseLayer(flattened)]);
+      setActiveLayerId('layer-base');
+      pushHistory(flattened);
+      showToast('Đã gộp tất cả Layer thành một ảnh');
+    } catch (e) {
+      console.error('Lỗi flatten layers:', e);
+    }
+  }, [layers, imageSize, pushHistory]);
+
+  const handleToggleLayerVisibility = useCallback((id: string) => {
+    setLayers((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l))
+    );
+  }, []);
+
+  const handleChangeLayerOpacity = useCallback((id: string, opacity: number) => {
+    setLayers((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, opacity } : l))
+    );
+  }, []);
+
+  const handleChangeLayerBlendMode = useCallback((id: string, blendMode: StudioBlendMode) => {
+    setLayers((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, blendMode } : l))
+    );
+  }, []);
+
+  // Apply Gobo Layer
+  const handleApplyGoboLayer = useCallback((goboDataUrl: string, name: string) => {
+    const newLayer: StudioLayer = {
+      id: `layer-gobo-${Date.now()}`,
+      name,
+      type: 'gobo',
+      visible: true,
+      opacity: 0.85,
+      blendMode: 'screen',
+      dataUrl: goboDataUrl
+    };
+    setLayers((prev) => [...prev, newLayer]);
+    setActiveLayerId(newLayer.id);
+    showToast('🔦 Đã tạo Layer Gobo Chiếu Sáng!');
+  }, []);
+
+  // Apply Atmosphere Layer
+  const handleApplyAtmosphereLayer = useCallback((dataUrl: string, name: string) => {
+    const newLayer: StudioLayer = {
+      id: `layer-atmo-${Date.now()}`,
+      name,
+      type: 'atmosphere',
+      visible: true,
+      opacity: 0.85,
+      blendMode: 'screen',
+      dataUrl
+    };
+    setLayers((prev) => [...prev, newLayer]);
+    setActiveLayerId(newLayer.id);
+    showToast('🌧️ Đã tạo Layer Khí Quyển Môi Trường!');
+  }, []);
+
+  // Breakthrough AI output integration helper
+  const handleApplyStudioAiPatch = useCallback((resultImageSrc: string, actionName: string) => {
+    pushHistory(resultImageSrc);
+    const newLayer = createAiLayer(resultImageSrc, actionName, 'ai_patch');
+    setLayers((prev) => [...prev, newLayer]);
+    setActiveLayerId(newLayer.id);
+    clearMask();
+    showToast(`✨ ${actionName} hoàn tất!`);
+  }, [pushHistory, clearMask]);
+
   // Initialize/Load image onto canvas
   useEffect(() => {
     if (!currentImageSrc) return;
@@ -377,8 +571,8 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     img.src = currentImageSrc;
   }, [currentImageSrc]);
 
-  // Real-time render main canvas with color grading adjustments
-  const renderMainCanvas = useCallback(() => {
+  // Real-time render main canvas with multi-layer composite and color grading adjustments
+  const renderMainCanvas = useCallback(async () => {
     const mainCanvas = mainCanvasRef.current;
     const baseImg = baseImageElementRef.current;
     if (!mainCanvas || !baseImg) return;
@@ -394,8 +588,20 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       return;
     }
 
-    renderWithAdjustments(baseImg, mainCanvas, adjustments);
-  }, [adjustments, isComparingOriginal, originalImageSrc]);
+    if (layers.length > 1) {
+      await compositeLayersToCanvas(mainCanvas, layers);
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = mainCanvas.width;
+      tempCanvas.height = mainCanvas.height;
+      const tCtx = tempCanvas.getContext('2d');
+      if (tCtx) {
+        tCtx.drawImage(mainCanvas, 0, 0);
+        renderWithAdjustments(tempCanvas, mainCanvas, adjustments);
+      }
+    } else {
+      renderWithAdjustments(baseImg, mainCanvas, adjustments);
+    }
+  }, [adjustments, isComparingOriginal, originalImageSrc, layers]);
 
   // Trigger render when adjustments change
   useEffect(() => {
@@ -1695,60 +1901,127 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </span>
             </div>
           )}
+          {/* Smart Segment SAM 2 Toolbar - Floating VisionOS Capsule */}
+          {activeTool !== 'crop' && (
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20">
+              <SmartSegmentToolbar
+                baseImageSrc={currentImageSrc}
+                onApplyMaskDataUrl={handleApplyMaskDataUrl}
+                onClearMask={clearMask}
+                onInvertMask={handleInvertMask}
+                hasActiveMask={hasMask}
+                isMaskVisible={isMaskVisible}
+                onToggleMaskVisibility={() => setIsMaskVisible(!isMaskVisible)}
+              />
+            </div>
+          )}
         </main>
 
         {/* Right Inspector & Controls Sidebar */}
         <aside className="w-80 md:w-96 flex-none bg-slate-900/90 border-l border-white/10 flex flex-col z-20 backdrop-blur-md">
-          {/* Sidebar Tabs */}
-          <div className="flex border-b border-white/10 p-1.5 bg-black/20 gap-1">
-            <button
-              onClick={() => {
-                setActiveTab('ai_magic');
-                if (activeTool === 'select' || activeTool === 'color') {
-                  setActiveTool('brush');
-                }
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'ai_magic'
-                  ? 'bg-primary-500 text-black shadow-lg font-bold'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span>✨</span>
-              <span>AI Magic</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('color_grading');
-                if (activeTool === 'brush' || activeTool === 'eraser') {
-                  setActiveTool('select');
-                }
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'color_grading'
-                  ? 'bg-amber-400 text-black shadow-lg font-bold'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span>🎨</span>
-              <span>Chỉnh Màu</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('transform');
-                if (activeTool === 'brush' || activeTool === 'eraser') {
-                  setActiveTool('select');
-                }
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-black tracking-wide uppercase transition-all flex items-center justify-center gap-1.5 ${
-                activeTab === 'transform'
-                  ? 'bg-indigo-500 text-white shadow-lg font-bold'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              <span>🔄</span>
-              <span>Biến Đổi</span>
-            </button>
+          {/* Sidebar Tabs - VisionOS Acrylic Header */}
+          <div className="flex flex-col border-b border-white/10 p-2 bg-black/30 gap-1.5">
+            {/* Primary Core Tabs */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => {
+                  setActiveTab('ai_magic');
+                  if (activeTool === 'select' || activeTool === 'color') setActiveTool('brush');
+                }}
+                className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center justify-center gap-1 ${
+                  activeTab === 'ai_magic'
+                    ? 'bg-primary-500 text-black shadow-lg font-bold'
+                    : 'text-white/60 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>✨</span>
+                <span>AI Magic</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('color_grading');
+                  if (activeTool === 'brush' || activeTool === 'eraser') setActiveTool('select');
+                }}
+                className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center justify-center gap-1 ${
+                  activeTab === 'color_grading'
+                    ? 'bg-amber-400 text-black shadow-lg font-bold'
+                    : 'text-white/60 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>🎨</span>
+                <span>Màu Sắc</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('layers')}
+                className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center justify-center gap-1 ${
+                  activeTab === 'layers'
+                    ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 font-bold'
+                    : 'text-white/60 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>🥞</span>
+                <span>Layers ({layers.length})</span>
+              </button>
+            </div>
+
+            {/* Neural Studio Breakthrough Tabs Row */}
+            <div className="flex gap-1 overflow-x-auto no-scrollbar pt-0.5">
+              <button
+                onClick={() => setActiveTab('gobo')}
+                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                  activeTab === 'gobo'
+                    ? 'bg-amber-500/25 border border-amber-400/50 text-amber-300 font-bold'
+                    : 'text-white/50 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>🔦</span>
+                <span>Gobo 3D</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('wardrobe')}
+                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                  activeTab === 'wardrobe'
+                    ? 'bg-rose-500/25 border border-rose-400/50 text-rose-300 font-bold'
+                    : 'text-white/50 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>👗</span>
+                <span>Wardrobe</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('expression')}
+                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                  activeTab === 'expression'
+                    ? 'bg-purple-500/25 border border-purple-400/50 text-purple-300 font-bold'
+                    : 'text-white/50 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>🎭</span>
+                <span>Sculptor</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('atmosphere')}
+                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                  activeTab === 'atmosphere'
+                    ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300 font-bold'
+                    : 'text-white/50 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>🌧️</span>
+                <span>Khí Quyển</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('transform')}
+                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                  activeTab === 'transform'
+                    ? 'bg-indigo-500/25 border border-indigo-400/50 text-indigo-300 font-bold'
+                    : 'text-white/50 hover:text-white bg-white/5'
+                }`}
+              >
+                <span>🔄</span>
+                <span>Biến Đổi</span>
+              </button>
+            </div>
           </div>
 
           {/* Sidebar Content Scrollable Area */}
@@ -2384,7 +2657,61 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </div>
             )}
 
-            {/* TAB 3: TRANSFORM & LAYERS */}
+            {/* TAB: MULTI-LAYER NEURAL COMPOSITE */}
+            {activeTab === 'layers' && (
+              <LayerStackPanel
+                layers={layers}
+                activeLayerId={activeLayerId}
+                onSelectLayer={setActiveLayerId}
+                onToggleVisibility={handleToggleLayerVisibility}
+                onChangeOpacity={handleChangeLayerOpacity}
+                onChangeBlendMode={handleChangeLayerBlendMode}
+                onAddLayer={handleAddLayer}
+                onDeleteLayer={handleDeleteLayer}
+                onDuplicateLayer={handleDuplicateLayer}
+                onFlattenLayers={handleFlattenLayers}
+              />
+            )}
+
+            {/* TAB: NEURAL GOBO & OPTICAL PROJECTOR */}
+            {activeTab === 'gobo' && (
+              <GoboProjectorPanel
+                baseImageSrc={currentImageSrc}
+                onApplyGoboLayer={handleApplyGoboLayer}
+                onApplyAiRelitImage={(img) => handleApplyStudioAiPatch(img, 'Gobo Relight')}
+              />
+            )}
+
+            {/* TAB: VIRTUAL WARDROBE & MATERIAL MATRIX */}
+            {activeTab === 'wardrobe' && (
+              <VirtualWardrobePanel
+                baseImageSrc={currentImageSrc}
+                activeMaskDataUrl={hasMask ? (() => {
+                  const maskCanvas = maskCanvasRef.current;
+                  return maskCanvas ? maskCanvas.toDataURL() : null;
+                })() : null}
+                onApplyNewOutfit={(img) => handleApplyStudioAiPatch(img, 'Virtual Wardrobe')}
+              />
+            )}
+
+            {/* TAB: NEURAL EXPRESSION & GAZE SCULPTOR */}
+            {activeTab === 'expression' && (
+              <ExpressionSculptorPanel
+                baseImageSrc={currentImageSrc}
+                onApplySculptedFace={(img) => handleApplyStudioAiPatch(img, 'Expression Sculpt')}
+              />
+            )}
+
+            {/* TAB: VOLUMETRIC ATMOSPHERE & WEATHER */}
+            {activeTab === 'atmosphere' && (
+              <AtmosphereWeatherPanel
+                baseImageSrc={currentImageSrc}
+                onApplyAtmosphereLayer={handleApplyAtmosphereLayer}
+                onApplyAiAtmosphere={(img) => handleApplyStudioAiPatch(img, 'Atmosphere Weather')}
+              />
+            )}
+
+            {/* TAB: TRANSFORM & ROTATE */}
             {activeTab === 'transform' && (
               <div className="space-y-5">
                 {/* Rotate & Flip (0 API calls) */}
