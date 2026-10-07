@@ -7,9 +7,12 @@ import {
   getActivePersonaId,
   setActivePersonaId,
   addPhotoToPersona,
+  addPhotosToPersona,
+  updatePersonaDetails,
   removePhotoFromPersona,
   setPersonaAvatarPhoto,
-  analyzeModelFaceTraits
+  analyzeModelFaceTraits,
+  compressFileToBase64
 } from '../services/consistencyService';
 
 interface CharacterVaultModalProps {
@@ -31,7 +34,7 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'Female' | 'Male'>('all');
 
-  // New Character Creation / Edit State
+  // New Character Creation State
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
   const [newPersona, setNewPersona] = useState<Partial<CharacterPersona>>({
@@ -45,6 +48,16 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
     colorPalette: 'Muted charcoal, ivory silk, champagne gold',
     photos: []
   });
+
+  // Selected Persona Edit State
+  const [isEditingSelected, setIsEditingSelected] = useState(false);
+  const [editingPersonaData, setEditingPersonaData] = useState<Partial<CharacterPersona>>({});
+  const [isAnalyzingEditAi, setIsAnalyzingEditAi] = useState(false);
+
+  // Upload Photos to Selected Persona State
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState('');
+  const [isDraggingPhotos, setIsDraggingPhotos] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -68,20 +81,20 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
   // Handle initial upload file passed in from Biometric Core
   useEffect(() => {
     if (isOpen && initialUploadFile) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        if (base64) {
+      compressFileToBase64(initialUploadFile).then(compressed => {
+        if (compressed) {
           setIsCreatingNew(true);
+          setIsEditingSelected(false);
           setNewPersona(prev => ({
             ...prev,
-            avatarImage: base64,
-            photos: [base64]
+            avatarImage: compressed,
+            photos: [compressed]
           }));
-          triggerAiAnalysis(base64);
+          triggerAiAnalysis(compressed);
         }
-      };
-      reader.readAsDataURL(initialUploadFile);
+      }).catch(err => {
+        console.error('Lỗi nén ảnh mẫu ban đầu:', err);
+      });
     }
   }, [isOpen, initialUploadFile]);
 
@@ -124,26 +137,113 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
       if (selectedPersonaId === id) {
         setSelectedPersonaId(updated[0]?.id || null);
       }
+      setIsEditingSelected(false);
+    }
+  };
+
+  // Start editing selected persona
+  const handleStartEditing = () => {
+    if (!selectedPersona) return;
+    setEditingPersonaData({
+      name: selectedPersona.name,
+      gender: selectedPersona.gender || 'Female',
+      ageRange: selectedPersona.ageRange || '',
+      bodyType: selectedPersona.bodyType || '',
+      faceFeatures: selectedPersona.faceFeatures || '',
+      hairStyle: selectedPersona.hairStyle || '',
+      signatureOutfit: selectedPersona.signatureOutfit || '',
+      colorPalette: selectedPersona.colorPalette || '',
+    });
+    setIsEditingSelected(true);
+  };
+
+  // Save changes to selected persona
+  const handleSaveEdit = () => {
+    if (!selectedPersona) return;
+    if (!editingPersonaData.name?.trim()) {
+      alert('Vui lòng nhập tên người mẫu.');
+      return;
+    }
+
+    try {
+      updatePersonaDetails(selectedPersona.id, editingPersonaData);
+      const updatedList = getCharacterPersonas();
+      setPersonas(updatedList);
+      setIsEditingSelected(false);
+    } catch (err: any) {
+      console.error('Lỗi khi lưu thông tin:', err);
+      alert('Không thể cập nhật thông tin: ' + (err?.message || err));
+    }
+  };
+
+  // Trigger AI trait scan on selected persona avatar during edit
+  const handleTriggerEditAiAnalysis = async () => {
+    if (!selectedPersona) return;
+    const photo = selectedPersona.avatarImage || (selectedPersona.photos && selectedPersona.photos[0]);
+    if (!photo) {
+      alert('Nhân vật mẫu chưa có ảnh để AI phân tích.');
+      return;
+    }
+    try {
+      setIsAnalyzingEditAi(true);
+      const traits = await analyzeModelFaceTraits(photo);
+      setEditingPersonaData(prev => ({
+        ...prev,
+        ...traits,
+        name: prev.name || traits.name || selectedPersona.name
+      }));
+    } catch (err) {
+      console.error('Lỗi phân tích AI khi chỉnh sửa:', err);
+      alert('Không thể phân tích AI ảnh mẫu.');
+    } finally {
+      setIsAnalyzingEditAi(false);
+    }
+  };
+
+  // Process & upload multiple files to selected persona safely with client-side compression
+  const processAndUploadFiles = async (files: File[]) => {
+    if (!selectedPersona || files.length === 0) return;
+    setIsUploadingPhotos(true);
+    setUploadStatusText(`Đang nén & tối ưu ${files.length} ảnh...`);
+    try {
+      const compressedList: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setUploadStatusText(`Đang tối ưu ảnh ${i + 1}/${files.length}...`);
+        const base64 = await compressFileToBase64(files[i]);
+        if (base64) compressedList.push(base64);
+      }
+      if (compressedList.length > 0) {
+        setUploadStatusText(`Đang lưu vào album của ${selectedPersona.name}...`);
+        addPhotosToPersona(selectedPersona.id, compressedList);
+        const updatedList = getCharacterPersonas();
+        setPersonas(updatedList);
+      }
+    } catch (err: any) {
+      console.error('Lỗi upload ảnh vào model:', err);
+      alert('Không thể thêm ảnh vào album: ' + (err?.message || err));
+    } finally {
+      setIsUploadingPhotos(false);
+      setUploadStatusText('');
+      if (addPhotoInputRef.current) {
+        addPhotoInputRef.current.value = '';
+      }
     }
   };
 
   const handleAddPhotosToSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || !selectedPersona) return;
+    if (!files || files.length === 0) return;
+    processAndUploadFiles(Array.from(files));
+  };
 
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const base64 = ev.target?.result as string;
-        if (base64) {
-          const updated = addPhotoToPersona(selectedPersona.id, base64);
-          if (updated) {
-            setPersonas(getCharacterPersonas());
-          }
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+  const handleDropPhotos = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingPhotos(false);
+    if (!selectedPersona) return;
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length > 0) {
+      processAndUploadFiles(files);
+    }
   };
 
   const triggerAiAnalysis = async (photoBase64: string) => {
@@ -165,42 +265,52 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
   };
 
   const handleSaveNewPersona = () => {
-    if (!newPersona.name) {
+    if (!newPersona.name?.trim()) {
       alert('Vui lòng nhập tên nhân vật mẫu.');
       return;
     }
 
-    const created: CharacterPersona = {
-      id: `persona_${Date.now()}`,
-      name: newPersona.name,
-      gender: newPersona.gender || 'Female',
-      ageRange: newPersona.ageRange || '20-25 tuổi',
-      bodyType: newPersona.bodyType || 'Thon thả',
-      faceFeatures: newPersona.faceFeatures || 'Nét mặt thanh tú tự nhiên',
-      hairStyle: newPersona.hairStyle || 'Tóc đen mượt tự nhiên',
-      signatureOutfit: newPersona.signatureOutfit || 'Trang phục thanh lịch hiện đại',
-      colorPalette: newPersona.colorPalette || 'Muted tones',
-      avatarImage: newPersona.avatarImage,
-      photos: newPersona.photos || (newPersona.avatarImage ? [newPersona.avatarImage] : []),
-      createdAt: Date.now(),
-      isActive: false
-    };
+    try {
+      const created: CharacterPersona = {
+        id: `persona_${Date.now()}`,
+        name: newPersona.name.trim(),
+        gender: newPersona.gender || 'Female',
+        ageRange: newPersona.ageRange || '20-25 tuổi',
+        bodyType: newPersona.bodyType || 'Thon thả',
+        faceFeatures: newPersona.faceFeatures || 'Nét mặt thanh tú tự nhiên',
+        hairStyle: newPersona.hairStyle || 'Tóc đen mượt tự nhiên',
+        signatureOutfit: newPersona.signatureOutfit || 'Trang phục thanh lịch hiện đại',
+        colorPalette: newPersona.colorPalette || 'Muted tones',
+        avatarImage: newPersona.avatarImage,
+        photos: newPersona.photos || (newPersona.avatarImage ? [newPersona.avatarImage] : []),
+        createdAt: Date.now(),
+        isActive: false
+      };
 
-    saveCharacterPersona(created);
-    setPersonas(getCharacterPersonas());
-    setSelectedPersonaId(created.id);
-    setIsCreatingNew(false);
-    setNewPersona({
-      name: '',
-      gender: 'Female',
-      ageRange: '20-25 tuổi',
-      bodyType: 'Thon thả chuẩn người mẫu (Slim Runway)',
-      faceFeatures: '',
-      hairStyle: '',
-      signatureOutfit: '',
-      colorPalette: 'Muted charcoal, ivory silk',
-      photos: []
-    });
+      saveCharacterPersona(created);
+      const updated = getCharacterPersonas();
+      setPersonas(updated);
+      setSelectedPersonaId(created.id);
+      setIsCreatingNew(false);
+      setIsEditingSelected(false);
+      setNewPersona({
+        name: '',
+        gender: 'Female',
+        ageRange: '20-25 tuổi',
+        bodyType: 'Thon thả chuẩn người mẫu (Slim Runway)',
+        faceFeatures: '',
+        hairStyle: '',
+        signatureOutfit: '',
+        colorPalette: 'Muted charcoal, ivory silk',
+        photos: []
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi lưu nhân vật mới:', err);
+      alert('Không thể lưu nhân vật mẫu: ' + (err?.message || err));
+    }
   };
 
   return (
@@ -393,20 +503,22 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                           accept="image/*"
                           className="hidden"
                           ref={fileInputRef}
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                const b = ev.target?.result as string;
-                                setNewPersona(prev => ({
-                                  ...prev,
-                                  avatarImage: b,
-                                  photos: [b]
-                                }));
-                                triggerAiAnalysis(b);
-                              };
-                              reader.readAsDataURL(file);
+                              try {
+                                const compressed = await compressFileToBase64(file);
+                                if (compressed) {
+                                  setNewPersona(prev => ({
+                                    ...prev,
+                                    avatarImage: compressed,
+                                    photos: [compressed]
+                                  }));
+                                  triggerAiAnalysis(compressed);
+                                }
+                              } catch (err) {
+                                console.error('Lỗi tối ưu ảnh mẫu:', err);
+                              }
                             }
                           }}
                         />
@@ -591,6 +703,25 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                         <span>Chọn Làm Biometric Core</span>
                       </button>
                     )}
+                    {!isEditingSelected ? (
+                      <button
+                        type="button"
+                        onClick={handleStartEditing}
+                        className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                        title="Chỉnh sửa thông tin và diện mạo model"
+                      >
+                        <span>✏️</span>
+                        <span>Chỉnh Sửa</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingSelected(false)}
+                        className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 text-xs font-bold transition"
+                      >
+                        ✕ Hủy Sửa
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleToggleActiveLock(selectedPersona)}
@@ -613,67 +744,255 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                   </div>
                 </div>
 
-                {/* Traits Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
-                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                      Đặc điểm khuôn mặt
-                    </span>
-                    <p className="text-white/80 leading-relaxed">
-                      {selectedPersona.faceFeatures}
-                    </p>
-                  </div>
+                {/* EDIT MODE FORM VS DISPLAY DOSSIER */}
+                {isEditingSelected ? (
+                  <div className="p-4 rounded-3xl bg-slate-950/80 border border-amber-500/30 space-y-4 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">✏️</span>
+                        <h4 className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                          Chỉnh Sửa Thông Tin Model: {selectedPersona.name}
+                        </h4>
+                      </div>
+                      {(selectedPersona.avatarImage || (selectedPersona.photos && selectedPersona.photos.length > 0)) && (
+                        <button
+                          type="button"
+                          onClick={handleTriggerEditAiAnalysis}
+                          disabled={isAnalyzingEditAi}
+                          className="px-3 py-1 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-[11px] font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isAnalyzingEditAi ? (
+                            <>
+                              <div className="w-2.5 h-2.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                              <span>AI đang phân tích...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>🔍</span>
+                              <span>AI Quét Lại Diện Mạo</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
 
-                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
-                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                      Kiểu tóc & Màu tóc
-                    </span>
-                    <p className="text-white/80 leading-relaxed">
-                      {selectedPersona.hairStyle}
-                    </p>
-                  </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                          Tên Model:
+                        </label>
+                        <input
+                          type="text"
+                          value={editingPersonaData.name || ''}
+                          onChange={(e) => setEditingPersonaData(p => ({ ...p, name: e.target.value }))}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
 
-                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
-                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                      Trang phục đặc trưng
-                    </span>
-                    <p className="text-white/80 leading-relaxed">
-                      {selectedPersona.signatureOutfit}
-                    </p>
-                  </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                          Giới Tính:
+                        </label>
+                        <select
+                          value={editingPersonaData.gender || 'Female'}
+                          onChange={(e) => setEditingPersonaData(p => ({ ...p, gender: e.target.value }))}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        >
+                          <option value="Female">Nữ (Female)</option>
+                          <option value="Male">Nam (Male)</option>
+                          <option value="Non-binary">Phi nhị giới (Non-binary)</option>
+                        </select>
+                      </div>
 
-                  <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
-                    <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
-                      Bảng màu chủ đạo
-                    </span>
-                    <p className="text-amber-200/80 leading-relaxed font-mono">
-                      {selectedPersona.colorPalette}
-                    </p>
+                      <div>
+                        <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                          Độ Tuổi:
+                        </label>
+                        <input
+                          type="text"
+                          value={editingPersonaData.ageRange || ''}
+                          onChange={(e) => setEditingPersonaData(p => ({ ...p, ageRange: e.target.value }))}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                          Vóc Dáng (Body Type):
+                        </label>
+                        <input
+                          type="text"
+                          value={editingPersonaData.bodyType || ''}
+                          onChange={(e) => setEditingPersonaData(p => ({ ...p, bodyType: e.target.value }))}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                        Đặc Điểm Khuôn Mặt (Face Features):
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={editingPersonaData.faceFeatures || ''}
+                        onChange={(e) => setEditingPersonaData(p => ({ ...p, faceFeatures: e.target.value }))}
+                        className="w-full bg-slate-900 border border-white/15 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                          Kiểu Tóc (Hair Style):
+                        </label>
+                        <input
+                          type="text"
+                          value={editingPersonaData.hairStyle || ''}
+                          onChange={(e) => setEditingPersonaData(p => ({ ...p, hairStyle: e.target.value }))}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                          Bảng Màu Chủ Đạo:
+                        </label>
+                        <input
+                          type="text"
+                          value={editingPersonaData.colorPalette || ''}
+                          onChange={(e) => setEditingPersonaData(p => ({ ...p, colorPalette: e.target.value }))}
+                          className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold text-white/60 uppercase tracking-wider block mb-1">
+                        Trang Phục Đặc Trưng:
+                      </label>
+                      <input
+                        type="text"
+                        value={editingPersonaData.signatureOutfit || ''}
+                        onChange={(e) => setEditingPersonaData(p => ({ ...p, signatureOutfit: e.target.value }))}
+                        className="w-full bg-slate-900 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingSelected(false)}
+                        className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 text-xs font-semibold"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveEdit}
+                        className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-amber-500/25 flex items-center gap-1.5"
+                      >
+                        <span>✓</span>
+                        <span>Lưu Thay Đổi</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* Traits Cards Grid */
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                        Đặc điểm khuôn mặt
+                      </span>
+                      <p className="text-white/80 leading-relaxed">
+                        {selectedPersona.faceFeatures}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                        Kiểu tóc & Màu tóc
+                      </span>
+                      <p className="text-white/80 leading-relaxed">
+                        {selectedPersona.hairStyle}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                        Trang phục đặc trưng
+                      </span>
+                      <p className="text-white/80 leading-relaxed">
+                        {selectedPersona.signatureOutfit}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-950/60 border border-white/10 space-y-1">
+                      <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block">
+                        Bảng màu chủ đạo
+                      </span>
+                      <p className="text-amber-200/80 leading-relaxed font-mono">
+                        {selectedPersona.colorPalette}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Photo Gallery (Kho Ảnh Của Model) */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
+                <div 
+                  className={`space-y-3 pt-2 rounded-2xl transition-all ${
+                    isDraggingPhotos ? 'p-3 bg-purple-500/10 border-2 border-dashed border-purple-400' : ''
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingPhotos(true); }}
+                  onDragLeave={() => setIsDraggingPhotos(false)}
+                  onDrop={handleDropPhotos}
+                >
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="text-sm">📸</span>
                       <h4 className="text-xs font-black text-white uppercase tracking-wider">
                         Album Ảnh Của Model ({selectedPersona.photos?.length || 0} ảnh)
                       </h4>
+                      <span className="text-[10px] text-white/40 hidden sm:inline">
+                        (Kéo thả ảnh vào đây)
+                      </span>
                     </div>
 
-                    <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-200 text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
-                      <span>➕ Thêm Ảnh Mới Vào Model</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        ref={addPhotoInputRef}
-                        onChange={handleAddPhotosToSelected}
-                      />
+                    <label className={`cursor-pointer px-3 py-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
+                      isUploadingPhotos
+                        ? 'bg-purple-600/30 text-purple-300 border-purple-500/30 cursor-not-allowed opacity-60'
+                        : 'bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/30 text-purple-200'
+                    }`}>
+                      {isUploadingPhotos ? (
+                        <>
+                          <div className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                          <span>{uploadStatusText || 'Đang xử lý...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>➕</span>
+                          <span>Thêm Ảnh Vào Album</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            ref={addPhotoInputRef}
+                            onChange={handleAddPhotosToSelected}
+                            disabled={isUploadingPhotos}
+                          />
+                        </>
+                      )}
                     </label>
                   </div>
+
+                  {/* Uploading Status Banner */}
+                  {isUploadingPhotos && (
+                    <div className="p-2.5 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center gap-2 text-xs text-purple-200 animate-pulse">
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-purple-300 border-t-transparent animate-spin flex-shrink-0" />
+                      <span>{uploadStatusText}</span>
+                    </div>
+                  )}
 
                   {/* Photos Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -734,6 +1053,7 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                       <div className="col-span-full p-8 rounded-2xl bg-white/[0.02] border border-dashed border-white/15 text-center space-y-2">
                         <span className="text-3xl text-white/20">📷</span>
                         <p className="text-xs text-white/50">Model này chưa có ảnh trong album.</p>
+                        <p className="text-[11px] text-white/30">Kéo thả ảnh vào đây hoặc bấm "Thêm Ảnh Vào Album" ở góc phải để thêm ảnh.</p>
                       </div>
                     )}
                   </div>

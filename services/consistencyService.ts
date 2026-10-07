@@ -1,6 +1,7 @@
 import { CharacterPersona, ImagePromptJson } from '../types';
 import { getGeminiClient, compressBase64Image, prepareInlineData, callWithRetry } from './geminiService';
 import { getStudioModelConfig } from './modelConfigService';
+import { getPersonasDB, savePersonasDB } from './indexedDbService';
 
 const STORAGE_KEY_PERSONAS = 'nki_character_personas';
 const STORAGE_KEY_ACTIVE_ID = 'nki_active_persona_id';
@@ -40,21 +41,122 @@ export const DEFAULT_STARTER_PERSONAS: CharacterPersona[] = [
   }
 ];
 
-export function getCharacterPersonas(): CharacterPersona[] {
-  if (typeof window === 'undefined') return DEFAULT_STARTER_PERSONAS;
+// In-Memory Personas Cache for instant synchronous reads and 0-latency UI updates
+let memoryPersonasCache: CharacterPersona[] | null = null;
+let isIndexedDbInitialized = false;
+
+/**
+ * Initializes the persona store from IndexedDB and synchronizes with memory cache.
+ */
+async function initPersonasStore(): Promise<void> {
+  if (typeof window === 'undefined' || isIndexedDbInitialized) return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_PERSONAS);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY_PERSONAS, JSON.stringify(DEFAULT_STARTER_PERSONAS));
-      return DEFAULT_STARTER_PERSONAS;
+    const dbPersonas = await getPersonasDB();
+    if (dbPersonas && Array.isArray(dbPersonas) && dbPersonas.length > 0) {
+      memoryPersonasCache = dbPersonas;
+      window.dispatchEvent(new CustomEvent('nki_personas_updated', { detail: dbPersonas }));
+    } else {
+      // Check localStorage for migration
+      const raw = localStorage.getItem(STORAGE_KEY_PERSONAS);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            memoryPersonasCache = parsed;
+            await savePersonasDB(parsed);
+          }
+        } catch {}
+      }
+      if (!memoryPersonasCache) {
+        memoryPersonasCache = DEFAULT_STARTER_PERSONAS;
+        await savePersonasDB(DEFAULT_STARTER_PERSONAS);
+      }
     }
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error('Failed to load personas:', e);
-    return DEFAULT_STARTER_PERSONAS;
+    isIndexedDbInitialized = true;
+  } catch (err) {
+    console.warn('[ConsistencyService] Failed to initialize personas from IndexedDB:', err);
   }
 }
 
+// Trigger background initialization
+if (typeof window !== 'undefined') {
+  initPersonasStore();
+}
+
+/**
+ * Helper to compress an uploaded File directly to a lightweight Base64 string (~80-150KB).
+ * Prevents localStorage/IndexedDB bloat and ensures instantaneous saving.
+ */
+export async function compressFileToBase64(
+  file: File,
+  maxDim = 1024,
+  quality = 0.85
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const raw = e.target?.result as string;
+      if (!raw) return resolve('');
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(raw);
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(raw);
+      img.src = raw;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Synchronously retrieves character personas from memory cache or storage.
+ */
+export function getCharacterPersonas(): CharacterPersona[] {
+  if (memoryPersonasCache && memoryPersonasCache.length > 0) {
+    return memoryPersonasCache;
+  }
+
+  if (typeof window === 'undefined') return DEFAULT_STARTER_PERSONAS;
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PERSONAS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        memoryPersonasCache = parsed;
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load personas from localStorage:', e);
+  }
+
+  memoryPersonasCache = DEFAULT_STARTER_PERSONAS;
+  return DEFAULT_STARTER_PERSONAS;
+}
+
+/**
+ * Persists character persona into both memory cache, IndexedDB (unlimited quota)
+ * and safely mirrors to localStorage with QuotaExceeded protection.
+ */
 export function saveCharacterPersona(persona: CharacterPersona): CharacterPersona[] {
   const current = getCharacterPersonas();
   const idx = current.findIndex(p => p.id === persona.id);
@@ -65,16 +167,49 @@ export function saveCharacterPersona(persona: CharacterPersona): CharacterPerson
   } else {
     updated = [persona, ...current];
   }
-  localStorage.setItem(STORAGE_KEY_PERSONAS, JSON.stringify(updated));
+
+  // 1. Update in-memory cache immediately
+  memoryPersonasCache = updated;
+
+  // 2. Persist to IndexedDB (supports hundreds of megabytes/gigabytes of photos)
+  savePersonasDB(updated).catch(err => {
+    console.error('[ConsistencyService] Error saving to IndexedDB:', err);
+  });
+
+  // 3. Mirror to localStorage safely (catch QuotaExceededError)
+  try {
+    localStorage.setItem(STORAGE_KEY_PERSONAS, JSON.stringify(updated));
+  } catch (quotaErr) {
+    console.warn('[ConsistencyService] LocalStorage quota exceeded, storing lightweight metadata fallback:', quotaErr);
+    try {
+      // Store lightweight version without raw heavy photos array in localStorage
+      const lightweight = updated.map(p => ({
+        ...p,
+        photos: p.photos ? p.photos.slice(0, 1) : [] // Keep only 1 avatar photo in localStorage
+      }));
+      localStorage.setItem(STORAGE_KEY_PERSONAS, JSON.stringify(lightweight));
+    } catch {}
+  }
+
+  // 4. Dispatch update event
   window.dispatchEvent(new CustomEvent('nki_personas_updated', { detail: updated }));
   return updated;
 }
 
+/**
+ * Deletes a character persona.
+ */
 export function deleteCharacterPersona(id: string): CharacterPersona[] {
   const current = getCharacterPersonas();
   const updated = current.filter(p => p.id !== id);
-  localStorage.setItem(STORAGE_KEY_PERSONAS, JSON.stringify(updated));
-  
+
+  memoryPersonasCache = updated;
+  savePersonasDB(updated).catch(console.error);
+
+  try {
+    localStorage.setItem(STORAGE_KEY_PERSONAS, JSON.stringify(updated));
+  } catch {}
+
   if (getActivePersonaId() === id) {
     setActivePersonaId(null);
   }
@@ -119,7 +254,7 @@ export function getActivePersona(): CharacterPersona | null {
  * Injects character persona attributes into the prompt JSON while keeping scene details intact.
  */
 export function injectPersonaIntoPrompt(prompt: ImagePromptJson, persona: CharacterPersona): ImagePromptJson {
-  const personaDesc = `${persona.gender}, ${persona.ageRange}, ${persona.faceFeatures}, with ${persona.hairStyle}, wearing ${persona.signatureOutfit}`;
+  const personaDesc = `${persona.gender}, ${persona.ageRange}, ${persona.bodyType ? `${persona.bodyType}, ` : ''}${persona.faceFeatures}, with ${persona.hairStyle}, wearing ${persona.signatureOutfit}`;
 
   // Preserve existing scene while anchoring the character
   let mergedSubject = prompt.subject.trim();
@@ -164,6 +299,46 @@ export function addPhotoToPersona(personaId: string, photoBase64: string): Chara
     ...persona,
     photos: updatedPhotos,
     avatarImage: persona.avatarImage || photoBase64
+  };
+
+  saveCharacterPersona(updatedPersona);
+  return updatedPersona;
+}
+
+/**
+ * Appends multiple photos in bulk to a persona's album without race conditions.
+ */
+export function addPhotosToPersona(personaId: string, newPhotos: string[]): CharacterPersona | null {
+  const current = getCharacterPersonas();
+  const persona = current.find(p => p.id === personaId);
+  if (!persona) return null;
+
+  const currentPhotos = persona.photos || [];
+  const updatedPhotos = [...currentPhotos, ...newPhotos];
+  const updatedPersona: CharacterPersona = {
+    ...persona,
+    photos: updatedPhotos,
+    avatarImage: persona.avatarImage || newPhotos[0]
+  };
+
+  saveCharacterPersona(updatedPersona);
+  return updatedPersona;
+}
+
+/**
+ * Updates an existing persona's profile details.
+ */
+export function updatePersonaDetails(
+  personaId: string,
+  partial: Partial<Omit<CharacterPersona, 'id' | 'createdAt'>>
+): CharacterPersona | null {
+  const current = getCharacterPersonas();
+  const persona = current.find(p => p.id === personaId);
+  if (!persona) return null;
+
+  const updatedPersona: CharacterPersona = {
+    ...persona,
+    ...partial
   };
 
   saveCharacterPersona(updatedPersona);

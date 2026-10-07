@@ -67,7 +67,8 @@ import {
   isConsistencyLockEnabled, 
   injectPersonaIntoPrompt,
   addPhotoToPersona,
-  getCharacterPersonas
+  getCharacterPersonas,
+  compressFileToBase64
 } from './services/consistencyService';
 import { decodePromptFromShareHash } from './services/promptSnapshotService';
 import { CharacterPersona, StoryboardShot } from './types';
@@ -91,7 +92,10 @@ import {
   refreshGoogleDriveSession,
   clearDriveAutoConnect,
   executeWithExponentialBackoff,
-  blobToDataUrl
+  blobToDataUrl,
+  autoRestoreDriveSession,
+  quickConnectGoogleDrive,
+  isDriveAutoConnectEnabled
 } from './services/googleService';
 import { User } from 'firebase/auth';
 import { SettingsModal } from './components/SettingsModal';
@@ -2319,35 +2323,62 @@ const App: React.FC = () => {
     srcImage?: string;
   } | null>(null);
 
-  // Initialize Firebase Auth subscription
+  // Initialize Firebase Auth & GIS Auto-Restore subscription
   useEffect(() => {
+    let keepAliveTimer: any = null;
+
     const unsubscribe = initAuth((user) => {
       setGoogleUser(user);
     }, () => {
-      setGoogleUser(null);
+      // If neither Firebase nor GIS has user, reset
+      if (!getAccessToken()) {
+        setGoogleUser(null);
+      }
     });
 
     const handleExpired = () => {
       setGoogleUser(null);
     };
 
-    window.addEventListener('google_drive_token_expired', handleExpired);
+    const handleDriveConnected = (e: any) => {
+      if (e.detail?.user) {
+        setGoogleUser(e.detail.user);
+      }
+    };
 
-    // Restore cached token silently if available
-    const token = getAccessToken();
-    if (token) {
-      console.log("[AutoConnect] Successfully restored cached Google Drive access token automatically!");
-    }
+    window.addEventListener('google_drive_token_expired', handleExpired);
+    window.addEventListener('google_drive_connected', handleDriveConnected);
+
+    // Auto-restore Google Drive silently or 0ms from valid cached token on app launch
+    autoRestoreDriveSession().then(result => {
+      if (result) {
+        setGoogleUser(result.user);
+        console.log("[AutoConnect] Successfully auto-linked Google Drive on app launch!");
+      }
+    }).catch(err => {
+      console.warn("[AutoConnect] Auto-restore attempted with note:", err);
+    });
+
+    // Background Keep-Alive: renew token silently every 35 minutes so Drive session stays fresh
+    keepAliveTimer = setInterval(() => {
+      if (getAccessToken() && isDriveAutoConnectEnabled()) {
+        autoRestoreDriveSession().then(res => {
+          if (res) console.log("[AutoConnect] Keep-alive silent refresh succeeded.");
+        }).catch(() => {});
+      }
+    }, 35 * 60 * 1000);
 
     return () => {
       unsubscribe();
       window.removeEventListener('google_drive_token_expired', handleExpired);
+      window.removeEventListener('google_drive_connected', handleDriveConnected);
+      if (keepAliveTimer) clearInterval(keepAliveTimer);
     };
   }, []);
 
   const handleConnectGoogleDrive = async () => {
     try {
-      const res = await googleSignIn();
+      const res = await quickConnectGoogleDrive();
       if (res) {
         setGoogleUser(res.user);
         setDriveSaveStatus({
@@ -2355,6 +2386,7 @@ const App: React.FC = () => {
           success: true,
           message: 'Google Drive connected successfully!'
         });
+        showCleanToast('⚡ Đã kết nối Google Drive thành công!');
       }
     } catch (err: any) {
       if (err?.code === 'auth/popup-closed-by-user') {
@@ -2850,15 +2882,24 @@ const App: React.FC = () => {
     });
   };
 
-  const handleFaceUploadRequest = (file: File, targetSlot: string) => {
-    fileToBase64(file).then(b64 => {
-      const fullBase64 = `data:${file.type};base64,${b64}`;
+  const handleFaceUploadRequest = async (file: File, targetSlot: string) => {
+    try {
+      const fullBase64 = await compressFileToBase64(file);
       setUploadChoiceModalData({
         file,
         base64: fullBase64,
         targetSlot
       });
-    });
+    } catch {
+      fileToBase64(file).then(b64 => {
+        const fullBase64 = `data:${file.type};base64,${b64}`;
+        setUploadChoiceModalData({
+          file,
+          base64: fullBase64,
+          targetSlot
+        });
+      });
+    }
   };
 
   // Check URL hash for shared preset on load (#preset=...)
@@ -5358,6 +5399,15 @@ const App: React.FC = () => {
                       <button onClick={logout} className="text-[6.5px] font-bold text-white/30 hover:text-red-400 uppercase tracking-wider leading-none transition-colors">Disconnect</button>
                     </div>
                   </div>
+                ) : isDriveAutoConnectEnabled() ? (
+                  <button 
+                    onClick={handleConnectGoogleDrive} 
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[8.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse"
+                    title="Phiên Google Drive cần nối lại - Bấm 1-Click để nối lại ngay tức thì!"
+                  >
+                    <span className="text-[10px]">⚡</span>
+                    <span>1-Click Nối Drive</span>
+                  </button>
                 ) : (
                   <button onClick={handleConnectGoogleDrive} className="px-2 py-1 hover:bg-emerald-500/10 hover:text-emerald-400 border rounded-lg text-[8.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1 bg-white/5 text-white/50 border-white/10 hover:border-emerald-500/20">
                     <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="currentColor">

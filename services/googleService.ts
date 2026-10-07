@@ -273,8 +273,8 @@ export const initAuth = (
   });
 };
 
-// Google Identity Services (GIS) Direct OAuth2 Token Client
-export const signInWithGIS = async (): Promise<{ user: any; accessToken: string }> => {
+// Google Identity Services (GIS) Direct OAuth2 Token Client with configurable prompt
+export const requestGISToken = async (promptMode: string = ''): Promise<{ user: any; accessToken: string }> => {
   const clientId = firebaseConfig.oAuthClientId || '481139169456-aucq56k4vf6a37a3d1eb9qeg4eas4u9h.apps.googleusercontent.com';
   const scope = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
 
@@ -319,6 +319,8 @@ export const signInWithGIS = async (): Promise<{ user: any; accessToken: string 
           cachedAccessToken = accessToken;
           safeStorage.setItem('google_drive_access_token', accessToken);
           safeStorage.setItem('drive_auto_connect', 'true');
+          const expiresInSec = Number(tokenResponse.expires_in) || 3599;
+          safeStorage.setItem('google_drive_token_expires_at', String(Date.now() + expiresInSec * 1000));
 
           let userObj: any = {
             uid: 'gis-' + Date.now(),
@@ -345,6 +347,9 @@ export const signInWithGIS = async (): Promise<{ user: any; accessToken: string 
           }
 
           safeStorage.setItem('google_drive_user_profile', JSON.stringify(userObj));
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('google_drive_connected', { detail: { user: userObj, accessToken } }));
+          }
           resolve({ user: userObj, accessToken });
         },
         error_callback: (err: any) => {
@@ -352,11 +357,74 @@ export const signInWithGIS = async (): Promise<{ user: any; accessToken: string 
         }
       });
 
-      client.requestAccessToken({ prompt: 'consent select_account' });
+      client.requestAccessToken({ prompt: promptMode });
     } catch (e) {
       reject(e);
     }
   });
+};
+
+export const signInWithGIS = async (): Promise<{ user: any; accessToken: string }> => {
+  return requestGISToken('consent select_account');
+};
+
+// Check if currently cached Drive token exists and is not expired (at least 60s margin)
+export const isDriveTokenValid = (): boolean => {
+  const token = safeStorage.getItem('google_drive_access_token');
+  const expiresAt = safeStorage.getItem('google_drive_token_expires_at');
+  if (!token) return false;
+  if (!expiresAt) return true;
+  return Date.now() < Number(expiresAt) - 60000;
+};
+
+// Check if user has opted into automatic Google Drive auto-connect
+export const isDriveAutoConnectEnabled = (): boolean => {
+  return safeStorage.getItem('drive_auto_connect') === 'true';
+};
+
+// Auto-restore Google Drive session on app launch without user friction
+export const autoRestoreDriveSession = async (): Promise<{ user: any; accessToken: string } | null> => {
+  if (!isDriveAutoConnectEnabled()) return null;
+
+  // 1. Instant 0ms recovery if cached token is still within validity window
+  if (isDriveTokenValid()) {
+    const token = safeStorage.getItem('google_drive_access_token');
+    const profileStr = safeStorage.getItem('google_drive_user_profile');
+    if (token) {
+      cachedAccessToken = token;
+      let userObj: any = { displayName: 'Google Drive User' };
+      if (profileStr) {
+        try {
+          userObj = JSON.parse(profileStr);
+        } catch {}
+      }
+      return { user: userObj, accessToken: token };
+    }
+  }
+
+  // 2. Token expired or not present: try GIS Silent Token Request (prompt: '')
+  try {
+    console.log('[GoogleDrive AutoLink] Attempting silent background GIS token refresh...');
+    const result = await requestGISToken('');
+    console.log('[GoogleDrive AutoLink] Silent auto-link successfully restored Drive connection!');
+    return result;
+  } catch (silentErr) {
+    console.log('[GoogleDrive AutoLink] Silent auto-refresh not available without user interaction (1-click relink available).');
+    return null;
+  }
+};
+
+// 1-Click Fast Re-link (tries silent refresh first, then quick account select)
+export const quickConnectGoogleDrive = async (): Promise<{ user: any; accessToken: string } | null> => {
+  try {
+    return await requestGISToken('');
+  } catch {
+    try {
+      return await requestGISToken('select_account');
+    } catch {
+      return await googleSignIn();
+    }
+  }
 };
 
 // Sign in with Google Popup with GIS Fallback
@@ -372,6 +440,18 @@ export const googleSignIn = async (): Promise<{ user: any; accessToken: string }
     cachedAccessToken = credential.accessToken;
     safeStorage.setItem('google_drive_access_token', cachedAccessToken);
     safeStorage.setItem('drive_auto_connect', 'true');
+    safeStorage.setItem('google_drive_token_expires_at', String(Date.now() + 3500 * 1000));
+
+    const userObj = {
+      uid: result.user.uid,
+      displayName: result.user.displayName || 'Google Drive User',
+      email: result.user.email || '',
+      photoURL: result.user.photoURL || ''
+    };
+    safeStorage.setItem('google_drive_user_profile', JSON.stringify(userObj));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('google_drive_connected', { detail: { user: result.user, accessToken: cachedAccessToken } }));
+    }
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     const errStr = error?.message || String(error);
@@ -380,12 +460,10 @@ export const googleSignIn = async (): Promise<{ user: any; accessToken: string }
     // If user closed the popup, it is a normal user cancellation, not a system failure
     if (errCode === 'auth/popup-closed-by-user' || errStr.includes('popup-closed-by-user')) {
       console.warn('Google Sign-in popup was closed by user.');
-      safeStorage.removeItem('drive_auto_connect');
       return null;
     }
 
     console.error('Google Sign-in Error:', error);
-    safeStorage.removeItem('drive_auto_connect');
 
     if (
       errStr.includes('access_denied') || 
@@ -409,7 +487,7 @@ export const googleSignIn = async (): Promise<{ user: any; accessToken: string }
     ) {
       console.warn('Firebase popup encountered auth/unauthorized-domain. Automatically attempting Google Identity Services (GIS) Token Client...');
       try {
-        const gisResult = await signInWithGIS();
+        const gisResult = await requestGISToken('select_account');
         return gisResult;
       } catch (gisErr: any) {
         console.error('GIS token request failed as well:', gisErr);
@@ -435,6 +513,7 @@ export const clearDriveAutoConnect = () => {
   safeStorage.removeItem('drive_auto_connect');
   safeStorage.removeItem('google_drive_access_token');
   safeStorage.removeItem('google_drive_user_profile');
+  safeStorage.removeItem('google_drive_token_expires_at');
 };
 
 // Retrieve Cached Token
@@ -448,27 +527,35 @@ export const setAccessToken = (token: string | null) => {
   if (token) {
     safeStorage.setItem('google_drive_access_token', token);
     safeStorage.setItem('drive_auto_connect', 'true');
+    safeStorage.setItem('google_drive_token_expires_at', String(Date.now() + 3500 * 1000));
   } else {
     safeStorage.removeItem('google_drive_access_token');
     safeStorage.removeItem('drive_auto_connect');
+    safeStorage.removeItem('google_drive_token_expires_at');
   }
 };
 
 // Sign out
 export const logout = async (): Promise<void> => {
-  await auth.signOut();
+  try {
+    await auth.signOut();
+  } catch {}
   cachedAccessToken = null;
   safeStorage.removeItem('google_drive_access_token');
   safeStorage.removeItem('drive_auto_connect');
+  safeStorage.removeItem('google_drive_user_profile');
+  safeStorage.removeItem('google_drive_token_expires_at');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('google_drive_disconnected'));
+  }
 };
 
 // Handle Expired Token
 export const handleAuthTokenExpired = () => {
   cachedAccessToken = null;
   safeStorage.removeItem('google_drive_access_token');
-  safeStorage.removeItem('drive_auto_connect');
-  
-  // Do NOT force fully sign out from firebase, but notify the App about Google Drive token expiry
+  safeStorage.removeItem('google_drive_token_expires_at');
+  // Keep 'drive_auto_connect' = 'true' so the app knows user wants Drive and can 1-Click reconnect
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('google_drive_token_expired'));
   }

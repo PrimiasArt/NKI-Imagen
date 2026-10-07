@@ -1,4 +1,4 @@
-import { GalleryItem, Collection, PromptHistoryItem } from '../types';
+import { GalleryItem, Collection, PromptHistoryItem, CharacterPersona } from '../types';
 
 const DB_NAME = 'NKI_Studio_DB';
 const DB_VERSION = 2;
@@ -356,6 +356,42 @@ export const clearLocalDirectoryHandle = async (): Promise<void> => {
     });
   } catch (e) {
     console.error('[IndexedDB] Failed to clear directory handle:', e);
+  }
+};
+
+// ==========================================
+// CHARACTER PERSONAS VAULT PERSISTENCE (INDEXEDDB)
+// ==========================================
+
+export const getPersonasDB = async (): Promise<CharacterPersona[] | null> => {
+  try {
+    const { store } = await getTransaction(STORE_KEYVAL, 'readonly');
+    return new Promise((resolve) => {
+      const req = store.get('nki_character_personas');
+      req.onsuccess = () => {
+        if (req.result && Array.isArray(req.result.value)) {
+          resolve(req.result.value);
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    return null;
+  }
+};
+
+export const savePersonasDB = async (personas: CharacterPersona[]): Promise<void> => {
+  try {
+    const { store } = await getTransaction(STORE_KEYVAL, 'readwrite');
+    return new Promise((resolve, reject) => {
+      const req = store.put({ key: 'nki_character_personas', value: personas });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.error('[IndexedDB] Failed to save personas:', e);
   }
 };
 
