@@ -320,17 +320,46 @@ export async function rescaleCanvasToTargetResolution(
         const curW = img.naturalWidth || img.width;
         const curH = img.naturalHeight || img.height;
 
-        // If already close or exact, return original
-        if (Math.abs(curW - targetWidth) <= 4 && Math.abs(curH - targetHeight) <= 4) {
+        if (!curW || !curH) {
           resolve(base64Image);
           return;
         }
 
-        const scaleX = targetWidth / curW;
-        const scaleY = targetHeight / curH;
+        // If already at target resolution (or larger), keep original to avoid downsampling
+        if (Math.abs(curW - targetWidth) <= 8 && Math.abs(curH - targetHeight) <= 8) {
+          resolve(base64Image);
+          return;
+        }
+
+        // Maintain 100% natural pixel aspect ratio without ANY stretching or squashing
+        const curRatio = curW / curH;
+        let finalW = targetWidth;
+        let finalH = targetHeight;
+
+        // If requested target would distort aspect ratio by > 1%, recalculate to preserve natural ratio
+        if (Math.abs((finalW / finalH) - curRatio) > 0.01) {
+          if (curRatio < 1) {
+            // Portrait: anchor height, derive width
+            finalH = Math.max(targetHeight, curH);
+            finalW = Math.round(finalH * curRatio);
+          } else {
+            // Landscape or square: anchor width, derive height
+            finalW = Math.max(targetWidth, curW);
+            finalH = Math.round(finalW / curRatio);
+          }
+        }
+
+        // If image is already at or exceeds final dimensions, do not degrade it
+        if (curW >= finalW && curH >= finalH) {
+          resolve(base64Image);
+          return;
+        }
+
+        const scaleX = finalW / curW;
+        const scaleY = finalH / curH;
         const maxScale = Math.max(scaleX, scaleY);
 
-        // If large scale up (> 1.25x), execute two-step interpolation to retain edge sharpness
+        // If significant scale up (> 1.25x), perform smooth 2-step interpolation
         if (maxScale > 1.25) {
           const interW = Math.round(curW * (maxScale * 0.7));
           const interH = Math.round(curH * (maxScale * 0.7));
@@ -345,13 +374,13 @@ export async function rescaleCanvasToTargetResolution(
             ctx1.drawImage(img, 0, 0, interW, interH);
 
             const cFinal = document.createElement('canvas');
-            cFinal.width = targetWidth;
-            cFinal.height = targetHeight;
+            cFinal.width = finalW;
+            cFinal.height = finalH;
             const ctxFinal = cFinal.getContext('2d');
             if (ctxFinal) {
               ctxFinal.imageSmoothingEnabled = true;
               ctxFinal.imageSmoothingQuality = 'high';
-              ctxFinal.drawImage(c1, 0, 0, targetWidth, targetHeight);
+              ctxFinal.drawImage(c1, 0, 0, finalW, finalH);
               resolve(cFinal.toDataURL('image/png', 1.0));
               return;
             }
@@ -359,8 +388,8 @@ export async function rescaleCanvasToTargetResolution(
         }
 
         const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
+        canvas.width = finalW;
+        canvas.height = finalH;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           resolve(base64Image);
@@ -368,7 +397,7 @@ export async function rescaleCanvasToTargetResolution(
         }
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        ctx.drawImage(img, 0, 0, finalW, finalH);
         resolve(canvas.toDataURL('image/png', 1.0));
       } catch (err) {
         console.warn('[RescaleCanvas] Error scaling, using original:', err);
@@ -400,8 +429,9 @@ export interface EnhancedUpscalePromptOptions {
 }
 
 /**
- * Builds a precision optical super-resolution prompt adapted to user preset & parameters
- * with deep All-in-One Fusion (Biometric Lock, Dual Anti-Bleed, Color Science, Lighting, Ultra 17MP).
+ * Builds a precision optical super-resolution prompt.
+ * STRICT ENFORCEMENT: 100% Zero-Reposing, Zero-Cropping, Zero-Framing Alteration.
+ * The model acts exclusively as an optical de-blur, de-noise, and micro-pore synthesizer.
  */
 export function buildEnhancedUpscalePrompt(options: EnhancedUpscalePromptOptions): string {
   const {
@@ -411,164 +441,38 @@ export function buildEnhancedUpscalePrompt(options: EnhancedUpscalePromptOptions
     denoise = 'medium',
     faceEnhance = true,
     customGuidance = '',
-    biometricLock = true,
-    biometricProfile,
-    personaName,
-    isDualCharacter = false,
-    characterAProfile,
-    characterBProfile,
-    colorScience = 'porcelain_rose',
-    lightingEnhance = true
+    personaName
   } = options;
 
   let resHeader = '';
   if (targetRes === 'ultra') {
-    resHeader = 'ULTRA MASTER 5.5K OPTICAL RECONSTRUCTION (3072×5504 / ~17MP MASTER GRADE STUDIO FIDELITY)';
+    resHeader = 'ULTRA MASTER 5.5K OPTICAL SUPER-RESOLUTION (3072×5504 / ~17MP RAW SENSOR FIDELITY)';
   } else if (targetRes === '4k') {
-    resHeader = 'PERFECT 4K ULTRA-HIGH-RESOLUTION RECONSTRUCTION (3840×2160 / 4K UHD)';
+    resHeader = 'PERFECT 4K OPTICAL SUPER-RESOLUTION (3840×2160 / 4K UHD)';
   } else if (targetRes === '2k') {
-    resHeader = 'CRISP HIGH-DEFINITION 2K SUPER-RESOLUTION RECONSTRUCTION (2560×1440 / 2K QHD)';
+    resHeader = 'HIGH-DEFINITION 2K OPTICAL SUPER-RESOLUTION (2560×1440 / 2K QHD)';
   } else {
-    resHeader = 'OPTICAL HIGH-DEFINITION 1K RESTORATION (1024px Crisp)';
+    resHeader = 'OPTICAL HIGH-DEFINITION 1K RESTORATION';
   }
 
-  let presetRules = '';
-  switch (preset) {
-    case 'portrait':
-      presetRules = 
-        '- BIOMETRIC & DERMAL FIDELITY: Reconstruct organic, lifelike human skin micro-texture, natural microscopic pores, delicate epidermal translucency, and fine peach fuzz. STRICTLY FORBIDDEN: waxy skin, airbrushed plastic blur, doll-like faces, or smoothed-out facial features.\n' +
-        '- EYES & GAZE: Render razor-sharp iris radial patterns, crisp specular pupil reflections (softbox catchlights), clean individual eyelashes, and defined eyebrows with natural hair direction without altering eye shape, gaze, or eye color.\n' +
-        '- LIPS & EXPRESSION: Preserve authentic lip grain, vermilion border, and cupids bow with subtle natural hydration highlights.\n' +
-        '- HAIR: Render separate, flowing hair strands with realistic specular highlights and natural volume down to single-pixel width.';
-      break;
+  const identityLockText = personaName 
+    ? `Preserve the exact biometric identity and facial features of ${personaName}.`
+    : `Preserve the exact biometric identity and facial features of the person in the input image.`;
 
-    case 'fashion':
-      presetRules = 
-        '- TEXTILE & WEAVE RECONSTRUCTION: Maximize tactile weave clarity of garments (denim twill lines, cotton threads, sheer chiffon weave, silk sheen, knit wool texture, fine leather grain, embroidery stitches).\n' +
-        '- METALLIC & JEWELRY CLARITY: Sharpen jewelry, metal buckles, zippers, watch components, and faceted gemstones with pristine optical refractions.\n' +
-        '- FORM & TAILORING: Preserve crisp creases, drape physics, and silhouette contours cleanly.';
-      break;
+  return `${resHeader}: Perform a pixel-anchored optical super-resolution upscale of this input image.
 
-    case 'cinematic':
-      presetRules = 
-        '- OPTICAL DEPTH & LENS CHARACTER: Preserve cinematic shallow depth-of-field, authentic optical lens bokeh, and wide dynamic range lighting.\n' +
-        '- ENVIRONMENT & ARCHITECTURE: Sharpen architectural lines, brickwork, foliage, tree bark, stone textures, and ambient light bounce while eliminating muddy shadows.\n' +
-        '- ORGANIC TEXTURE: Maintain subtle natural film grain while eliminating ugly digital sensor noise.';
-      break;
+MANDATORY INTEGRITY CONSTRAINTS (STRICT ZERO-MODIFICATION / ZERO-REPOSING / ZERO-CROP):
+1. EXACT POSE & FRAMING LOCK: Maintain the EXACT SAME character posing, body posture, hand positions, fingers, head angle, shoulder tilt, facial expression, and camera framing from the input image. DO NOT change the pose, DO NOT move any limbs or hands, DO NOT crop, DO NOT zoom in or out, and DO NOT alter the composition or aspect ratio in any way.
+2. EXACT IDENTITY & EXPRESSION LOCK: ${identityLockText} Every unique facial landmark, eye gaze, wink, smile, lip curvature, nose bridge, jawline, and natural beauty mark MUST remain 100% identical. Absolutely zero facial morphing or drift.
+3. PURE SUPER-RESOLUTION TEXTURE RECONSTRUCTION:
+- Reconstruct organic, authentic microscopic human skin pores, fine skin texture, and epidermal micro-relief. STRICTLY FORBIDDEN: waxy skin, airbrushed plastic blur, or doll-like smoothed faces.
+- Reconstruct razor-sharp individual eyelashes, crisp iris radial striations, clean pupil catchlights, and defined eyebrows matching the natural hair direction without altering eye shape or gaze.
+- Reconstruct separate, flowing micro hair strands down to single-pixel width with natural volume and specular sheen.
+- Reconstruct crisp textile weave (chiffon, silk, cotton, denim threads, lace, leather grain) and jewelry brilliance.
+- Faithful color & lighting: Keep the existing color harmony, white balance, contrast, and lighting geometry completely faithful to the input image. Clean up digital compression artifacts, JPEG blocks, and optical blur.
+${customGuidance.trim() ? `- USER GUIDANCE: ${customGuidance.trim()}` : ''}
 
-    case 'anime':
-      presetRules = 
-        '- VECTOR-CRISP LINEART: Sharpen lineart and contours with pristine vector-like smoothness, eliminating any pixel stair-stepping (aliasing) or blur.\n' +
-        '- COLOR BLOCKING: Preserve smooth cel-shading gradients and vibrant color balance with zero color bleed or chromatic aberration.\n' +
-        '- CLEANUP: Completely eliminate JPEG ringing, artifacting, and halo blocks around ink strokes.';
-      break;
-
-    case 'faithful':
-    default:
-      presetRules = 
-        '- ZERO-HALLUCINATION OPTICAL RESTORATION: Do NOT synthesize, invent, or add any new objects, shapes, patterns, or altered elements.\n' +
-        '- DEBLUR & SHARPEN: Only de-blur, de-noise, and enhance the micro-contrast of existing optical information in the image with 100% fidelity.';
-      break;
-  }
-
-  let fidelityDirective = '';
-  if (fidelity === 'subtle') {
-    fidelityDirective = '- DETAIL SYNTHESIS LEVEL: Strict optical fidelity. Only sharpen existing structures without adding synthetic micro-details.';
-  } else if (fidelity === 'rich') {
-    fidelityDirective = '- DETAIL SYNTHESIS LEVEL: Rich high-frequency micro-texture synthesis. Inject ultra-fine surface details, realistic material micro-structures (skin pores, hair follicles, thread weave), and peak tactile realism.';
-  } else {
-    fidelityDirective = '- DETAIL SYNTHESIS LEVEL: Balanced natural synthesis. Reconstruct lost micro-details seamlessly with natural physical plausibility.';
-  }
-
-  let denoiseDirective = '';
-  if (denoise === 'low') {
-    denoiseDirective = '- NOISE REDUCTION: Light cleanup. Retain subtle native texture while eliminating JPEG compression blockiness.';
-  } else if (denoise === 'high') {
-    denoiseDirective = '- NOISE REDUCTION: Aggressive cleanup. Thoroughly eradicate high-ISO grain, chromatic noise, compression artifacts, and blur.';
-  } else {
-    denoiseDirective = '- NOISE REDUCTION: Balanced cleanup. Remove digital noise and compression artifacts while keeping true surface textures.';
-  }
-
-  // --- Biometric Identity Lock Directive ---
-  let biometricDirective = '';
-  if (biometricLock) {
-    if (isDualCharacter) {
-      biometricDirective = 
-        '- DUAL CHARACTER IDENTITY ISOLATION (ANTI-BLEED CONTRACT): The image contains two distinct individuals. Character 1 and Character 2 MUST maintain strictly separate facial features, individual bone structures, unique eye shapes, distinct skin undertones, and independent hair styles. STRICTLY FORBIDDEN: facial blending, identity bleeding, or morphing between the two subjects.';
-      if (characterAProfile || characterBProfile) {
-        if (characterAProfile) {
-          biometricDirective += `\n  * Character 1 Anchor: ${characterAProfile.name || 'Model A'}, ${characterAProfile.ethnicity || ''}, eyes: ${characterAProfile.eyes?.shape || ''}, nose: ${characterAProfile.nose || ''}, distinguishing features: ${characterAProfile.distinguishingFeatures || 'all original marks'}.`;
-        }
-        if (characterBProfile) {
-          biometricDirective += `\n  * Character 2 Anchor: ${characterBProfile.name || 'Model B'}, ${characterBProfile.ethnicity || ''}, eyes: ${characterBProfile.eyes?.shape || ''}, nose: ${characterBProfile.nose || ''}, distinguishing features: ${characterBProfile.distinguishingFeatures || 'all original marks'}.`;
-        }
-      }
-    } else if (biometricProfile) {
-      biometricDirective = 
-        `- FORENSIC BIOMETRIC IDENTITY LOCK: Maintain 100% biometric consistency of the model (${personaName || biometricProfile.name || 'Core Model'}):\n` +
-        `  * Face Shape & Jawline: ${biometricProfile.faceShape || 'natural oval'}, jaw: ${biometricProfile.jawline || 'refined contour'}.\n` +
-        `  * Eyes & Brows: ${biometricProfile.eyes?.shape || 'natural eyelids'}, iris: ${biometricProfile.eyes?.color || 'dark'}, brows: ${biometricProfile.eyes?.brows || 'neatly defined'}.\n` +
-        `  * Nose & Bridge: ${biometricProfile.nose || 'natural bridge and tip'}.\n` +
-        `  * Lips: ${biometricProfile.lips || 'natural contours'}.\n` +
-        `  * Invariant Marks: Lock all beauty marks, moles, freckles (${biometricProfile.distinguishingFeatures || 'preserve exact original facial markers'}).\n` +
-        `  * CRITICAL: Do NOT substitute or morph this face into a generic or altered model. Keep 100% likeness.`;
-    } else {
-      biometricDirective = 
-        '- BIOMETRIC IDENTITY LOCK: Analyze and lock 100% of the subject\'s facial geometry, eye shape, nose bridge, lip contours, and any natural moles or beauty marks. Absolutely zero facial morphing or drift.';
-    }
-  } else if (faceEnhance) {
-    biometricDirective = '- FACE PRIORITY ANCHOR: Give top neural focus to the human face(s), guaranteeing zero distortion, maintaining 100% facial identity, and delivering pristine eye clarity.';
-  }
-
-  // --- Color Science Directive ---
-  let colorDirective = '';
-  switch (colorScience) {
-    case 'porcelain_rose':
-      colorDirective = '- COLOR SCIENCE (PORCELAIN ROSE): Calibrate skin tones towards a refined, luminous porcelain with natural flush rosiness on cheeks and lips. Preserve clean specular highlights with zero chalkiness or artificial white cast.';
-      break;
-    case 'warm_amber':
-      colorDirective = '- COLOR SCIENCE (WARM AMBER): Infuse radiant golden amber studio warmth, flattering sun-kissed skin undertones, and warm atmospheric bounce.';
-      break;
-    case 'cinematic_moody':
-      colorDirective = '- COLOR SCIENCE (CINEMATIC MOODY): Deliver deep cinematic dynamic range, rich velvety shadows with subtle cool teal nuances, and strong subject color separation.';
-      break;
-    case 'neutral':
-    default:
-      colorDirective = '- COLOR SCIENCE (NEUTRAL STUDIO): Maintain 100% faithful color temperature, neutral white balance, and realistic skin tone fidelity identical to the original capture.';
-      break;
-  }
-
-  // --- Lighting Directive ---
-  let lightingDirective = '';
-  if (lightingEnhance) {
-    lightingDirective = 
-      '- STUDIO LIGHTING & RIM ACCENTUATION: Preserve and accentuate optical rim lighting (hair light) separating the subject from the background with crisp brilliance. Render natural pupil catchlights (softbox reflections) for lively, captivating eyes, and preserve soft subsurface scattering (SSS) on ears and skin.';
-  }
-
-  // --- Ultra 17MP Master Polish ---
-  let ultraMasterDirective = '';
-  if (targetRes === 'ultra') {
-    ultraMasterDirective = 
-      '- 17-MEGAPIXEL ULTRA MASTER RESOLUTION POLISH: Reconstruct individual microscopic pores, delicate skin epidermal texture, fine peach fuzz, separate micro hair strands down to single-pixel width, and fine woven textile threads (chiffon, silk weave, cotton thread fibers). Absolutely avoid any airbrushed, plastic, or blurry surfaces.';
-  }
-
-  const userNotes = customGuidance.trim()
-    ? `- CUSTOM USER DIRECTIVE: ${customGuidance.trim()}`
-    : '';
-
-  return `${resHeader}: Perform an ultra-high-fidelity optical super-resolution upscale of this image.
-CRITICAL INTEGRITY RULES:
-1. 100% COMPOSITION & POSE FIDELITY: Maintain absolute identity, subjects, proportions, lighting geometry, color harmony, and framing. Do not alter facial structure, body shape, or scene layout.
-2. ELIMINATE ARTIFACTS: Clean up all compression artifacts, blur, blockiness, pixelation, and chromatic fringing.
-${presetRules}
-${fidelityDirective}
-${denoiseDirective}
-${biometricDirective}
-${colorDirective}
-${lightingDirective}
-${ultraMasterDirective}
-${userNotes}
-Output strictly the single upscaled, crystal-clear, high-definition image matching these specifications.`;
+Output strictly the single upscaled, crystal-clear, high-definition image with 100% identical pose, framing, and composition.`;
 }
 
 /**

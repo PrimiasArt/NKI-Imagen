@@ -4087,13 +4087,17 @@ const App: React.FC = () => {
       try {
         const img = new Image();
         img.src = src;
-        await new Promise((resolve) => {
-          img.onload = () => {
+        if (img.complete && img.naturalWidth) {
+          aspect = img.naturalWidth / img.naturalHeight;
+        } else {
+          await new Promise((resolve) => {
+            img.onload = () => resolve(null);
+            img.onerror = () => resolve(null);
+          });
+          if (img.naturalWidth && img.naturalHeight) {
             aspect = img.naturalWidth / img.naturalHeight;
-            resolve(null);
-          };
-          img.onerror = () => resolve(null);
-        });
+          }
+        }
       } catch (e) {
         console.warn("Failed to get image dimensions for upscale", e);
       }
@@ -4216,7 +4220,27 @@ const App: React.FC = () => {
     const faceEnhance = settings?.faceEnhance ?? true;
     const clarityBoost = settings?.clarityBoost ?? 22;
     const customGuidance = settings?.customGuidance || '';
-    const aspect = settings?.aspectRatio || upscaleModuleAspectRatio || undefined;
+
+    // Measure exact aspect ratio directly from source image to guarantee zero crop
+    let measuredAspect: number | undefined = undefined;
+    try {
+      const img = new Image();
+      img.src = upscaleModuleSrc;
+      if (img.complete && img.naturalWidth) {
+        measuredAspect = img.naturalWidth / img.naturalHeight;
+      } else {
+        await new Promise((resolve) => {
+          img.onload = () => resolve(null);
+          img.onerror = () => resolve(null);
+        });
+        if (img.naturalWidth && img.naturalHeight) {
+          measuredAspect = img.naturalWidth / img.naturalHeight;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to measure module image dimensions", e);
+    }
+    const aspect = measuredAspect || settings?.aspectRatio || upscaleModuleAspectRatio || undefined;
 
     // Fusion Settings
     const biometricLockEnabled = settings?.biometricLockEnabled ?? true;

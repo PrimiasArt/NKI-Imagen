@@ -1522,8 +1522,40 @@ export const upscaleImage = async (
         lightingEnhance
     });
 
-    const standardAspect = getStandardAspectRatio(aspectInput);
-    console.log(`[Upscale] Target: ${targetRes}, Preset: ${preset}, Aspect: ${standardAspect}, Models:`, modelsToTry);
+    // Directly measure true pixel dimensions and aspect ratio from the source image
+    let sourceWidth = 0;
+    let sourceHeight = 0;
+    let measuredRatio = 1.0;
+
+    if (typeof window !== 'undefined') {
+        try {
+            const tempImg = new Image();
+            tempImg.src = `data:${mimeType};base64,${base64Image}`;
+            if (tempImg.complete && tempImg.naturalWidth) {
+                sourceWidth = tempImg.naturalWidth;
+                sourceHeight = tempImg.naturalHeight;
+            } else {
+                await new Promise((resolve) => {
+                    tempImg.onload = () => resolve(null);
+                    tempImg.onerror = () => resolve(null);
+                });
+                sourceWidth = tempImg.naturalWidth || tempImg.width || 0;
+                sourceHeight = tempImg.naturalHeight || tempImg.height || 0;
+            }
+            if (sourceWidth > 0 && sourceHeight > 0) {
+                measuredRatio = sourceWidth / sourceHeight;
+            }
+        } catch (e) {
+            console.warn('[Upscale] Source image measurement failed:', e);
+        }
+    }
+
+    const effectiveAspect = (typeof aspectInput === 'number' && !isNaN(aspectInput) && aspectInput > 0) 
+        ? aspectInput 
+        : measuredRatio;
+
+    const standardAspect = getStandardAspectRatio(effectiveAspect);
+    console.log(`[Upscale] Target: ${targetRes}, Preset: ${preset}, Aspect: ${standardAspect} (ratio: ${effectiveAspect.toFixed(3)}), Models:`, modelsToTry);
 
     let lastError: any = null;
     
@@ -1546,27 +1578,14 @@ export const upscaleImage = async (
             
             const parts: any[] = [];
 
-            // Add text prompt first so model understands its role as Director of Photography & Raw Sensor Upscaler
-            parts.push({ text: promptText });
-
-            // If a character persona avatar was provided from Character Vault, inject it as reference identity
-            if (personaAvatar) {
-                try {
-                    const compressedAvatar = await compressBase64Image(personaAvatar, 768, 0.85);
-                    const avInline = prepareInlineData(compressedAvatar, 'image/jpeg');
-                    if (avInline) {
-                        parts.push({ text: "IDENTITY REFERENCE FACE FROM CHARACTER VAULT (Preserve this exact facial bone structure, eyes, and markings):" });
-                        parts.push(avInline);
-                    }
-                } catch (avErr) {
-                    console.warn('[Upscale] Failed to prepare persona avatar:', avErr);
-                }
-            }
-
-            // Provide source image to be super-resolved
-            parts.push({ text: "SOURCE IMAGE TO BE RESTORED & SUPER-RESOLVED (Maintain composition, lighting, pose, and frame):" });
+            // CRITICAL FOR ZERO-REPOSING / ZERO-CROP:
+            // 1. Source image MUST be the FIRST element (parts[0]) so model anchors to exact pixel grid
             const inline = prepareInlineData(base64Image, mimeType);
             if (inline) parts.push(inline);
+
+            // 2. Text prompt is the SECOND element (parts[1]), strictly commanding super-resolution
+            // NO secondary reference images are ever passed to prevent identity bleeding or re-posing
+            parts.push({ text: promptText });
 
             const client = getGeminiClient();
             const response = await callWithRetry(() => client.models.generateContent({
@@ -1581,8 +1600,8 @@ export const upscaleImage = async (
                         const outMime = part.inlineData.mimeType || 'image/png';
                         let finalImage = `data:${outMime};base64,${part.inlineData.data}`;
                         
-                        // 1. Rescale to target pixel dimensions (e.g. 3072 × 5504 for Ultra Master 9:16)
-                        const targetDims = computeTargetResolutionDimensions(aspectInput, targetRes);
+                        // 1. Rescale to target pixel dimensions preserving original aspect ratio
+                        const targetDims = computeTargetResolutionDimensions(effectiveAspect, targetRes);
                         try {
                             finalImage = await rescaleCanvasToTargetResolution(finalImage, targetDims.width, targetDims.height);
                         } catch (rErr) {

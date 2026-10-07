@@ -127,12 +127,15 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
       return;
     }
     const img = new Image();
-    img.src = src;
     img.onload = () => {
       if (img.naturalWidth && img.naturalHeight) {
         setAspectRatio(img.naturalWidth / img.naturalHeight);
       }
     };
+    img.src = src;
+    if (img.complete && img.naturalWidth && img.naturalHeight) {
+      setAspectRatio(img.naturalWidth / img.naturalHeight);
+    }
   }, [src]);
 
   // Persist preference updates
@@ -145,6 +148,16 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
 
   const handleExecute = () => {
     if (!src || isUpscaling) return;
+
+    let currentAspect = aspectRatio;
+    if (!currentAspect && src) {
+      const temp = new Image();
+      temp.src = src;
+      if (temp.complete && temp.naturalWidth && temp.naturalHeight) {
+        currentAspect = temp.naturalWidth / temp.naturalHeight;
+      }
+    }
+
     onStartUpscale({
       targetRes,
       engine,
@@ -154,7 +167,7 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
       faceEnhance,
       clarityBoost,
       customGuidance,
-      aspectRatio: aspectRatio || undefined,
+      aspectRatio: currentAspect || undefined,
       biometricLockEnabled,
       selectedPersonaId,
       dualFaceIsolation,
@@ -200,7 +213,7 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-black text-white tracking-tighter flex items-center gap-2">
+            <h2 className="text-2xl font-black text-white tracking-tighter flex items-center gap-2 flex-wrap">
               <span>👑</span>
               <span>{t('upscale.title', 'Studio Super-Resolution 5.5K')}</span>
               <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full uppercase tracking-widest font-black border border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
@@ -208,8 +221,12 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
               </span>
             </h2>
             <p className="text-xs text-white/50 mt-1">
-              Khôi phục lỗ chân lông siêu nét, tơ tóc li ti, thớ vải voan xuyên thấu với Google Pro 3 & độ phân giải 3072×5504.
+              Khôi phục lỗ chân lông siêu nét, tơ tóc li ti, thớ vải voan với Google Pro 3 & độ phân giải 3072×5504.
             </p>
+            <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold">
+              <span>🔒</span>
+              <span>Khóa 100% Posing & Khung hình gốc (Zero-Crop / Zero-Repose)</span>
+            </div>
           </div>
         </div>
 
