@@ -48,6 +48,19 @@ import { JsonPromptEditor } from './components/JsonPromptEditor';
 import { SavePresetModal } from './components/SavePresetModal';
 import { PersonalPresetManagerModal } from './components/PersonalPresetManagerModal';
 import { RealtimeRateLimitBar } from './components/RealtimeRateLimitBar';
+import { PromptQualityMeter } from './components/PromptQualityMeter';
+import { ConsistencyLockModal } from './components/ConsistencyLockModal';
+import { PromptABCompareModal } from './components/PromptABCompareModal';
+import { PromptSnapshotModal } from './components/PromptSnapshotModal';
+import { CameraTrajectoryVisualizer } from './components/CameraTrajectoryVisualizer';
+import { TimelineStoryboard } from './components/TimelineStoryboard';
+import { 
+  getActivePersona, 
+  isConsistencyLockEnabled, 
+  injectPersonaIntoPrompt 
+} from './services/consistencyService';
+import { decodePromptFromShareHash } from './services/promptSnapshotService';
+import { CharacterPersona, StoryboardShot } from './types';
 import { generationQueue } from './services/generationQueueService';
 import { SynapticCoolingBanner } from './components/SynapticCoolingBanner';
 import { GenerationQueueDrawer, FloatingQueueIndicator } from './components/GenerationQueueDrawer';
@@ -2720,6 +2733,46 @@ const App: React.FC = () => {
   const [isSavePresetModalOpen, setIsSavePresetModalOpen] = useState(false);
   const [isPresetManagerModalOpen, setIsPresetManagerModalOpen] = useState(false);
 
+  // --- v4.4 - v5.0 Upgrades State ---
+  // 1. Character & Style Consistency Lock
+  const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState(false);
+  const [activePersona, setActivePersona] = useState<CharacterPersona | null>(() => getActivePersona());
+  const [isConsistencyLockActive, setIsConsistencyLockActive] = useState<boolean>(() => isConsistencyLockEnabled());
+
+  useEffect(() => {
+    const handlePersonaChange = () => {
+      setActivePersona(getActivePersona());
+      setIsConsistencyLockActive(isConsistencyLockEnabled());
+    };
+    window.addEventListener('nki_active_persona_changed', handlePersonaChange);
+    window.addEventListener('nki_consistency_lock_toggled', handlePersonaChange);
+    return () => {
+      window.removeEventListener('nki_active_persona_changed', handlePersonaChange);
+      window.removeEventListener('nki_consistency_lock_toggled', handlePersonaChange);
+    };
+  }, []);
+
+  // 2. A/B Matrix Testing Modal
+  const [isABModalOpen, setIsABModalOpen] = useState(false);
+
+  // 3. Prompt Time-Machine Snapshots & Share Vault Modal
+  const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
+
+  // Check URL hash for shared preset on load (#preset=...)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash.includes('#preset=')) {
+      const imported = decodePromptFromShareHash(window.location.hash);
+      if (imported) {
+        updateJsonInput(JSON.stringify(imported, null, 2));
+        showCleanToast('✨ Đã tự động nạp Preset từ liên kết chia sẻ!');
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+  }, []);
+
+  // 4. Storyboard Shots for Timeline & Scenario Director
+  const [storyboardShots, setStoryboardShots] = useState<StoryboardShot[]>([]);
+
   const [veoStartImage, setVeoStartImage] = useState<string | null>(null);
   const [veoEndImage, setVeoEndImage] = useState<string | null>(null);
   
@@ -3289,6 +3342,12 @@ const App: React.FC = () => {
   const handleGenerateImage = async () => {
       try {
           let parsed = JSON.parse(jsonInput);
+
+          // Inject Character Consistency into Prompt if Lock is active
+          if (isConsistencyLockActive && activePersona) {
+            parsed = injectPersonaIntoPrompt(parsed, activePersona);
+          }
+
           savePromptToHistory(parsed, 'JSON_TO_IMG', parsed.subject);
           const getCleanB64 = (img: string | null) => img?.includes(',') ? img.split(',')[1] : (img || undefined);
           const faceClean = !isMultiCharacter ? getCleanB64(refFaceImage1) : undefined;
@@ -5724,11 +5783,60 @@ const App: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Prompt Editor */}
+                            {/* Prompt Editor & Pro Suite */}
                             <div className="space-y-3">
-                                <div className="flex justify-between items-center px-1">
-                                    <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em]">Prompt Parameters</label>
-                                    <div className="flex items-center gap-1.5">
+                                {/* Pro Intelligence Toolbar */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                                    <PromptQualityMeter
+                                        jsonPrompt={(() => {
+                                            try { return JSON.parse(jsonInput); }
+                                            catch { return DEFAULT_JSON; }
+                                        })()}
+                                        onEnrichSuccess={(enriched) => {
+                                            updateJsonInput(JSON.stringify(enriched, null, 2));
+                                            showCleanToast('✨ Đã nâng cấp các chiều điện ảnh thành công!');
+                                        }}
+                                    />
+
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        {/* Consistency Lock Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsConsistencyModalOpen(true)}
+                                            className={`text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-all px-2.5 py-1 rounded-lg border active:scale-95 shadow-sm ${
+                                                isConsistencyLockActive && activePersona
+                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
+                                                    : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border-white/10'
+                                            }`}
+                                            title="Khóa nhất quán nhân vật và phong cách xuyên suốt nhiều bức ảnh"
+                                        >
+                                            <span>🔒</span>
+                                            <span>{isConsistencyLockActive && activePersona ? activePersona.name : 'Khóa Nhân Vật'}</span>
+                                        </button>
+
+                                        {/* A/B Compare Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsABModalOpen(true)}
+                                            className="text-[9px] text-indigo-300 hover:text-indigo-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-indigo-500/15 hover:bg-indigo-500/25 px-2.5 py-1 rounded-lg border border-indigo-500/30 active:scale-95 shadow-sm"
+                                            title="Thử nghiệm so sánh song song 2 biến thể prompt (A/B Test)"
+                                        >
+                                            <span>⚖️</span>
+                                            <span>A/B Test</span>
+                                        </button>
+
+                                        {/* Snapshots / Time-Machine Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsSnapshotModalOpen(true)}
+                                            className="text-[9px] text-teal-300 hover:text-teal-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-teal-500/15 hover:bg-teal-500/25 px-2.5 py-1 rounded-lg border border-teal-500/30 active:scale-95 shadow-sm"
+                                            title="Lịch sử phiên bản Snapshots & Chia sẻ link Preset"
+                                        >
+                                            <span>⏳</span>
+                                            <span>Snapshots</span>
+                                        </button>
+
+                                        {/* Clean Button */}
                                         <button
                                             type="button"
                                             onClick={() => handleCleanGeneratorPrompt('blank')}
@@ -5738,6 +5846,8 @@ const App: React.FC = () => {
                                             <span>🧹</span>
                                             <span>{t('prompt.clean')}</span>
                                         </button>
+
+                                        {/* Khử Bẫy AI Button */}
                                         <button
                                             type="button"
                                             onClick={() => {
@@ -5757,6 +5867,7 @@ const App: React.FC = () => {
                                         </button>
                                     </div>
                                 </div>
+
                                 <JsonPromptEditor 
                                     value={jsonInput} 
                                     onChange={(val) => updateJsonInput(val)} 
@@ -6902,6 +7013,22 @@ const App: React.FC = () => {
 
                         {scriptScenes.length > 0 && (
                             <div className="mt-12 space-y-6">
+                                <TimelineStoryboard
+                                    shots={storyboardShots.length > 0 ? storyboardShots : scriptScenes.map((s, idx) => ({
+                                        id: `shot_${idx}`,
+                                        shotNumber: s.scene_number || idx + 1,
+                                        title: s.header || `Scene ${idx + 1}`,
+                                        durationSeconds: 4,
+                                        transition: 'cut',
+                                        promptJson: {
+                                            ...DEFAULT_JSON,
+                                            subject: s.action || '',
+                                            art_style: s.visual_style || 'Cinematic Film',
+                                            camera_angle: s.camera_movement || '35mm anamorphic'
+                                        }
+                                    }))}
+                                    onUpdateShots={setStoryboardShots}
+                                />
                                 {scriptScenes.map((scene, i) => (
                                     <div key={i} className="glass-card p-6 lg:p-8 rounded-3xl border-l-4 border-rose-500 animate-in slide-in-from-left-5">
                                         <div className="flex justify-between items-start mb-4">
@@ -6956,6 +7083,16 @@ const App: React.FC = () => {
                                     ) : <span className="text-white/10 font-bold uppercase tracking-widest text-[10px]">Empty Slot</span>}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Interactive 3D Camera Trajectory Director */}
+                        <div className="mb-6">
+                            <CameraTrajectoryVisualizer
+                                onSelectTrajectory={(traj, formula) => {
+                                    setVeoUserPrompt(prev => prev ? `${prev}. Camera path: ${formula}` : `Camera path: ${formula}`);
+                                    showCleanToast(`🎥 Đã gán quỹ đạo: ${traj.name}`);
+                                }}
+                            />
                         </div>
 
                         <textarea value={veoUserPrompt} onChange={(e) => setVeoUserPrompt(e.target.value)} placeholder="Describe the motion and transformation..." className="w-full h-36 lg:h-44 glass-input rounded-2xl p-5 text-base font-medium shadow-inner focus:ring-rose-500 mb-6" />
@@ -8116,6 +8253,51 @@ const App: React.FC = () => {
       <GenerationQueueDrawer 
         isOpen={isQueueDrawerOpen} 
         onClose={() => setIsQueueDrawerOpen(false)} 
+      />
+
+      {/* Character & Style Consistency Lock Modal */}
+      <ConsistencyLockModal
+        isOpen={isConsistencyModalOpen}
+        onClose={() => setIsConsistencyModalOpen(false)}
+        onApplyPersona={(persona) => {
+          setActivePersona(persona);
+          setIsConsistencyLockActive(true);
+          try {
+            const current = JSON.parse(jsonInput);
+            const merged = injectPersonaIntoPrompt(current, persona);
+            updateJsonInput(JSON.stringify(merged, null, 2));
+          } catch {}
+          showCleanToast(`🔒 Đã khóa nhân vật: ${persona.name}`);
+        }}
+      />
+
+      {/* A/B Matrix Compare Modal */}
+      <PromptABCompareModal
+        isOpen={isABModalOpen}
+        onClose={() => setIsABModalOpen(false)}
+        basePrompt={(() => {
+          try { return JSON.parse(jsonInput); }
+          catch { return DEFAULT_JSON; }
+        })()}
+        onApplyPrompt={(winningPrompt) => {
+          updateJsonInput(JSON.stringify(winningPrompt, null, 2));
+          showCleanToast('✨ Đã áp dụng prompt chiến thắng vào Generator!');
+        }}
+      />
+
+      {/* Prompt Snapshots Time-Machine Modal */}
+      <PromptSnapshotModal
+        isOpen={isSnapshotModalOpen}
+        onClose={() => setIsSnapshotModalOpen(false)}
+        currentPrompt={(() => {
+          try { return JSON.parse(jsonInput); }
+          catch { return DEFAULT_JSON; }
+        })()}
+        currentPreviewImage={generatedImages[0]}
+        onRestoreSnapshot={(restored) => {
+          updateJsonInput(JSON.stringify(restored, null, 2));
+          showCleanToast('↶ Đã khôi phục bản snapshot thành công!');
+        }}
       />
 
       {/* PWA 1-Click Auto Update Notification & Install Toasts */}

@@ -131,3 +131,71 @@ export interface AntiAiCamouflageSettings {
   stripMetadata: boolean;
   jpegQuality: number; // e.g. 0.93
 }
+
+// --- v4.4-v5.0 Upgrade Types ---
+
+export interface PromptQualityResult {
+  score: number; // 0 - 100
+  grade: 'S' | 'A' | 'B' | 'C' | 'D';
+  dimensionScores: {
+    subject: number;
+    lighting: number;
+    composition: number;
+    camera: number;
+    style: number;
+    details: number;
+  };
+  strengths: string[];
+  improvements: string[];
+  warnings: string[];
+  detectedAiTraps: string[];
+}
+
+export interface CharacterPersona {
+  id: string;
+  name: string;
+  gender: string;
+  ageRange: string;
+  faceFeatures: string;
+  hairStyle: string;
+  signatureOutfit: string;
+  colorPalette: string;
+  avatarImage?: string;
+  seed?: number;
+  createdAt: number;
+  isActive: boolean;
+}
+
+export interface PromptSnapshot {
+  id: string;
+  name: string;
+  timestamp: number;
+  promptJson: ImagePromptJson;
+  previewImage?: string;
+  tags?: string[];
+}
+
+export interface CameraTrajectory {
+  id: string;
+  name: string;
+  category: 'dolly' | 'orbit' | 'boom' | 'fpv' | 'pan_tilt' | 'special';
+  description: string;
+  veoPromptFormula: string;
+  icon: string;
+  speed: 'slow' | 'medium' | 'fast';
+  elevationAngle?: number;
+}
+
+export interface StoryboardShot {
+  id: string;
+  shotNumber: number;
+  title: string;
+  durationSeconds: number;
+  transition: 'cut' | 'dissolve' | 'fade_black' | 'wipe';
+  promptJson: ImagePromptJson;
+  renderedImage?: string;
+  cameraMovement?: string;
+  voiceover?: string;
+  audioMood?: string;
+}
+
