@@ -9,6 +9,11 @@ export interface StudioModelConfig {
   analysisModel: string;
   maxDimension: number; // e.g. 1536 or 2048 for high-res crisp outputs
   jpegQuality: number;  // e.g. 0.92 for high fidelity
+  upscaleModel?: string; // 'gemini-3-pro-image' | 'gemini-3.1-flash-image' | 'auto'
+  upscaleTargetRes?: '4k' | '2k' | '1k';
+  upscalePreset?: 'portrait' | 'fashion' | 'cinematic' | 'anime' | 'faithful';
+  upscaleFaceEnhance?: boolean;
+  upscaleClarityBoost?: number;
 }
 
 const STORAGE_KEY_STUDIO_CONFIG = 'nki_studio_model_config';
@@ -17,7 +22,12 @@ export const DEFAULT_STUDIO_CONFIG: StudioModelConfig = {
   studioModel: 'gemini-3.1-flash-image', // High quality, fast, native image generation
   analysisModel: 'gemini-2.5-flash',
   maxDimension: 1536, // Sharp HD (fixes 480px blurriness)
-  jpegQuality: 0.92
+  jpegQuality: 0.92,
+  upscaleModel: 'gemini-3-pro-image',
+  upscaleTargetRes: '4k',
+  upscalePreset: 'portrait',
+  upscaleFaceEnhance: true,
+  upscaleClarityBoost: 15
 };
 
 export const AVAILABLE_STUDIO_MODELS = [

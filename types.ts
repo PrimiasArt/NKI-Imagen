@@ -62,7 +62,7 @@ export interface GenerationMetadata {
   aspectRatio: string;
   imageSize?: string;
   upscaledFrom?: string;
-  upscaleFeedback?: string;
+  upscaleFeedback?: any;
 }
 
 export type GalleryItemType = 'JSON_TO_IMG' | 'POSE' | 'COMPOSE' | 'UPSCALE';

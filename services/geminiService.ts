@@ -4,6 +4,15 @@ import { ImagePromptJson, ScriptScene, BiometricProfile, DualCharacterPairing } 
 import { rateLimitTracker, RateLimitState } from "./rateLimitService";
 import { recordSuccessfulGenerationPrompt } from "./promptHistoryService";
 import { buildDualBiometricPromptProtocol, buildSingleBiometricPromptDirective } from "./biometricCoreService";
+import { 
+  buildEnhancedUpscalePrompt, 
+  applyMicroContrastClarity,
+  UpscaleTargetRes,
+  UpscaleModelId,
+  UpscalePresetId,
+  UpscaleFidelityLevel,
+  UpscaleDenoiseLevel
+} from "./imageUpscaleService";
 
 // Dynamic Google Gemini API Key Management for Standalone Execution
 export const getGeminiApiKey = (): string => {
@@ -1323,14 +1332,28 @@ export const generateVeo3Prompt = async (userPrompt: string, startImageBase64?: 
 }
 
 /**
+export interface UpscaleImageOptions {
+    targetRes?: '4k' | '2k' | '1k';
+    customModel?: string;
+    preset?: UpscalePresetId;
+    fidelity?: UpscaleFidelityLevel;
+    denoise?: UpscaleDenoiseLevel;
+    faceEnhance?: boolean;
+    clarityBoost?: number;
+    customGuidance?: string;
+    aspectRatioInput?: number | string;
+}
+
+/**
  * Helper to resolve the closest standard aspect ratio supported by Gemini
+ * Covers all supported standard ratios: 1:1, 2:3, 3:2, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9, 1:4, 1:8, 4:1, 8:1
  */
 export const getStandardAspectRatio = (
     ratio: number | string | undefined
-): "1:1" | "3:4" | "4:3" | "9:16" | "16:9" | "1:4" | "1:8" | "4:1" | "8:1" => {
+): "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:4" | "1:8" | "4:1" | "8:1" => {
     if (!ratio) return "1:1";
     if (typeof ratio === "string") {
-        if (["1:1", "3:4", "4:3", "9:16", "16:9", "1:4", "1:8", "4:1", "8:1"].includes(ratio)) {
+        if (["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "1:8", "4:1", "8:1"].includes(ratio)) {
             return ratio as any;
         }
         const parsed = parseFloat(ratio);
@@ -1338,22 +1361,27 @@ export const getStandardAspectRatio = (
         ratio = parsed;
     }
     
-    const options: { name: "1:1" | "3:4" | "4:3" | "9:16" | "16:9" | "1:4" | "1:8" | "4:1" | "8:1"; value: number }[] = [
-        { name: "1:1", value: 1.0 },
-        { name: "4:3", value: 4/3 },
-        { name: "3:4", value: 3/4 },
-        { name: "16:9", value: 16/9 },
-        { name: "9:16", value: 9/16 },
-        { name: "4:1", value: 4.0 },
+    const options: { name: "1:1" | "2:3" | "3:2" | "3:4" | "4:3" | "4:5" | "5:4" | "9:16" | "16:9" | "21:9" | "1:4" | "1:8" | "4:1" | "8:1"; value: number }[] = [
+        { name: "1:8", value: 0.125 },
         { name: "1:4", value: 0.25 },
-        { name: "8:1", value: 8.0 },
-        { name: "1:8", value: 0.125 }
+        { name: "9:16", value: 9/16 },       // 0.5625
+        { name: "2:3", value: 2/3 },         // 0.6667 (Standard DSLR Portrait)
+        { name: "3:4", value: 3/4 },         // 0.75
+        { name: "4:5", value: 4/5 },         // 0.8 (Instagram Portrait)
+        { name: "1:1", value: 1.0 },         // 1.0 (Square)
+        { name: "5:4", value: 5/4 },         // 1.25 (Standard Print)
+        { name: "4:3", value: 4/3 },         // 1.3333
+        { name: "3:2", value: 3/2 },         // 1.5 (Standard DSLR Landscape)
+        { name: "16:9", value: 16/9 },       // 1.7778 (Widescreen)
+        { name: "21:9", value: 21/9 },       // 2.3333 (Cinematic Ultrawide)
+        { name: "4:1", value: 4.0 },
+        { name: "8:1", value: 8.0 }
     ];
     
-    let closest = options[0];
+    let closest = options[6]; // default 1:1
     let minDiff = Math.abs(ratio - closest.value);
     
-    for (let i = 1; i < options.length; i++) {
+    for (let i = 0; i < options.length; i++) {
         const diff = Math.abs(ratio - options[i].value);
         if (diff < minDiff) {
             minDiff = diff;
@@ -1366,44 +1394,79 @@ export const getStandardAspectRatio = (
 
 /**
  * Upscales an image using either a standard or high-quality engine with robust automatic fallbacks.
+ * Prioritizes Gemini 3 Pro for 4K / Pro Tier and respects specialized domain presets.
  */
 export const upscaleImage = async (
     base64Image: string, 
     mimeType: string, 
-    is4kOrRes: '4k' | '2k' | boolean = false, 
-    customModel?: string,
-    aspectRatioInput?: number | string
-): Promise<{ image: string; modelUsed: string }> => {
+    is4kOrResOrOptions: '4k' | '2k' | '1k' | boolean | UpscaleImageOptions = false, 
+    customModelParam?: string,
+    aspectRatioParam?: number | string
+): Promise<{ image: string; modelUsed: string; feedback?: any }> => {
     trackRequest(2500, "Upscale Image");
     
-    const modelsToTry = customModel 
-        ? [customModel] 
-        : ['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-3.1-flash-lite-image'];
-        
-    const is4k = is4kOrRes === '4k' || is4kOrRes === true;
-    const is2k = is4kOrRes === '2k';
-    
-    let promptText = "";
-    if (is4k) {
-        promptText = "PERFECT 4K SUPER-RESOLUTION RECONSTRUCTION: Perform an ultra-high-fidelity 4K upscale of this image. CRITICAL RULES:\n" +
-            "1. Maintain 100% absolute fidelity to the original content: DO NOT add, remove, or modify any subjects, text, faces, background elements, style, or details.\n" +
-            "2. Preserve original colors, lighting, composition, perspective, and aesthetic perfectly.\n" +
-            "3. Enhance structural sharpness, clean up edges, and completely eliminate compression artifacts, noise, pixelation, blur, or jpeg blockiness.\n" +
-            "4. Synthesize realistic high-frequency micro-textures (like hair strands, skin pores, fabric weave, wood grain, paper texture, or metal brushing) in a style-consistent manner to make the upscaled image appear incredibly crisp, high-definition, and clean.\n" +
-            "Output only the perfectly upscaled and sharpened image in pixel-perfect 4K resolution.";
-    } else if (is2k) {
-        promptText = "PERFECT 2K SUPER-RESOLUTION RECONSTRUCTION: Perform an ultra-high-fidelity 2K upscale of this image. CRITICAL RULES:\n" +
-            "1. Maintain 100% absolute fidelity to the original content: DO NOT add, remove, or modify any subjects, text, faces, background elements, style, or details.\n" +
-            "2. Preserve original colors, lighting, composition, perspective, and aesthetic perfectly.\n" +
-            "3. Enhance structural sharpness, clean up edges, and completely eliminate compression artifacts, noise, pixelation, blur, or jpeg blockiness.\n" +
-            "4. Synthesize realistic high-frequency micro-textures (like hair strands, skin pores, fabric weave, wood grain, paper texture, or metal brushing) in a style-consistent manner to make the upscaled image appear incredibly crisp, high-definition, and clean.\n" +
-            "Output only the perfectly upscaled and sharpened image in pixel-perfect 2K resolution.";
+    let targetRes: '4k' | '2k' | '1k' = '2k';
+    let chosenModel: string | undefined = customModelParam;
+    let preset: UpscalePresetId = 'portrait';
+    let fidelity: UpscaleFidelityLevel = 'rich';
+    let denoise: UpscaleDenoiseLevel = 'medium';
+    let faceEnhance = true;
+    let clarityBoost = 0;
+    let customGuidance = '';
+    let aspectInput: number | string | undefined = aspectRatioParam;
+
+    if (typeof is4kOrResOrOptions === 'object' && is4kOrResOrOptions !== null) {
+        targetRes = is4kOrResOrOptions.targetRes || '4k';
+        chosenModel = is4kOrResOrOptions.customModel || chosenModel;
+        preset = is4kOrResOrOptions.preset || 'portrait';
+        fidelity = is4kOrResOrOptions.fidelity || 'rich';
+        denoise = is4kOrResOrOptions.denoise || 'medium';
+        faceEnhance = is4kOrResOrOptions.faceEnhance ?? true;
+        clarityBoost = is4kOrResOrOptions.clarityBoost ?? 0;
+        customGuidance = is4kOrResOrOptions.customGuidance || '';
+        aspectInput = is4kOrResOrOptions.aspectRatioInput ?? aspectInput;
     } else {
-        promptText = "HIGH-FIDELITY SUPER-RESOLUTION UPSCALE: Increase the image resolution while preserving 100% of the original content, style, composition, colors, and layout. Eliminate blurriness and pixelation, sharpen all outlines and micro-details, and output the exact same image in pristine high-resolution.";
+        if (is4kOrResOrOptions === '4k' || is4kOrResOrOptions === true) {
+            targetRes = '4k';
+        } else if (is4kOrResOrOptions === '1k') {
+            targetRes = '1k';
+        } else {
+            targetRes = '2k';
+        }
     }
-    
-    const standardAspect = getStandardAspectRatio(aspectRatioInput);
-    console.log(`[Upscale] Resolved standard aspect ratio: ${standardAspect} for input: ${aspectRatioInput}`);
+
+    const is4k = targetRes === '4k';
+    const is1k = targetRes === '1k';
+
+    // Model selection priority: Gemini 3 Pro is Google's flagship engine for 4K / Studio Quality
+    let modelsToTry: string[];
+    if (chosenModel && chosenModel !== 'auto') {
+        modelsToTry = [chosenModel];
+        if (chosenModel === 'gemini-3-pro-image') {
+            modelsToTry.push('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image');
+        } else if (chosenModel === 'gemini-3.1-flash-image') {
+            modelsToTry.push('gemini-3-pro-image', 'gemini-3.1-flash-lite-image');
+        }
+    } else {
+        if (is4k) {
+            // Priority for 4K: Gemini 3 Pro Image provides maximum detail & texture fidelity
+            modelsToTry = ['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'];
+        } else {
+            modelsToTry = ['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-3.1-flash-lite-image'];
+        }
+    }
+
+    const promptText = buildEnhancedUpscalePrompt({
+        targetRes,
+        preset,
+        fidelity,
+        denoise,
+        faceEnhance,
+        customGuidance
+    });
+
+    const standardAspect = getStandardAspectRatio(aspectInput);
+    console.log(`[Upscale] Target: ${targetRes}, Preset: ${preset}, Aspect: ${standardAspect}, Models:`, modelsToTry);
 
     let lastError: any = null;
     
@@ -1416,7 +1479,7 @@ export const upscaleImage = async (
             if (['gemini-3-pro-image', 'gemini-3.1-flash-image'].includes(model)) {
                 config.imageConfig = {
                     aspectRatio: standardAspect,
-                    imageSize: is4k ? "4K" : "2K"
+                    imageSize: is4k ? "4K" : (is1k ? "1K" : "2K")
                 };
             } else if (model === 'gemini-3.1-flash-lite-image') {
                 config.imageConfig = {
@@ -1440,9 +1503,28 @@ export const upscaleImage = async (
                 for (const part of response.candidates[0].content.parts) {
                     if (part.inlineData && part.inlineData.data) {
                         const outMime = part.inlineData.mimeType || 'image/png';
+                        let finalImage = `data:${outMime};base64,${part.inlineData.data}`;
+                        
+                        // Apply optional browser-native micro-contrast clarity boost if configured
+                        if (clarityBoost > 0) {
+                            try {
+                                finalImage = await applyMicroContrastClarity(finalImage, clarityBoost);
+                            } catch (cErr) {
+                                console.warn('[Upscale] Clarity boost skipped:', cErr);
+                            }
+                        }
+
                         return {
-                            image: `data:${outMime};base64,${part.inlineData.data}`,
-                            modelUsed: model
+                            image: finalImage,
+                            modelUsed: model,
+                            feedback: {
+                                targetRes,
+                                modelUsed: model,
+                                preset,
+                                fidelity,
+                                clarityBoost,
+                                upscaledAt: Date.now()
+                            }
                         };
                     }
                 }

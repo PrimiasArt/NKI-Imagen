@@ -1532,6 +1532,110 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* 5. Cấu hình Siêu Phân Giải Upscale 4K / 2K Studio */}
+              <div className="pt-4 border-t border-white/10 space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>✨</span>
+                    <span>Cấu Hình Siêu Phân Giải Upscale (Super-Resolution):</span>
+                  </label>
+                  <span className="text-[10px] font-mono text-cyan-300 bg-cyan-500/20 px-2 py-0.5 rounded-full border border-cyan-500/30">
+                    Pro 3 & Flash 3.1
+                  </span>
+                </div>
+                <p className="text-[11px] text-white/50">
+                  Tùy chỉnh mô hình và chế độ phục hồi mặc định khi nâng cấp ảnh trong Thư viện, Studio và Thanh công cụ.
+                </p>
+
+                {/* Default Upscale Engine */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-semibold text-white/80">Mô hình Upscale mặc định:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'gemini-3-pro-image', label: 'Pro 3 Image', desc: 'Google Pro 4K (Khuyên dùng)' },
+                      { id: 'gemini-3.1-flash-image', label: 'Flash 3.1 Image', desc: 'Nhanh & Sắc nét 2K/4K' },
+                      { id: 'auto', label: 'Tự Động Tối Ưu', desc: 'Tự chọn Pro 3 cho 4K' }
+                    ].map(eng => (
+                      <button
+                        key={eng.id}
+                        type="button"
+                        onClick={() => setStudioConfig(prev => ({ ...prev, upscaleModel: eng.id }))}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-0.5 ${
+                          (studioConfig.upscaleModel || 'gemini-3-pro-image') === eng.id
+                            ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-md shadow-cyan-500/10'
+                            : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/60'
+                        }`}
+                      >
+                        <span className="text-xs font-bold text-white">{eng.label}</span>
+                        <span className="text-[9px] text-white/40">{eng.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Default Preset */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-semibold text-white/80">Preset chuyên ngành mặc định:</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {[
+                      { id: 'portrait', label: 'Chân dung & Da', icon: '👤' },
+                      { id: 'fashion', label: 'Thời trang & Vải', icon: '👗' },
+                      { id: 'cinematic', label: 'Điện ảnh & Cảnh', icon: '🎬' },
+                      { id: 'anime', label: 'Digital & Anime', icon: '🎨' },
+                      { id: 'faithful', label: 'Phục hồi trung thực', icon: '🛡️' }
+                    ].map(pst => (
+                      <button
+                        key={pst.id}
+                        type="button"
+                        onClick={() => setStudioConfig(prev => ({ ...prev, upscalePreset: pst.id as any }))}
+                        className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
+                          (studioConfig.upscalePreset || 'portrait') === pst.id
+                            ? 'bg-indigo-500/20 border-indigo-400 text-white'
+                            : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/60'
+                        }`}
+                      >
+                        <span className="text-sm">{pst.icon}</span>
+                        <span className="text-[10px] font-bold text-white leading-tight">{pst.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Face Enhancement & Clarity Boost */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <label className="p-3 rounded-xl bg-slate-950/60 border border-white/10 flex items-center justify-between cursor-pointer hover:border-white/20 transition-all">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-white">Ưu tiên phục hồi khuôn mặt & mắt</span>
+                      <span className="text-[9px] text-white/40">Tập trung chi tiết con ngươi, lông mi, không lệch nét mặt</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={studioConfig.upscaleFaceEnhance ?? true}
+                      onChange={(e) => setStudioConfig(prev => ({ ...prev, upscaleFaceEnhance: e.target.checked }))}
+                      className="w-4 h-4 accent-cyan-400 rounded cursor-pointer"
+                    />
+                  </label>
+
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-white/10 flex flex-col justify-between gap-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-white/80">Tăng vi tương phản (Clarity):</span>
+                      <span className="font-mono text-cyan-400 font-bold">
+                        {studioConfig.upscaleClarityBoost ?? 15}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="40"
+                      step="5"
+                      value={studioConfig.upscaleClarityBoost ?? 15}
+                      onChange={(e) => setStudioConfig(prev => ({ ...prev, upscaleClarityBoost: Number(e.target.value) }))}
+                      className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
         </div>

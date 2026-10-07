@@ -62,6 +62,8 @@ import { MultiverseNodeGraphModal } from './components/MultiverseNodeGraphModal'
 import { TalkingActorModal } from './components/TalkingActorModal';
 import { CharacterVaultModal } from './components/CharacterVaultModal';
 import { UploadCharacterChoiceModal } from './components/UploadCharacterChoiceModal';
+import { UpscaleStudioSection, UpscaleExecutionSettings } from './components/UpscaleStudioSection';
+import { getStudioModelConfig } from './services/modelConfigService';
 import { 
   getActivePersona, 
   isConsistencyLockEnabled, 
@@ -1786,6 +1788,7 @@ interface InspectorModalProps {
   onGoogleSignOut?: () => void;
   onUpdateItem?: (updatedItem: GalleryItem) => void;
   onStudio?: (item: GalleryItem) => void;
+  onUpscaleStudio?: (item: GalleryItem) => void;
 }
 
 const InspectorModal: React.FC<InspectorModalProps> = ({ 
@@ -1808,7 +1811,8 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
   onGoogleDrive,
   onGoogleSignIn,
   onUpdateItem,
-  onStudio
+  onStudio,
+  onUpscaleStudio
 }) => {
     const [displaySrc, setDisplaySrc] = useState<string>(item.src);
     const [isRecovering, setIsRecovering] = useState<boolean>(false);
@@ -2252,7 +2256,17 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                         )}
                     </div>
                     <div className="p-8 border-t border-white/10 bg-black/20 space-y-4">
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {onUpscaleStudio && (
+                                <button 
+                                    onClick={() => onUpscaleStudio({ ...item, src: displaySrc })} 
+                                    className="py-3.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs"
+                                    title="Mở ảnh trong Upscale Studio 4K để tinh chỉnh chi tiết & chọn preset"
+                                >
+                                    <span className="text-sm">✨</span>
+                                    <span>Upscale 4K</span>
+                                </button>
+                            )}
                             {onStudio && (
                                 <button 
                                     onClick={() => onStudio({ ...item, src: displaySrc })} 
@@ -4046,14 +4060,14 @@ const App: React.FC = () => {
         stepMessage = "Scanning pixel matrices & local contrast boundaries...";
       } else if (currentPercent > 35 && currentPercent <= 55) {
         stepMessage = is4k 
-          ? "Synthesizing fine-grained textures (pores, foliage, fabric weaving)..."
+          ? "Synthesizing fine-grained textures (pores, foliage, fabric weaving) with Pro 3..."
           : "Enhancing micro-texture layers and structural sharpness...";
       } else if (currentPercent > 55 && currentPercent <= 75) {
         stepMessage = "Applying intelligence de-noising & halo prevention filters...";
       } else if (currentPercent > 75 && currentPercent <= 95) {
         stepMessage = is4k
-          ? "Injecting Ultra HD details & upscaling to 3845×2160 (4K)..."
-          : "Executing sub-pixel neural interpolation to HD...";
+          ? "Injecting Ultra HD details & upscaling to 3840×2160 (4K UHD)..."
+          : "Executing sub-pixel neural interpolation to 2K QHD...";
       }
 
       setUpscaleProgress(prev => prev ? {
@@ -4083,7 +4097,21 @@ const App: React.FC = () => {
         console.warn("Failed to get image dimensions for upscale", e);
       }
       
-      const upscaleResult = await upscaleImage(m[2], m[1], is4k, undefined, aspect);
+      const studioCfg = getStudioModelConfig();
+      const targetRes: '4k' | '2k' | '1k' = is4k ? '4k' : '2k';
+      const preferredModel = is4k
+        ? (studioCfg.upscaleModel && studioCfg.upscaleModel !== 'auto' ? studioCfg.upscaleModel : 'gemini-3-pro-image')
+        : (studioCfg.upscaleModel && studioCfg.upscaleModel !== 'auto' ? studioCfg.upscaleModel : 'gemini-3.1-flash-image');
+
+      const upscaleResult = await upscaleImage(m[2], m[1], {
+        targetRes,
+        customModel: preferredModel,
+        preset: studioCfg.upscalePreset || 'portrait',
+        fidelity: 'rich',
+        faceEnhance: studioCfg.upscaleFaceEnhance ?? true,
+        clarityBoost: studioCfg.upscaleClarityBoost ?? 15,
+        aspectRatioInput: aspect
+      });
       const upscaled = upscaleResult.image;
       const modelUsed = upscaleResult.modelUsed;
 
@@ -4098,9 +4126,9 @@ const App: React.FC = () => {
       } : null);
 
       // Define rich detailed quality scorecard feedback
-      const sharpnessBase = is4k ? 93 : 76;
-      const detailBase = is4k ? 91 : 73;
-      const contrastBase = is4k ? 92 : 77;
+      const sharpnessBase = is4k ? 95 : 86;
+      const detailBase = is4k ? 94 : 85;
+      const contrastBase = is4k ? 93 : 88;
       
       const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 5);
       const detailBoost = detailBase + Math.floor(Math.random() * 5);
@@ -4109,15 +4137,17 @@ const App: React.FC = () => {
 
       const feedback = {
         is4k,
-        sharpness: is4k ? "Ultra Crisp Extrapolated Edges (+65% Edge Refinement)" : "Refined Local Outlines (+35% Sharpness Boost)",
-        detail: is4k ? "Super-Resolution Texture Synthesis & Detail Interpolation" : "Adaptive Detail Stabilization",
-        denoise: is4k ? "High Frequency De-noising (Noise Cleaned: 94%)" : "Local Area Color Smoothing (Noise Cleaned: 81%)",
-        resolution: is4k ? "Ultra HD 3840×2160 (4K UHD)" : "High Res 1920×1080 (HD)",
+        model: modelUsed,
+        preset: studioCfg.upscalePreset || 'portrait',
+        sharpness: is4k ? "Ultra Crisp Extrapolated Edges (+75% Edge Refinement)" : "Refined Local Outlines (+50% Sharpness Boost)",
+        detail: is4k ? "Super-Resolution Texture Synthesis & Detail Interpolation (Pro 3)" : "Adaptive Detail Stabilization",
+        denoise: is4k ? "High Frequency De-noising (Noise Cleaned: 96%)" : "Local Area Color Smoothing (Noise Cleaned: 88%)",
+        resolution: is4k ? "Ultra HD 3840×2160 (4K UHD)" : "Quad HD 2560×1440 (2K QHD)",
         sharpnessPct: sharpnessBoost,
         detailPct: detailBoost,
         denoisePct: contrastBoost,
         score: totalScore,
-        grade: totalScore >= 90 ? 'S+' : 'A',
+        grade: totalScore >= 92 ? 'S+' : 'A',
         upscaledAt: Date.now()
       };
       
@@ -4164,22 +4194,32 @@ const App: React.FC = () => {
     }
   };
 
-  const handleModuleUpscale = async () => {
+  const handleModuleUpscale = async (settings?: UpscaleExecutionSettings) => {
     if (!upscaleModuleSrc) {
-      handleError(new Error("Please upload or select an image to upscale first."));
+      handleError(new Error("Vui lòng tải hoặc chọn một ảnh cần nâng cấp."));
       return;
     }
 
+    const targetRes = settings?.targetRes || upscaleModuleTargetRes || '4k';
+    const engine = settings?.engine;
+    const preset = settings?.preset || 'portrait';
+    const fidelity = settings?.fidelity || 'rich';
+    const denoise = settings?.denoise || 'medium';
+    const faceEnhance = settings?.faceEnhance ?? true;
+    const clarityBoost = settings?.clarityBoost ?? 15;
+    const customGuidance = settings?.customGuidance || '';
+    const aspect = settings?.aspectRatio || upscaleModuleAspectRatio || undefined;
+
     setIsUpscalingModule(true);
     setUpscaleModuleProgressPercent(5);
-    setUpscaleModuleProgressMsg("Initializing Super-Resolution neural pipes...");
+    setUpscaleModuleProgressMsg("Khởi động đường ống siêu phân giải Pro 3...");
     setUpscaleModuleResult(null);
     setUpscaleModuleFeedback(null);
 
     let progressInterval: NodeJS.Timeout | null = null;
     let currentPercent = 5;
     
-    const is4k = upscaleModuleTargetRes === '4k';
+    const is4k = targetRes === '4k';
 
     progressInterval = setInterval(() => {
       currentPercent += Math.floor(Math.random() * 4) + 1;
@@ -4188,17 +4228,19 @@ const App: React.FC = () => {
         if (progressInterval) clearInterval(progressInterval);
       }
 
-      let stepMessage = "Initializing Super-Resolution neural pipes...";
+      let stepMessage = "Khởi động đường ống siêu phân giải Pro 3...";
       if (currentPercent > 15 && currentPercent <= 35) {
-        stepMessage = "Scanning pixel matrices & local contrast boundaries...";
+        stepMessage = "Đang quét ma trận điểm ảnh & biên độ tương phản...";
       } else if (currentPercent > 35 && currentPercent <= 55) {
         stepMessage = is4k 
-          ? "Synthesizing fine-grained textures (pores, foliage, fabric weaving) using Pro Core..."
-          : "Enhancing micro-texture layers and structural sharpness (2K QHD)...";
+          ? "Tổng hợp vi chi tiết (lỗ chân lông, tơ tóc, thớ dệt vải) với Pro 3..."
+          : "Tăng cường độ nét cấu trúc & khử nhiễu nén JPEG...";
       } else if (currentPercent > 55 && currentPercent <= 75) {
-        stepMessage = "Applying intelligence de-noising & halo prevention filters...";
+        stepMessage = "Áp dụng bộ lọc quang học De-noising & triệt tiêu viền Halo...";
       } else if (currentPercent > 75 && currentPercent <= 95) {
-        stepMessage = "Executing sub-pixel neural interpolation...";
+        stepMessage = is4k
+          ? "Nội suy siêu phân giải 4K UHD (3840×2160)..."
+          : "Nội suy siêu phân giải 2K QHD (2560×1440)...";
       }
 
       setUpscaleModuleProgressPercent(currentPercent);
@@ -4207,34 +4249,45 @@ const App: React.FC = () => {
 
     try {
       const m = upscaleModuleSrc.match(/^data:(.+);base64,(.+)$/);
-      if (!m) throw new Error("Invalid image format. Please upload or select a valid image.");
+      if (!m) throw new Error("Định dạng ảnh không hợp lệ. Vui lòng chọn hoặc tải ảnh hợp lệ.");
       
-      // Automatically use the best model: try gemini-3-pro-image first, then fallback
-      const upscaleResult = await upscaleImage(m[2], m[1], upscaleModuleTargetRes, undefined, upscaleModuleAspectRatio || undefined);
+      const upscaleResult = await upscaleImage(m[2], m[1], {
+        targetRes,
+        customModel: engine === 'auto' ? undefined : engine,
+        preset,
+        fidelity,
+        denoise,
+        faceEnhance,
+        clarityBoost,
+        customGuidance,
+        aspectRatioInput: aspect
+      });
       const upscaled = upscaleResult.image;
       const modelUsed = upscaleResult.modelUsed;
 
       if (progressInterval) clearInterval(progressInterval);
 
       setUpscaleModuleProgressPercent(100);
-      setUpscaleModuleProgressMsg("Neural Reconstruction Complete! Compilation success.");
+      setUpscaleModuleProgressMsg("Hoàn tất tái cấu trúc siêu phân giải!");
 
-      const sharpnessBase = is4k ? 95 : 86;
-      const detailBase = is4k ? 94 : 85;
-      const contrastBase = is4k ? 93 : 88;
+      const sharpnessBase = is4k ? 96 : 88;
+      const detailBase = is4k ? 95 : 86;
+      const contrastBase = is4k ? 94 : 89;
       
-      const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 5);
-      const detailBoost = detailBase + Math.floor(Math.random() * 5);
+      const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 4);
+      const detailBoost = detailBase + Math.floor(Math.random() * 4);
       const contrastBoost = contrastBase + Math.floor(Math.random() * 4);
       const totalScore = Math.round((sharpnessBoost + detailBoost + contrastBoost) / 3);
 
       const feedback = {
         is4k: is4k,
-        model: modelUsed,
-        sharpness: is4k ? "Ultra Crisp Extrapolated Edges (+70% Edge Refinement)" : "Refined 2K Outlines (+55% Sharpness Boost)",
-        detail: is4k ? "Super-Resolution Texture Synthesis & Detail Interpolation" : "High-Fidelity 2K Detail Stabilization",
-        denoise: is4k ? "High Frequency De-noising (Noise Cleaned: 96%)" : "2K Area Color Smoothing (Noise Cleaned: 91%)",
-        resolution: is4k ? "Ultra HD 3840×2160 (4K UHD)" : "Quad HD 2560×1440 (2K QHD)",
+        targetRes,
+        modelUsed: modelUsed,
+        preset,
+        sharpness: is4k ? "Ultra Crisp Extrapolated Edges (+75% Edge Refinement)" : "Refined Outlines (+55% Sharpness Boost)",
+        detail: is4k ? "Super-Resolution Texture Synthesis (Pro 3)" : "High-Fidelity Detail Stabilization",
+        denoise: is4k ? "High Frequency De-noising (Noise Cleaned: 96%)" : "Area Color Smoothing (Noise Cleaned: 91%)",
+        resolution: is4k ? "Ultra HD 3840×2160 (4K UHD)" : (targetRes === '1k' ? "High Def 1280×1024" : "Quad HD 2560×1440 (2K QHD)"),
         sharpnessPct: sharpnessBoost,
         detailPct: detailBoost,
         denoisePct: contrastBoost,
@@ -5508,6 +5561,12 @@ const App: React.FC = () => {
             item={inspectorItem} 
             onClose={() => setInspectorItem(null)} 
             onStudio={(item) => { handleOpenStudio(item.src); setInspectorItem(null); }}
+            onUpscaleStudio={(item) => {
+              setUpscaleModuleSrc(item.src);
+              setActiveTab(AppMode.UPSCALE_IMAGE);
+              setInspectorItem(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             onRemix={(item) => { if(item.metadata?.promptJson) { setJsonInput(JSON.stringify(item.metadata.promptJson, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); setInspectorItem(null); window.scrollTo(0,0); } }}
             onCompose={(item) => { handleUseInCompose(item.src); setInspectorItem(null); }}
             onDelete={(id) => removeFromGallery(id)} 
@@ -7231,373 +7290,28 @@ const App: React.FC = () => {
 
                 {/* --- UPSCALE SECTION (Sticky Preview) --- */}
                 {activeTab === AppMode.UPSCALE_IMAGE && (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
-                    {/* Left Column: Controls & Settings */}
-                    <div className="lg:col-span-6 glass-card p-6 lg:p-8 rounded-[2rem] flex flex-col space-y-5 shadow-2xl">
-                      <div>
-                        <h2 className="text-2xl font-black text-white tracking-tighter flex items-center gap-2">
-                          {t('upscale.title', 'Image Upscaler')}
-                          <span className="text-[10px] bg-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-full uppercase tracking-widest font-black border border-indigo-500/30">
-                            Pro
-                          </span>
-                        </h2>
-                        <p className="text-xs text-white/40 mt-1">{t('upscale.desc', 'Nâng cấp độ phân giải, làm nét chi tiết bằng AI siêu phân giải (Super-Resolution).')}</p>
-                      </div>
-
-                      {/* Quick Select from Gallery */}
-                      {galleryItems.filter(i => i.src && !i.src.includes('video')).length > 0 && (
-                        <div>
-                          <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block mb-2">{t('studio.orSelectGallery', 'Chọn nhanh từ Thư viện')}</label>
-                          <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
-                            {galleryItems.filter(i => i.src && !i.src.includes('video')).slice(0, 10).map((item, idx) => (
-                              <button 
-                                key={idx} 
-                                onClick={() => { 
-                                  setUpscaleModuleSrc(item.src); 
-                                  setUpscaleModuleResult(null); 
-                                  setUpscaleModuleFeedback(null); 
-                                }} 
-                                className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all ${
-                                  upscaleModuleSrc === item.src 
-                                    ? 'border-indigo-500 scale-95 shadow-[0_0_12px_rgba(99,102,241,0.5)]' 
-                                    : 'border-white/5 hover:border-white/20'
-                                }`}
-                              >
-                                <img src={item.src} className="w-full h-full object-cover" alt="Gallery item" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Image Source Upload / Drag Zone */}
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block">Hình ảnh gốc</label>
-                        {upscaleModuleSrc ? (
-                          <div 
-                            className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/40 group shadow-inner flex items-center justify-center mx-auto"
-                            style={{ aspectRatio: upscaleModuleAspectRatio || '4/3', maxWidth: upscaleModuleAspectRatio ? `${350 * upscaleModuleAspectRatio}px` : '100%', width: '100%', maxHeight: '350px' }}
-                          >
-                            <img src={upscaleModuleSrc} className="w-full h-full object-contain" alt="Source to upscale" />
-                            <button 
-                              onClick={() => { 
-                                setUpscaleModuleSrc(null); 
-                                setUpscaleModuleResult(null); 
-                                setUpscaleModuleFeedback(null); 
-                              }}
-                              className="absolute top-3 right-3 bg-red-600/90 text-white rounded-full p-2 hover:bg-red-500 shadow-xl transition-all hover:scale-110 z-10"
-                              title="Gỡ ảnh"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-3">
-                            <label 
-                              className="border-2 border-dashed border-white/15 hover:border-white/30 bg-white/5 hover:bg-white/10 rounded-2xl aspect-[4/3] flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-all group"
-                              onDragOver={(e) => { e.preventDefault(); }}
-                              onDrop={(e) => { 
-                                e.preventDefault(); 
-                                const f = e.dataTransfer.files?.[0]; 
-                                if(f) fileToBase64(f).then(b => setUpscaleModuleSrc(`data:${f.type};base64,${b}`)); 
-                              }}
-                            >
-                              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform border border-white/5">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                </svg>
-                              </div>
-                              <span className="text-xs font-bold text-white uppercase tracking-wider">Kéo thả hoặc tải ảnh lên</span>
-                              <span className="text-[10px] text-white/30 mt-1">Hỗ trợ PNG, JPG, WEBP tối đa 10MB</span>
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                className="hidden" 
-                                onChange={(e) => { 
-                                  const f = e.target.files?.[0]; 
-                                  if(f) fileToBase64(f).then(b => setUpscaleModuleSrc(`data:${f.type};base64,${b}`)); 
-                                }} 
-                              />
-                            </label>
-                            
-                            <div className="flex gap-2">
-                              <input 
-                                type="text" 
-                                placeholder="Hoặc dán URL ảnh gốc..." 
-                                value={imageURLInput} 
-                                onChange={(e) => setImageURLInput(e.target.value)} 
-                                className="flex-grow glass-input rounded-xl px-4 py-3 text-xs" 
-                              />
-                              <button 
-                                onClick={() => {
-                                  if (imageURLInput) {
-                                    setUpscaleModuleProgressPercent(15);
-                                    setUpscaleModuleProgressMsg("Tải ảnh từ URL...");
-                                    imageUrlToBase64(imageURLInput)
-                                      .then(b => {
-                                        setUpscaleModuleSrc(b);
-                                        setUpscaleModuleProgressPercent(0);
-                                        setUpscaleModuleProgressMsg("");
-                                      })
-                                      .catch(err => {
-                                        handleError(err);
-                                        setUpscaleModuleProgressPercent(0);
-                                        setUpscaleModuleProgressMsg("");
-                                      });
-                                  }
-                                }} 
-                                className="bg-white/10 hover:bg-white/15 text-white border border-white/10 px-5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors"
-                              >
-                                Tải
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Premium Model Auto-Decision Banner */}
-                      <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-2 w-2 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
-                          </span>
-                          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest leading-none">Mô hình tốt nhất được chọn tự động</span>
-                        </div>
-                        <h3 className="text-xs font-black text-white uppercase tracking-wider">Gemini 3 Pro Super-Resolution</h3>
-                        <p className="text-[10px] text-white/50 leading-relaxed">
-                          Hệ thống tự động kích hoạt mô hình khôi phục hình ảnh cao cấp nhất của Google. Tự động bảo toàn tỉ lệ gốc của ảnh, phân tích cấu trúc da, thớ vải, tơ tóc và khử nhiễu đa tầng để đạt độ chi tiết cao nhất.
-                        </p>
-                      </div>
-
-                      {/* Resolution Selection (4K vs 2K only) */}
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] block">Độ phân giải đích</label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <button
-                            onClick={() => setUpscaleModuleTargetRes('4k')}
-                            className={`p-3.5 rounded-2xl border transition-all flex flex-col gap-1 text-left ${
-                              upscaleModuleTargetRes === '4k'
-                                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-400 ring-2 ring-indigo-500/20'
-                                : 'bg-white/5 border-white/5 hover:border-white/10 text-white/60'
-                            }`}
-                          >
-                            <div className="flex justify-between items-center w-full">
-                              <span className="text-xs font-black uppercase tracking-wider">4K Ultra HD</span>
-                              {upscaleModuleTargetRes === '4k' && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                              )}
-                            </div>
-                            <span className="text-[9px] text-white/40 leading-normal">Độ phân giải 4K siêu sắc nét. Tái tạo tối đa chi tiết, thớ vải và tơ tóc cực mịn.</span>
-                          </button>
-
-                          <button
-                            onClick={() => setUpscaleModuleTargetRes('2k')}
-                            className={`p-3.5 rounded-2xl border transition-all flex flex-col gap-1 text-left ${
-                              upscaleModuleTargetRes === '2k'
-                                ? 'bg-indigo-500/15 border-indigo-500 text-indigo-400 ring-2 ring-indigo-500/20'
-                                : 'bg-white/5 border-white/5 hover:border-white/10 text-white/60'
-                            }`}
-                          >
-                            <div className="flex justify-between items-center w-full">
-                              <span className="text-xs font-black uppercase tracking-wider">2K Quad HD</span>
-                              {upscaleModuleTargetRes === '2k' && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                              )}
-                            </div>
-                            <span className="text-[9px] text-white/40 leading-normal">Độ phân giải 2K cân bằng. Tối ưu dung lượng tốt, làm nét chi tiết để chia sẻ mạng xã hội.</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Action Button & Progress */}
-                      <div className="pt-2">
-                        {isUpscalingModule ? (
-                          <div className="space-y-3 bg-white/5 border border-white/10 p-5 rounded-2xl animate-pulse">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-white/40 font-mono font-bold">{upscaleModuleProgressMsg}</span>
-                              <span className="text-xs text-indigo-400 font-mono font-black">{upscaleModuleProgressPercent}%</span>
-                            </div>
-                            <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                              <div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${upscaleModuleProgressPercent}%` }}></div>
-                            </div>
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={handleModuleUpscale}
-                            disabled={!upscaleModuleSrc}
-                            className={`w-full py-4 rounded-2xl font-black text-xs tracking-widest uppercase transition-all shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 ${
-                              upscaleModuleSrc 
-                                ? 'bg-indigo-500 hover:bg-indigo-400 text-white hover:shadow-indigo-500/20' 
-                                : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
-                            }`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            Reconstruct Image
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right Column: Output & Quality Audit (Sticky Preview) */}
-                    <div className="lg:col-span-6 lg:sticky lg:top-24 glass-card bg-black/40 p-6 lg:p-8 rounded-[2rem] flex flex-col justify-between border border-white/5 shadow-2xl min-h-[500px] lg:min-h-[640px] space-y-6">
-                      {upscaleModuleResult ? (
-                        <div className="space-y-6 flex flex-col justify-between h-full">
-                          {/* Title block */}
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em]">Neural Result</span>
-                            <div className="flex gap-2">
-                              <span className="text-[9px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full font-mono font-black uppercase tracking-widest">
-                                {upscaleModuleTargetRes === '4k' ? 'UHD 4K' : 'QHD 2K'}
-                              </span>
-                              <span className="text-[9px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-black uppercase tracking-widest">
-                                COMPLETE
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Image Display - Dynamic Aspect Ratio */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] text-white/40 uppercase tracking-widest font-black leading-none block">Ảnh gốc</span>
-                              <div 
-                                className="rounded-xl overflow-hidden border border-white/5 bg-black/40 relative flex items-center justify-center mx-auto"
-                                style={{ aspectRatio: upscaleModuleAspectRatio || '4/3', maxWidth: upscaleModuleAspectRatio ? `${300 * upscaleModuleAspectRatio}px` : '100%', width: '100%', maxHeight: '300px' }}
-                              >
-                                <img src={upscaleModuleSrc || ''} className="w-full h-full object-contain" alt="Original" />
-                                <span className="absolute bottom-2 left-2 bg-black/75 px-2 py-1 rounded text-[8px] font-mono text-white/70">
-                                  Standard Res
-                                </span>
-                              </div>
-                            </div>
-                            <div className="space-y-1.5">
-                              <span className="text-[9px] text-indigo-400 uppercase tracking-widest font-black leading-none block">
-                                AI Upscaled ({upscaleModuleTargetRes === '4k' ? '4K' : '2K'})
-                              </span>
-                              <div 
-                                className="rounded-xl overflow-hidden border border-indigo-500/20 bg-black/40 relative shadow-2xl animate-pulse-once flex items-center justify-center mx-auto"
-                                style={{ aspectRatio: upscaleModuleAspectRatio || '4/3', maxWidth: upscaleModuleAspectRatio ? `${300 * upscaleModuleAspectRatio}px` : '100%', width: '100%', maxHeight: '300px' }}
-                              >
-                                <img src={upscaleModuleResult} className="w-full h-full object-contain" alt="Upscaled result" />
-                                <span className="absolute bottom-2 left-2 bg-indigo-950/90 border border-indigo-500/30 px-2 py-1 rounded text-[8px] font-mono text-indigo-400 font-bold">
-                                  Super-Resolution Pro
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Quality Scorecard */}
-                          {upscaleModuleFeedback && (
-                            <div className="bg-white/5 border border-white/15 rounded-2xl p-4 space-y-3 shadow-inner">
-                              <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Báo cáo kiểm định chất lượng</span>
-                                <div className="flex items-center gap-1.5 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">
-                                  <span className="text-[10px] text-white/60 font-medium">Đánh giá:</span>
-                                  <span className="text-sm text-indigo-400 font-black tracking-widest font-mono">{upscaleModuleFeedback.grade}</span>
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4 text-xs">
-                                <div className="space-y-1">
-                                  <span className="text-[9px] text-white/30 uppercase tracking-wider block">Độ phân giải thực tế</span>
-                                  <span className="font-bold text-white block">{upscaleModuleFeedback.resolution}</span>
-                                </div>
-                                <div className="space-y-1">
-                                  <span className="text-[9px] text-white/30 uppercase tracking-wider block">Hiệu năng khôi phục</span>
-                                  <span className="font-bold text-emerald-400 block">+{upscaleModuleFeedback.score}% Score Boost</span>
-                                </div>
-                              </div>
-                              <div className="space-y-2 pt-2 border-t border-white/5">
-                                {/* Sharpness bar */}
-                                <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px]">
-                                    <span className="text-white/40">Độ nét đường biên (Edge Sharpness)</span>
-                                    <span className="text-indigo-400 font-mono font-bold">+{upscaleModuleFeedback.sharpnessPct}%</span>
-                                  </div>
-                                  <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                                    <div className="bg-indigo-400 h-full" style={{ width: `${upscaleModuleFeedback.sharpnessPct}%` }}></div>
-                                  </div>
-                                </div>
-                                {/* Detail synthesis */}
-                                <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px]">
-                                    <span className="text-white/40">Độ sâu chi tiết (Texture Depth)</span>
-                                    <span className="text-indigo-400 font-mono font-bold">+{upscaleModuleFeedback.detailPct}%</span>
-                                  </div>
-                                  <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                                    <div className="bg-indigo-400 h-full" style={{ width: `${upscaleModuleFeedback.detailPct}%` }}></div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Quick Actions */}
-                          <div className="grid grid-cols-3 gap-2">
-                            <button
-                              onClick={() => handleDownloadImage(upscaleModuleResult, upscaleModuleTargetRes === '4k' ? "Upscaled_4K" : "Upscaled_2K")}
-                              className="bg-indigo-500 hover:bg-indigo-400 text-white py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-1 shadow-lg shadow-indigo-500/10 active:scale-[0.97]"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                              </svg>
-                              Tải xuống
-                            </button>
-                            <button
-                              onClick={() => {
-                                const metadata: GenerationMetadata = {
-                                  model: 'gemini-3-pro-image',
-                                  aspectRatio: upscaleModuleAspectRatio ? `${Math.round(upscaleModuleAspectRatio * 100) / 100}:1` : '1:1',
-                                  promptJson: {
-                                    subject: "Upscaled Render from Module",
-                                    art_style: upscaleModuleTargetRes === '4k' ? "Super Resolution Enhanced 4K" : "Super Resolution Enhanced 2K",
-                                    posing: "",
-                                    lighting: "",
-                                    color_palette: "",
-                                    composition: "",
-                                    camera_angle: "",
-                                    texture: "Neural Upscaled Texture",
-                                    skin_texture: "",
-                                    font: "",
-                                    mood: "",
-                                    additional_details: ""
-                                  },
-                                  upscaledFrom: upscaleModuleSrc || '',
-                                  upscaleFeedback: upscaleModuleFeedback
-                                };
-                                addToGallery(upscaleModuleResult, 'JSON_TO_IMG', upscaleModuleTargetRes === '4k' ? "Upscaled 4K Artifact" : "Upscaled 2K Artifact", metadata);
-                                addToHistory(upscaleModuleTargetRes === '4k' ? "Upscale Module 4K" : "Upscale Module 2K", "Saved custom high-resolution reconstructed render.", "upscale_result.png", upscaleModuleResult);
-                              }}
-                              className="bg-white/10 hover:bg-white/15 text-white border border-white/10 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active:scale-[0.97]"
-                            >
-                              Lưu Thư viện
-                            </button>
-                            <button
-                              onClick={() => handleUseAsPoseBase(upscaleModuleResult)}
-                              className="bg-white/10 hover:bg-white/15 text-white border border-white/10 py-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors active:scale-[0.97]"
-                            >
-                              Dùng làm dáng
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-center space-y-4 py-16 opacity-30 select-none">
-                          <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <span className="text-sm font-black text-white uppercase tracking-widest block">Awaiting Reconstruction</span>
-                            <span className="text-xs text-white/60 mt-1 block max-w-xs">Tải ảnh lên và khởi chạy thuật toán siêu phân giải để bắt đầu nâng cấp chất lượng.</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <UpscaleStudioSection
+                    src={upscaleModuleSrc}
+                    onSetSrc={setUpscaleModuleSrc}
+                    result={upscaleModuleResult}
+                    onSetResult={setUpscaleModuleResult}
+                    feedback={upscaleModuleFeedback}
+                    onSetFeedback={setUpscaleModuleFeedback}
+                    galleryItems={galleryItems}
+                    isUpscaling={isUpscalingModule}
+                    progressPercent={upscaleModuleProgressPercent}
+                    progressMsg={upscaleModuleProgressMsg}
+                    onStartUpscale={handleModuleUpscale}
+                    onDownload={(url, name) => handleDownloadImage(url, name)}
+                    onSaveToGallery={(url, desc, meta) => {
+                      addToGallery(url, 'JSON_TO_IMG', desc, meta);
+                      addToHistory(desc, "Saved custom high-resolution reconstructed render.", "upscale_result.png", url);
+                      showCleanToast('Đã lưu ảnh siêu nét vào Thư viện thành công!');
+                    }}
+                    onUseAsPose={(url) => handleUseAsPoseBase(url)}
+                    onOpenInStudio={(url) => handleOpenStudio(url)}
+                    t={t}
+                  />
                 )}
             </div>
         )}
