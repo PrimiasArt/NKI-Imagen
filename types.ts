@@ -165,7 +165,12 @@ export interface CharacterPersona {
   photos?: string[];
   seed?: number;
   createdAt: number;
+  updatedAt?: number;
   isActive: boolean;
+  biometricProfile?: BiometricProfile;
+  biometricAnalysisCount?: number;
+  biometricConfidence?: number;
+  lastBiometricSync?: number;
 }
 
 export interface PromptSnapshot {
@@ -228,6 +233,9 @@ export interface BiometricProfile {
   undertone: string;
   summaryDescriptor: string;
   analyzedAt: number;
+  sampleCount?: number;
+  confidenceScore?: number;
+  anglesCovered?: string[];
 }
 
 export type DualCharacterPairing = 'auto' | 'mf' | 'ff' | 'mm';

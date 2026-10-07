@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CharacterPersona } from '../types';
+import { CharacterPersona, BiometricProfile } from '../types';
 import {
   getCharacterPersonas,
   saveCharacterPersona,
@@ -14,6 +14,14 @@ import {
   analyzeModelFaceTraits,
   compressFileToBase64
 } from '../services/consistencyService';
+import { synthesizeMultiPhotoBiometrics } from '../services/biometricCoreService';
+import {
+  exportCharacterVaultToJson,
+  importCharacterVaultFromJson,
+  syncCharacterVaultWithGoogleDrive,
+  getVaultLastSyncedAt
+} from '../services/vaultSyncService';
+import { getAccessToken } from '../services/googleService';
 
 interface CharacterVaultModalProps {
   isOpen: boolean;
@@ -33,6 +41,16 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
   const [activePersonaId, setActivePersonaIdState] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'Female' | 'Male'>('all');
+
+  // Multi-Photo Biometric Synthesis & Consensus State
+  const [isSynthesizingBiometrics, setIsSynthesizingBiometrics] = useState(false);
+  const [synthesizeStatusText, setSynthesizeStatusText] = useState('');
+
+  // Cross-Device Cloud Sync & Backup State
+  const [isSyncingDrive, setIsSyncingDrive] = useState(false);
+  const [syncStatusMessage, setSyncStatusMessage] = useState<string | null>(null);
+  const [lastSyncedAtState, setLastSyncedAtState] = useState<number | null>(() => getVaultLastSyncedAt());
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // New Character Creation State
   const [isCreatingNew, setIsCreatingNew] = useState(false);
@@ -73,9 +91,21 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    loadData();
+
+    const handleVaultUpdate = () => {
       loadData();
-    }
+      setLastSyncedAtState(getVaultLastSyncedAt());
+    };
+
+    window.addEventListener('nki_personas_updated', handleVaultUpdate);
+    window.addEventListener('nki_vault_synced', handleVaultUpdate);
+
+    return () => {
+      window.removeEventListener('nki_personas_updated', handleVaultUpdate);
+      window.removeEventListener('nki_vault_synced', handleVaultUpdate);
+    };
   }, [isOpen]);
 
   // Handle initial upload file passed in from Biometric Core
@@ -246,17 +276,134 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
     }
   };
 
-  const triggerAiAnalysis = async (photoBase64: string) => {
+  // Multi-Photo Biometric Consensus Synthesis for an existing model
+  const handleSynthesizeMultiPhoto = async (targetPersona?: CharacterPersona) => {
+    const persona = targetPersona || selectedPersona;
+    if (!persona) return;
+    const photos = persona.photos || (persona.avatarImage ? [persona.avatarImage] : []);
+    if (photos.length === 0) {
+      alert('Vui lòng thêm ít nhất 1 ảnh vào album của người mẫu để đúc kết số liệu.');
+      return;
+    }
+
+    try {
+      setIsSynthesizingBiometrics(true);
+      setSynthesizeStatusText(`Đang đối soát & phân tích đa góc chụp từ ${photos.length} ảnh...`);
+
+      const result = await synthesizeMultiPhotoBiometrics(photos, persona.name);
+      
+      const updatedPersona: CharacterPersona = {
+        ...persona,
+        ...result.personaTraits,
+        biometricProfile: result.biometricProfile,
+        biometricAnalysisCount: result.sampleCount,
+        biometricConfidence: result.confidenceScore,
+        lastBiometricSync: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      saveCharacterPersona(updatedPersona);
+      const updatedList = getCharacterPersonas();
+      setPersonas(updatedList);
+      
+      // Auto-sync with Google Drive if connected in background
+      const token = getAccessToken();
+      if (token) {
+        syncCharacterVaultWithGoogleDrive(token)
+          .then(res => setLastSyncedAtState(res.lastSyncedAt || Date.now()))
+          .catch(console.warn);
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi đúc kết Biometric:', err);
+      alert('Không thể đúc kết số liệu Biometric: ' + (err?.message || err));
+    } finally {
+      setIsSynthesizingBiometrics(false);
+      setSynthesizeStatusText('');
+    }
+  };
+
+  // Google Drive Cloud Sync Handler
+  const handleSyncDrive = async () => {
+    const token = getAccessToken();
+    if (!token) {
+      alert('Chưa kết nối Google Drive. Vui lòng kết nối tài khoản Google Drive ở thanh điều hướng trước khi đồng bộ.');
+      return;
+    }
+
+    try {
+      setIsSyncingDrive(true);
+      setSyncStatusMessage('Đang kết nối & đồng bộ với Google Drive...');
+      const res = await syncCharacterVaultWithGoogleDrive(token);
+      setLastSyncedAtState(res.lastSyncedAt || Date.now());
+      setSyncStatusMessage(res.message);
+      const updatedList = getCharacterPersonas();
+      setPersonas(updatedList);
+      setTimeout(() => setSyncStatusMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Lỗi đồng bộ Google Drive:', err);
+      alert('Lỗi đồng bộ Google Drive: ' + (err?.message || err));
+      setSyncStatusMessage(null);
+    } finally {
+      setIsSyncingDrive(false);
+    }
+  };
+
+  // Export Character Vault to JSON File (Cross-Machine Migration)
+  const handleExportVault = () => {
+    exportCharacterVaultToJson();
+  };
+
+  // Import Character Vault from JSON File
+  const handleImportVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsSyncingDrive(true);
+      const res = await importCharacterVaultFromJson(file);
+      const updatedList = getCharacterPersonas();
+      setPersonas(updatedList);
+      if (updatedList.length > 0 && !selectedPersonaId) {
+        setSelectedPersonaId(updatedList[0].id);
+      }
+      alert(res.message);
+    } catch (err: any) {
+      alert('Không thể nạp tệp: ' + (err?.message || err));
+    } finally {
+      setIsSyncingDrive(false);
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  };
+
+  // Multi-Photo AI Analysis for New Model Creation
+  const triggerAiAnalysis = async (photos: string[] | string) => {
+    const photoList = Array.isArray(photos) ? photos : [photos];
+    if (photoList.length === 0) return;
+
     try {
       setIsAnalyzingAi(true);
-      const traits = await analyzeModelFaceTraits(photoBase64);
-      setNewPersona(prev => ({
-        ...prev,
-        ...traits,
-        name: traits.name || prev.name || 'Model ' + (personas.length + 1),
-        photos: prev.photos?.length ? prev.photos : [photoBase64],
-        avatarImage: prev.avatarImage || photoBase64
-      }));
+      if (photoList.length > 1) {
+        const synthesis = await synthesizeMultiPhotoBiometrics(photoList, newPersona.name);
+        setNewPersona(prev => ({
+          ...prev,
+          ...synthesis.personaTraits,
+          name: synthesis.personaTraits.name || prev.name || 'Model ' + (personas.length + 1),
+          photos: photoList,
+          avatarImage: prev.avatarImage || photoList[0],
+          biometricProfile: synthesis.biometricProfile,
+          biometricAnalysisCount: synthesis.sampleCount,
+          biometricConfidence: synthesis.confidenceScore,
+          lastBiometricSync: Date.now()
+        }));
+      } else {
+        const traits = await analyzeModelFaceTraits(photoList[0]);
+        setNewPersona(prev => ({
+          ...prev,
+          ...traits,
+          name: traits.name || prev.name || 'Model ' + (personas.length + 1),
+          photos: prev.photos?.length ? prev.photos : [photoList[0]],
+          avatarImage: prev.avatarImage || photoList[0]
+        }));
+      }
     } catch (err) {
       console.error('Lỗi phân tích AI:', err);
     } finally {
@@ -283,7 +430,12 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
         colorPalette: newPersona.colorPalette || 'Muted tones',
         avatarImage: newPersona.avatarImage,
         photos: newPersona.photos || (newPersona.avatarImage ? [newPersona.avatarImage] : []),
+        biometricProfile: newPersona.biometricProfile,
+        biometricAnalysisCount: newPersona.biometricAnalysisCount,
+        biometricConfidence: newPersona.biometricConfidence,
+        lastBiometricSync: newPersona.lastBiometricSync,
         createdAt: Date.now(),
+        updatedAt: Date.now(),
         isActive: false
       };
 
@@ -306,6 +458,14 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
       });
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
+      }
+
+      // Auto-sync with Google Drive if connected
+      const token = getAccessToken();
+      if (token) {
+        syncCharacterVaultWithGoogleDrive(token)
+          .then(res => setLastSyncedAtState(res.lastSyncedAt || Date.now()))
+          .catch(console.warn);
       }
     } catch (err: any) {
       console.error('Lỗi khi lưu nhân vật mới:', err);
@@ -341,6 +501,52 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Cloud Sync & File Transfer Actions */}
+            <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-2xl border border-white/10 shadow-inner">
+              <button
+                type="button"
+                onClick={handleSyncDrive}
+                disabled={isSyncingDrive}
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                title={lastSyncedAtState ? `Lần đồng bộ Drive gần nhất: ${new Date(lastSyncedAtState).toLocaleString('vi-VN')}` : 'Đồng bộ toàn bộ kho mẫu và dữ liệu Biometric lên Google Drive'}
+              >
+                {isSyncingDrive ? (
+                  <div className="w-3 h-3 rounded-full border border-emerald-300 border-t-transparent animate-spin" />
+                ) : (
+                  <span>☁️</span>
+                )}
+                <span>Đồng Bộ Drive</span>
+                {lastSyncedAtState && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportVault}
+                className="px-2 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-[11px] font-semibold transition flex items-center gap-1"
+                title="Xuất toàn bộ data kho mẫu và số liệu biometric ra tệp JSON để chuyển sang máy khác"
+              >
+                <span>📤</span>
+                <span className="hidden sm:inline">Xuất Data</span>
+              </button>
+
+              <label
+                className="cursor-pointer px-2 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-[11px] font-semibold transition flex items-center gap-1"
+                title="Nạp data kho mẫu từ tệp JSON của máy khác"
+              >
+                <span>📥</span>
+                <span className="hidden sm:inline">Nhập Data</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  ref={importInputRef}
+                  onChange={handleImportVault}
+                />
+              </label>
+            </div>
+
             <button
               onClick={() => setIsCreatingNew(true)}
               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-purple-600 hover:from-amber-400 hover:to-purple-500 text-white text-xs font-bold shadow-md shadow-amber-500/20 flex items-center gap-1.5 transition-all"
@@ -356,6 +562,22 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Sync Status Banner */}
+        {syncStatusMessage && (
+          <div className="px-6 py-2 bg-emerald-500/15 border-b border-emerald-500/30 text-emerald-200 text-xs font-medium flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <span>✨</span>
+              <span>{syncStatusMessage}</span>
+            </div>
+            <button
+              onClick={() => setSyncStatusMessage(null)}
+              className="text-white/50 hover:text-white text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Main Body: 2 Columns */}
         <div className="flex-1 flex overflow-hidden">
@@ -493,28 +715,41 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                     ) : (
                       <span className="text-3xl text-white/30">📸</span>
                     )}
+                    {newPersona.photos && newPersona.photos.length > 1 && (
+                      <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-md bg-purple-600/90 text-white font-mono text-[9px] font-bold shadow">
+                        +{newPersona.photos.length}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-white transition-all">
-                        Tải Ảnh Mẫu Lên
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className="cursor-pointer px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold text-white transition-all flex items-center gap-1.5">
+                        <span>📤</span>
+                        <span>{newPersona.photos && newPersona.photos.length > 0 ? 'Thêm / Đổi Ảnh (Chọn nhiều ảnh)' : 'Tải Ảnh Mẫu (Chọn 1 hoặc nhiều ảnh)'}</span>
                         <input
                           type="file"
                           accept="image/*"
+                          multiple
                           className="hidden"
                           ref={fileInputRef}
                           onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
+                            const files = e.target.files;
+                            if (files && files.length > 0) {
                               try {
-                                const compressed = await compressFileToBase64(file);
-                                if (compressed) {
+                                const fileArr = Array.from(files);
+                                const compressedList: string[] = [];
+                                for (let i = 0; i < fileArr.length; i++) {
+                                  const c = await compressFileToBase64(fileArr[i]);
+                                  if (c) compressedList.push(c);
+                                }
+                                if (compressedList.length > 0) {
+                                  const allPhotos = [...(newPersona.photos || []), ...compressedList];
                                   setNewPersona(prev => ({
                                     ...prev,
-                                    avatarImage: compressed,
-                                    photos: [compressed]
+                                    avatarImage: prev.avatarImage || compressedList[0],
+                                    photos: allPhotos
                                   }));
-                                  triggerAiAnalysis(compressed);
+                                  triggerAiAnalysis(allPhotos);
                                 }
                               } catch (err) {
                                 console.error('Lỗi tối ưu ảnh mẫu:', err);
@@ -523,30 +758,49 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                           }}
                         />
                       </label>
-                      {newPersona.avatarImage && (
+
+                      {newPersona.photos && newPersona.photos.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => triggerAiAnalysis(newPersona.avatarImage!)}
+                          onClick={() => triggerAiAnalysis(newPersona.photos!)}
                           disabled={isAnalyzingAi}
                           className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-purple-600/20 disabled:opacity-50"
                         >
                           {isAnalyzingAi ? (
                             <>
                               <div className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                              <span>AI đang phân tích diện mạo...</span>
+                              <span>AI đang đúc kết đa ảnh ({newPersona.photos.length} ảnh)...</span>
                             </>
                           ) : (
                             <>
-                              <span>🔍</span>
-                              <span>AI Quét Diện Mạo & Vóc Dáng</span>
+                              <span>🧬</span>
+                              <span>{newPersona.photos.length > 1 ? `Đúc Kết Biometric Đa Ảnh (${newPersona.photos.length} ảnh)` : 'AI Quét Diện Mạo'}</span>
                             </>
                           )}
                         </button>
                       )}
                     </div>
                     <p className="text-[11px] text-white/50">
-                      Tải lên ảnh chân dung rõ mặt, AI sẽ tự động phân tích cấu trúc xương hàm, màu mắt, độ tuổi và vóc dáng để điền mẫu!
+                      💡 Mẹo: Tải lên từ 2-5 ảnh chân dung ở nhiều góc độ (chính diện, góc nghiêng, ánh sáng khác nhau) để AI đúc kết nhân trắc học chuẩn xác nhất!
                     </p>
+
+                    {/* Mini photo thumbnails preview */}
+                    {newPersona.photos && newPersona.photos.length > 1 && (
+                      <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                        {newPersona.photos.map((p, idx) => (
+                          <div 
+                            key={idx}
+                            onClick={() => setNewPersona(prev => ({ ...prev, avatarImage: p }))}
+                            className={`w-9 h-9 rounded-lg overflow-hidden border cursor-pointer transition-all flex-shrink-0 ${
+                              newPersona.avatarImage === p ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-white/20 opacity-70 hover:opacity-100'
+                            }`}
+                            title="Bấm để chọn làm ảnh đại diện"
+                          >
+                            <img src={p} className="w-full h-full object-cover" alt="thumb" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -937,6 +1191,101 @@ export const CharacterVaultModal: React.FC<CharacterVaultModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* 🧬 Multi-Photo Biometric Ground-Truth Consensus Panel */}
+                <div className="p-4 rounded-3xl bg-gradient-to-br from-purple-950/40 via-black/40 to-slate-900/60 border border-purple-500/30 space-y-3 shadow-xl backdrop-blur-md">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2.5 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-sm shadow-inner">
+                        🧬
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                            Số Liệu Nhân Trắc Học Đa Ảnh (Biometric Consensus)
+                          </h4>
+                          {selectedPersona.biometricProfile ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-bold flex items-center gap-1">
+                              <span>✓ Đúc kết từ {selectedPersona.biometricAnalysisCount || selectedPersona.photos?.length || 1} ảnh</span>
+                              <span className="text-emerald-400">({Math.round((selectedPersona.biometricConfidence || 0.95) * 100)}% Tin Cậy)</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-bold">
+                              Chưa đúc kết đa ảnh
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10.5px] text-white/50">
+                          {selectedPersona.lastBiometricSync 
+                            ? `Đồng bộ lần cuối: ${new Date(selectedPersona.lastBiometricSync).toLocaleString('vi-VN')} • Số liệu bất biến qua đối soát nhiều góc chụp`
+                            : 'AI phân tích đối soát tất cả ảnh của model để đúc kết số liệu giải phẫu chuẩn xác nhất'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSynthesizeMultiPhoto()}
+                      disabled={isSynthesizingBiometrics || (selectedPersona.photos?.length || 0) === 0}
+                      className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-purple-500/25 flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                      title="AI sẽ quét và đối soát toàn bộ ảnh trong album của người mẫu này để trích xuất số liệu chuẩn xác nhất"
+                    >
+                      {isSynthesizingBiometrics ? (
+                        <>
+                          <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                          <span>{synthesizeStatusText || 'Đang đúc kết...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>⚡</span>
+                          <span>{selectedPersona.biometricProfile ? `Đúc Kết Lại (${selectedPersona.photos?.length || 0} ảnh)` : `Đúc Kết Biometric Đa Ảnh (${selectedPersona.photos?.length || 0} ảnh)`}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {selectedPersona.biometricProfile ? (
+                    <div className="space-y-2.5 text-xs animate-in fade-in duration-200">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="p-3 rounded-2xl bg-black/50 border border-white/5 space-y-1">
+                          <span className="text-[9.5px] font-bold text-white/40 uppercase tracking-wider block">Khuôn Mặt & Xương Hàm</span>
+                          <p className="text-white/95 font-semibold text-xs">{selectedPersona.biometricProfile.faceShape}</p>
+                          <p className="text-white/60 text-[11px] leading-snug">{selectedPersona.biometricProfile.jawline}</p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-black/50 border border-white/5 space-y-1">
+                          <span className="text-[9.5px] font-bold text-white/40 uppercase tracking-wider block">Mắt, Lông Mày & Mũi</span>
+                          <p className="text-white/95 font-semibold text-xs">{selectedPersona.biometricProfile.eyes.shape} • {selectedPersona.biometricProfile.eyes.color}</p>
+                          <p className="text-white/60 text-[11px] leading-snug">{selectedPersona.biometricProfile.nose}</p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-black/50 border border-white/5 space-y-1">
+                          <span className="text-[9.5px] font-bold text-white/40 uppercase tracking-wider block">Môi, Tóc & Sắc Tố Da</span>
+                          <p className="text-white/95 font-semibold text-xs">{selectedPersona.biometricProfile.lips}</p>
+                          <p className="text-amber-300/80 text-[11px] font-mono leading-snug">Undertone: {selectedPersona.biometricProfile.undertone}</p>
+                        </div>
+                      </div>
+
+                      {/* Diffusion Prompt Conditioning Descriptor */}
+                      <div className="p-3 rounded-2xl bg-black/60 border border-purple-500/20 text-[11px] text-white/75 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-purple-300 font-bold uppercase tracking-wider text-[9.5px]">Chỉ Thị Biometric Diffusion Anchor:</span>
+                          <span className="text-[9px] text-white/40 font-mono">Đồng bộ mọi máy qua Drive / JSON</span>
+                        </div>
+                        <p className="font-mono text-purple-100/90 leading-relaxed text-[10.5px]">
+                          {selectedPersona.biometricProfile.summaryDescriptor}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">💡</span>
+                        <span>Người mẫu này chưa có số liệu nhân trắc học đúc kết đa ảnh. Hãy nhấn <b>"Đúc Kết Biometric Đa Ảnh"</b> để AI tổng hợp từ tất cả góc chụp ({selectedPersona.photos?.length || 0} ảnh) thành bộ thông số chuẩn xác nhất.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Photo Gallery (Kho Ảnh Của Model) */}
                 <div 

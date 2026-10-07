@@ -190,10 +190,204 @@ Extract and return strictly a valid JSON object matching this schema without any
 }
 
 /**
+ * Synthesizes a Master Consensus Biometric Profile from ALL photos of a model.
+ * Cross-references multiple angles, lighting setups, and expressions to extract
+ * true ground-truth physiological constants rather than single-image distortions.
+ */
+export async function synthesizeMultiPhotoBiometrics(
+  photosBase64: string[],
+  nameHint?: string
+): Promise<{
+  biometricProfile: BiometricProfile;
+  personaTraits: Partial<CharacterPersona>;
+  sampleCount: number;
+  confidenceScore: number;
+}> {
+  if (!photosBase64 || photosBase64.length === 0) {
+    throw new Error('Cần ít nhất một ảnh để phân tích nhân trắc học.');
+  }
+
+  // If only 1 photo, use the single-image analyzer
+  if (photosBase64.length === 1) {
+    const singleProfile = await analyzeBiometricFaceCore(photosBase64[0], nameHint);
+    const personaTraits: Partial<CharacterPersona> = {
+      name: nameHint || singleProfile.name,
+      gender: singleProfile.gender,
+      ageRange: singleProfile.estimatedAge,
+      faceFeatures: `${singleProfile.faceShape}, ${singleProfile.jawline}, ${singleProfile.eyes.shape} (${singleProfile.eyes.color}), ${singleProfile.nose}, ${singleProfile.lips}`,
+      hairStyle: `${singleProfile.hair.color}, ${singleProfile.hair.style} (${singleProfile.hair.length})`,
+      colorPalette: `Matching ${singleProfile.undertone} undertone`,
+      biometricProfile: singleProfile,
+      biometricAnalysisCount: 1,
+      biometricConfidence: 0.88,
+      lastBiometricSync: Date.now()
+    };
+    return {
+      biometricProfile: singleProfile,
+      personaTraits,
+      sampleCount: 1,
+      confidenceScore: 0.88
+    };
+  }
+
+  // Multiple photos: take up to 8 diverse photos to stay within context and bandwidth
+  const selectedPhotos = photosBase64.slice(0, 8);
+
+  try {
+    const client = getGeminiClient();
+    const config = getStudioModelConfig();
+
+    // Compress all images concurrently
+    const compressedImages = await Promise.all(
+      selectedPhotos.map(photo => compressBase64Image(photo, 800, 0.82))
+    );
+
+    const inlineParts = compressedImages
+      .map(comp => prepareInlineData(comp, 'image/jpeg'))
+      .filter(Boolean);
+
+    const promptText = `You are an Elite Forensic Anthropologist, Facial Anatomist, and Digital Human Biometrician.
+You are inspecting ${inlineParts.length} DISTINCT PHOTOGRAPHS OF THE EXACT SAME PERSON taken from various angles (front, 3/4 oblique, profile), lighting conditions, focal lengths, and facial expressions.
+
+TASK: Perform a Multi-Angle Consensus Biometric Synthesis.
+Cross-reference each photograph to separate invariant physiological anatomical ground-truth from transient photography noise (e.g. lens distortion, harsh shadows, temporary makeup, perspective foreshortening).
+
+Extract and return strictly a valid JSON object matching this schema without any markdown formatting or commentary:
+{
+  "name": "${nameHint || 'Model Persona'}",
+  "gender": "Female" | "Male" | "Non-binary",
+  "estimatedAge": "e.g. '22-25 tuổi' or 'Late 20s'",
+  "ethnicity": "e.g. 'East Asian / Vietnamese', 'Caucasian / European', 'Latina', 'Mixed', etc.",
+  "faceShape": "Consensus 3D cranial structure: e.g. 'Refined V-line oval', 'Symmetrical heart-shaped', 'Contoured angular square'",
+  "jawline": "True mandibular contour: e.g. 'Chiseled sharp mandibular line', 'Soft feminine jaw contour', 'Defined chin'",
+  "eyes": {
+    "shape": "Consensus eye geometry: e.g. 'Almond double-eyelid with upward canthal tilt', 'Deep-set captivating eyes'",
+    "color": "True iris pigmentation under balanced light: e.g. 'Deep espresso brown with warm amber flecks', 'Piercing hazel'",
+    "brows": "Natural brow arc and density: e.g. 'Naturally arched refined brows', 'Straight soft feathered eyebrows'"
+  },
+  "nose": "True nasal architecture: e.g. 'High straight delicate nasal bridge, refined soft tip, balanced alar base'",
+  "lips": "Consensus lip fullness: e.g. 'Full plush lips with distinct cupid\\'s bow', 'Soft natural roseate contours'",
+  "hair": {
+    "color": "Baseline hair color: e.g. 'Rich dark espresso brown', 'Chestnut auburn', 'Glossy obsidian black'",
+    "style": "Typical styling: e.g. 'Effortless loose waves, center parting', 'Structured shoulder-length layers'",
+    "length": "e.g. 'Long past shoulders', 'Medium clavicle length', 'Short textured'",
+    "texture": "e.g. 'Silky wavy', 'Fine straight', 'Voluminous soft waves'"
+  },
+  "bodyType": "Vóc dáng người mẫu: e.g. 'Thon thả chuẩn Runway', 'Khỏe khoắn thể thao', 'Thanh tú nhỏ nhắn', 'Đầy đặn quyến rũ'",
+  "signatureOutfit": "Characteristic wardrobe style or aesthetic that complements them",
+  "colorPalette": "Harmonious 3-4 color tones suited to their authentic undertone",
+  "distinguishingFeatures": "Permanent invariant marks: e.g. 'Subtle beauty mark below left eye', 'Natural dimple', 'None'",
+  "undertone": "Authentic skin undertone (filtering out warm/cool photo casts): e.g. 'Warm golden honey', 'Cool porcelain rosy', 'Neutral olive'",
+  "confidenceScore": 0.96,
+  "anglesCovered": ["front", "three-quarter", "side-profile", "close-up"],
+  "summaryDescriptor": "A dense, high-potency English biometric descriptive prompt (40-60 words) synthesizing their cross-verified age, ethnicity, facial geometry, eye shape & iris color, nose, lips, undertone, and distinguishing marks, specially engineered for Imagen/Gemini cross-attention identity conditioning."
+}`;
+
+    const parts: any[] = [...inlineParts, { text: promptText }];
+
+    const response = await callWithRetry(() => client.models.generateContent({
+      model: config.analysisModel || 'gemini-2.5-flash',
+      contents: { parts }
+    }), 2, 2000);
+
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Google Vision did not return valid JSON multi-photo biometric data');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as any;
+    const confidence = typeof parsed.confidenceScore === 'number' ? Math.min(Math.max(parsed.confidenceScore, 0.8), 0.99) : 0.95;
+
+    const biometricProfile: BiometricProfile = {
+      id: `bio_multi_${Date.now()}`,
+      name: nameHint || parsed.name || 'Model Persona',
+      gender: parsed.gender === 'Male' ? 'Male' : (parsed.gender === 'Non-binary' ? 'Non-binary' : 'Female'),
+      estimatedAge: parsed.estimatedAge || '20-25 tuổi',
+      ethnicity: parsed.ethnicity || 'Natural Heritage',
+      faceShape: parsed.faceShape || 'Refined Oval',
+      jawline: parsed.jawline || 'Contoured jawline',
+      eyes: {
+        shape: parsed.eyes?.shape || 'Almond eyes',
+        color: parsed.eyes?.color || 'Dark brown',
+        brows: parsed.eyes?.brows || 'Natural brows'
+      },
+      nose: parsed.nose || 'Straight refined bridge',
+      lips: parsed.lips || 'Natural contoured lips',
+      hair: {
+        color: parsed.hair?.color || 'Dark hair',
+        style: parsed.hair?.style || 'Natural styling',
+        length: parsed.hair?.length || 'Medium length',
+        texture: parsed.hair?.texture || 'Smooth'
+      },
+      distinguishingFeatures: parsed.distinguishingFeatures || 'None',
+      undertone: parsed.undertone || 'Warm golden',
+      summaryDescriptor: parsed.summaryDescriptor || `${parsed.gender || 'Person'}, ${parsed.estimatedAge || '20s'}, ${parsed.faceShape || 'oval face'}, ${parsed.eyes?.color || 'dark'} ${parsed.eyes?.shape || 'eyes'}, natural features`,
+      analyzedAt: Date.now(),
+      sampleCount: inlineParts.length,
+      confidenceScore: confidence,
+      anglesCovered: Array.isArray(parsed.anglesCovered) ? parsed.anglesCovered : ['multi-angle']
+    };
+
+    const personaTraits: Partial<CharacterPersona> = {
+      name: nameHint || parsed.name,
+      gender: biometricProfile.gender,
+      ageRange: biometricProfile.estimatedAge,
+      bodyType: parsed.bodyType || 'Thon thả chuẩn người mẫu (Slim Runway)',
+      faceFeatures: `${biometricProfile.faceShape}, ${biometricProfile.jawline}, ${biometricProfile.eyes.shape} (${biometricProfile.eyes.color}), ${biometricProfile.nose}, ${biometricProfile.lips}`,
+      hairStyle: `${biometricProfile.hair.color}, ${biometricProfile.hair.style} (${biometricProfile.hair.length})`,
+      signatureOutfit: parsed.signatureOutfit || 'Sophisticated minimalist fashion',
+      colorPalette: parsed.colorPalette || `Tones suited to ${biometricProfile.undertone} undertone`,
+      biometricProfile,
+      biometricAnalysisCount: inlineParts.length,
+      biometricConfidence: confidence,
+      lastBiometricSync: Date.now()
+    };
+
+    // Cache the avatar or first photo with this profile
+    const firstFp = getImageFingerprint(selectedPhotos[0]);
+    if (firstFp) {
+      memoryBiometricCache.set(firstFp, biometricProfile);
+      persistBiometricCache();
+    }
+
+    return {
+      biometricProfile,
+      personaTraits,
+      sampleCount: inlineParts.length,
+      confidenceScore: confidence
+    };
+  } catch (err: any) {
+    console.error('[BiometricCoreService] Multi-photo biometric synthesis failed:', err);
+    // Fallback to single analysis on first photo
+    const fallback = await analyzeBiometricFaceCore(photosBase64[0], nameHint);
+    return {
+      biometricProfile: fallback,
+      personaTraits: {
+        biometricProfile: fallback,
+        biometricAnalysisCount: 1,
+        biometricConfidence: 0.85,
+        lastBiometricSync: Date.now()
+      },
+      sampleCount: 1,
+      confidenceScore: 0.85
+    };
+  }
+}
+
+/**
  * Creates an instantaneous BiometricProfile from an existing CharacterPersona in the Vault
  * without requiring a network call.
  */
 export function convertPersonaToBiometricProfile(persona: CharacterPersona): BiometricProfile {
+  // If the persona already has a master synthesized biometric profile, use it directly!
+  if (persona.biometricProfile) {
+    return {
+      ...persona.biometricProfile,
+      name: persona.name || persona.biometricProfile.name
+    };
+  }
+
   const gender = persona.gender === 'Male' ? 'Male' : (persona.gender === 'Non-binary' ? 'Non-binary' : 'Female');
   const summary = `${persona.name}, ${gender}, ${persona.ageRange || 'mid 20s'}, ${persona.bodyType ? `${persona.bodyType}, ` : ''}${persona.faceFeatures || 'striking symmetrical facial structure'}, with ${persona.hairStyle || 'natural hair'}`;
   
