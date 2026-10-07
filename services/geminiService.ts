@@ -277,14 +277,31 @@ export function prepareInlineData(input: string | null | undefined, fallbackMime
 }
 
 /**
- * Compresses/downscales a base64 image to conserve API tokens and avoid 200k TPM RESOURCE_EXHAUSTED limits.
+ * Compresses/downscales a base64 image with configurable high-resolution studio quality.
  */
 export const compressBase64Image = async (
   base64Str: string,
-  maxDimension = 480,
-  quality = 0.68
+  maxDimension?: number,
+  quality?: number
 ): Promise<string> => {
   if (typeof window === 'undefined' || !base64Str) return base64Str;
+  
+  let targetDimension = maxDimension;
+  let targetQuality = quality;
+
+  if (!targetDimension || !targetQuality) {
+    try {
+      const stored = localStorage.getItem('nki_studio_model_config');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (!targetDimension && parsed.maxDimension) targetDimension = parsed.maxDimension;
+        if (!targetQuality && parsed.jpegQuality) targetQuality = parsed.jpegQuality;
+      }
+    } catch {}
+  }
+
+  targetDimension = targetDimension || 1536;
+  targetQuality = targetQuality || 0.92;
   
   // Quick check: if base64 length is under 25KB (~18KB raw image), it's already tiny
   if (base64Str.length < 25000) return base64Str;

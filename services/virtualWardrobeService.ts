@@ -1,4 +1,5 @@
 import { getGeminiClient, compressBase64Image, prepareInlineData, callWithRetry, trackRequest } from './geminiService';
+import { getStudioModelConfig } from './modelConfigService';
 
 export type WardrobeCategory = 'haute_couture' | 'cyberpunk' | 'traditional' | 'streetwear' | 'tactical';
 
@@ -78,7 +79,8 @@ export async function runVirtualOutfitSwap(
   baseImage: string,
   outfitPrompt: string,
   clothingMaskBase64?: string,
-  referenceImageBase64?: string
+  referenceImageBase64?: string,
+  customModel?: string
 ): Promise<{ resultImage: string }> {
   trackRequest(2800, "Studio Virtual Wardrobe Swap");
 
@@ -116,23 +118,41 @@ Output ONLY the final photorealistic image with the new outfit.`;
 
   parts.push({ text: instructionsText });
 
-  const client = getGeminiClient();
-  const response = await callWithRetry(() => client.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts }
-  }), 3, 2000);
+  const studioConfig = getStudioModelConfig();
+  const modelsToTry = [
+    customModel || studioConfig.studioModel,
+    'gemini-3.1-flash-image',
+    'gemini-3-pro-image',
+    'gemini-3.1-flash-lite-image',
+    'gemini-2.5-flash-image'
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-  const candidate = response.candidates?.[0];
-  if (candidate?.content?.parts) {
-    for (const part of candidate.content.parts) {
-      if (part.inlineData && part.inlineData.data) {
-        const mime = part.inlineData.mimeType || 'image/png';
-        return {
-          resultImage: `data:${mime};base64,${part.inlineData.data}`
-        };
+  const client = getGeminiClient();
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await callWithRetry(() => client.models.generateContent({
+        model,
+        contents: { parts }
+      }), 2, 2000);
+
+      const candidate = response.candidates?.[0];
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            const mime = part.inlineData.mimeType || 'image/png';
+            return {
+              resultImage: `data:${mime};base64,${part.inlineData.data}`
+            };
+          }
+        }
       }
+    } catch (err) {
+      console.warn(`Model ${model} failed for wardrobe swap, trying fallback...`, err);
+      lastError = err;
     }
   }
 
-  throw new Error("Virtual Wardrobe swap failed to generate image.");
+  throw lastError || new Error("Virtual Wardrobe swap failed across available engines.");
 }

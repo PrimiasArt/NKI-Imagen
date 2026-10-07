@@ -60,10 +60,14 @@ import { Spatial3DViewerModal } from './components/Spatial3DViewerModal';
 import { AestheticDnaBlenderModal } from './components/AestheticDnaBlenderModal';
 import { MultiverseNodeGraphModal } from './components/MultiverseNodeGraphModal';
 import { TalkingActorModal } from './components/TalkingActorModal';
+import { CharacterVaultModal } from './components/CharacterVaultModal';
+import { UploadCharacterChoiceModal } from './components/UploadCharacterChoiceModal';
 import { 
   getActivePersona, 
   isConsistencyLockEnabled, 
-  injectPersonaIntoPrompt 
+  injectPersonaIntoPrompt,
+  addPhotoToPersona,
+  getCharacterPersonas
 } from './services/consistencyService';
 import { decodePromptFromShareHash } from './services/promptSnapshotService';
 import { CharacterPersona, StoryboardShot } from './types';
@@ -939,7 +943,9 @@ const FaceReferenceInput: React.FC<{
     onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onClear: () => void;
     onDrop: (file: File) => void;
-}> = ({ label, image, onUpload, onClear, onDrop }) => {
+    onOpenVault?: () => void;
+    personaName?: string;
+}> = ({ label, image, onUpload, onClear, onDrop, onOpenVault, personaName }) => {
     const [isDragOver, setIsDragOver] = useState(false);
 
     return (
@@ -951,19 +957,51 @@ const FaceReferenceInput: React.FC<{
             onDragLeave={() => setIsDragOver(false)}
             onDrop={(e) => { e.preventDefault(); setIsDragOver(false); const f = e.dataTransfer.files?.[0]; if(f) onDrop(f); }}
         >
-            <span className="text-xs font-bold uppercase tracking-widest text-white/50">{label}</span>
+            <div className="flex items-center gap-2 max-w-[50%] truncate">
+                <span className="text-xs font-bold uppercase tracking-widest text-white/50">{label}</span>
+                {personaName && (
+                    <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold truncate">
+                        👑 {personaName}
+                    </span>
+                )}
+            </div>
             {image ? (
                 <div className="flex items-center gap-2">
                     <img src={image} className="w-10 h-10 rounded-lg object-cover border border-white/20 shadow-lg" alt="ref" />
-                    <button onClick={(e) => { e.stopPropagation(); onClear(); }} className="text-white/40 hover:text-red-400 transition-colors bg-white/5 p-1.5 rounded-full">
+                    {onOpenVault && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onOpenVault(); }}
+                            className="text-[10px] text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-2 py-1 rounded-lg font-bold transition-all flex items-center gap-1"
+                            title="Đổi hoặc chọn nhân vật mẫu khác từ Kho Data"
+                        >
+                            <span>📁</span>
+                            <span className="hidden sm:inline">Kho Mẫu</span>
+                        </button>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); onClear(); }} className="text-white/40 hover:text-red-400 transition-colors bg-white/5 p-1.5 rounded-full" title="Xóa ảnh này">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </button>
                 </div>
             ) : (
-                <label className="cursor-pointer px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 border border-white/10 text-white/80">
-                    Upload
-                    <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
-                </label>
+                <div className="flex items-center gap-1.5">
+                    {onOpenVault && (
+                        <button
+                            type="button"
+                            onClick={onOpenVault}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 flex items-center gap-1 shadow-sm active:scale-95"
+                            title="Chọn người mẫu có sẵn từ Kho Data Nhân Vật"
+                        >
+                            <span>📁</span>
+                            <span>Kho Mẫu</span>
+                        </button>
+                    )}
+                    <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 border border-white/10 text-white/80 flex items-center gap-1 active:scale-95">
+                        <span>📤</span>
+                        <span>Tải Lên</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
+                    </label>
+                </div>
             )}
         </div>
     );
@@ -2783,6 +2821,45 @@ const App: React.FC = () => {
   const [isTalkingActorOpen, setIsTalkingActorOpen] = useState(false);
   const [activeSpatial3DImage, setActiveSpatial3DImage] = useState<string | undefined>(undefined);
   const [activeRelightImage, setActiveRelightImage] = useState<string | undefined>(undefined);
+
+  // 5. Character Model Vault & Biometric Core state
+  const [isCharacterVaultOpen, setIsCharacterVaultOpen] = useState(false);
+  const [vaultTargetSlot, setVaultTargetSlot] = useState<string | null>(null);
+  const [vaultInitialUploadFile, setVaultInitialUploadFile] = useState<File | null>(null);
+  const [uploadChoiceModalData, setUploadChoiceModalData] = useState<{
+    file: File;
+    base64: string;
+    targetSlot: string;
+  } | null>(null);
+  const [slotPersonaNames, setSlotPersonaNames] = useState<Record<string, string>>({});
+
+  const applySlotImage = (slot: string, image: string | null, personaName?: string) => {
+    if (slot === 'refFace1') setRefFaceImage1(image);
+    else if (slot === 'refFace2') setRefFaceImage2(image);
+    else if (slot === 'poseRef1') setPoseRefFaceImage1(image);
+    else if (slot === 'poseRef2') setPoseRefFaceImage2(image);
+    else if (slot === 'composeRef1') setComposeRefFaceImage1(image);
+    else if (slot === 'composeRef2') setComposeRefFaceImage2(image);
+    else if (slot === 'refChar') setRefCharImage(image);
+
+    setSlotPersonaNames(prev => {
+      const next = { ...prev };
+      if (personaName) next[slot] = personaName;
+      else delete next[slot];
+      return next;
+    });
+  };
+
+  const handleFaceUploadRequest = (file: File, targetSlot: string) => {
+    fileToBase64(file).then(b64 => {
+      const fullBase64 = `data:${file.type};base64,${b64}`;
+      setUploadChoiceModalData({
+        file,
+        base64: fullBase64,
+        targetSlot
+      });
+    });
+  };
 
   // Check URL hash for shared preset on load (#preset=...)
   useEffect(() => {
@@ -5825,6 +5902,17 @@ const App: React.FC = () => {
                                     />
 
                                     <div className="flex items-center gap-1.5 flex-wrap">
+                                        {/* Character Vault Button */}
+                                        <button
+                                            type="button"
+                                            onClick={() => { setVaultTargetSlot('refFace1'); setIsCharacterVaultOpen(true); }}
+                                            className="text-[9px] text-amber-300 hover:text-amber-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 rounded-lg border border-amber-500/30 active:scale-95 shadow-sm"
+                                            title="Mở Kho Data Nhân Vật Mẫu (Quản lý hồ sơ, vóc dáng, album ảnh và Biometric Core)"
+                                        >
+                                            <span>👑</span>
+                                            <span>Kho Mẫu</span>
+                                        </button>
+
                                         {/* Consistency Lock Button */}
                                         <button
                                             type="button"
@@ -5911,71 +5999,71 @@ const App: React.FC = () => {
                                         </span>
                                     </div>
 
-                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 w-full">
                                         {/* 1. Virtual 3D Gaffer & Generative Relighting */}
                                         <button
                                             type="button"
                                             onClick={() => setIsRelightingOpen(true)}
-                                            className="text-[10px] text-amber-300 hover:text-amber-200 font-semibold flex items-center gap-1.5 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1.5 rounded-xl border border-amber-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            className="w-full text-[10px] text-amber-300 hover:text-amber-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2 py-1.5 rounded-xl border border-amber-500/30 active:scale-95 shadow-sm"
                                             title="Virtual 3D Gaffer & Relighting: Hắt sáng 3D trực quan và tái tạo ánh sáng điện ảnh"
                                         >
                                             <span>💡</span>
-                                            <span>3D Relighting</span>
+                                            <span className="truncate">3D Relight</span>
                                         </button>
 
                                         {/* 2. AI Voice Director */}
                                         <button
                                             type="button"
                                             onClick={() => setIsVoiceDirectorOpen(true)}
-                                            className="text-[10px] text-sky-300 hover:text-sky-200 font-semibold flex items-center gap-1.5 transition-all bg-sky-500/15 hover:bg-sky-500/25 px-2.5 py-1.5 rounded-xl border border-sky-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            className="w-full text-[10px] text-sky-300 hover:text-sky-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-sky-500/15 hover:bg-sky-500/25 px-2 py-1.5 rounded-xl border border-sky-500/30 active:scale-95 shadow-sm"
                                             title="AI Voice Director: Chỉ đạo đạo diễn prompt bằng giọng nói tự nhiên Tiếng Việt/English"
                                         >
                                             <span>🎙️</span>
-                                            <span>Voice Director</span>
+                                            <span className="truncate">Voice Director</span>
                                         </button>
 
                                         {/* 3. Apple Vision Pro Spatial 3D Converter */}
                                         <button
                                             type="button"
                                             onClick={() => setIsSpatial3DOpen(true)}
-                                            className="text-[10px] text-cyan-300 hover:text-cyan-200 font-semibold flex items-center gap-1.5 transition-all bg-cyan-500/15 hover:bg-cyan-500/25 px-2.5 py-1.5 rounded-xl border border-cyan-400/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            className="w-full text-[10px] text-cyan-300 hover:text-cyan-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-cyan-500/15 hover:bg-cyan-500/25 px-2 py-1.5 rounded-xl border border-cyan-400/30 active:scale-95 shadow-sm"
                                             title="Apple Vision Pro Spatial 3D Converter: Tạo hiệu ứng nghiêng Parallax, Stereo SBS & Kính 3D"
                                         >
                                             <span>🥽</span>
-                                            <span>Spatial 3D</span>
+                                            <span className="truncate">Spatial 3D</span>
                                         </button>
 
                                         {/* 4. Neural Aesthetic DNA Blender */}
                                         <button
                                             type="button"
                                             onClick={() => setIsDnaBlenderOpen(true)}
-                                            className="text-[10px] text-purple-300 hover:text-purple-200 font-semibold flex items-center gap-1.5 transition-all bg-purple-500/15 hover:bg-purple-500/25 px-2.5 py-1.5 rounded-xl border border-purple-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            className="w-full text-[10px] text-purple-300 hover:text-purple-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-purple-500/15 hover:bg-purple-500/25 px-2 py-1.5 rounded-xl border border-purple-500/30 active:scale-95 shadow-sm"
                                             title="Neural Aesthetic DNA Blender: Lai tạo 4 nhánh gen Màu sắc, Quang học, Chất liệu & Trường phái"
                                         >
                                             <span>🧬</span>
-                                            <span>DNA Blender</span>
+                                            <span className="truncate">DNA Blender</span>
                                         </button>
 
                                         {/* 5. Infinite Multiverse Node Graph */}
                                         <button
                                             type="button"
                                             onClick={() => setIsNodeGraphOpen(true)}
-                                            className="text-[10px] text-emerald-300 hover:text-emerald-200 font-semibold flex items-center gap-1.5 transition-all bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1.5 rounded-xl border border-emerald-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            className="w-full text-[10px] text-emerald-300 hover:text-emerald-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-emerald-500/15 hover:bg-emerald-500/25 px-2 py-1.5 rounded-xl border border-emerald-500/30 active:scale-95 shadow-sm"
                                             title="Infinite Multiverse Node Graph: Sơ đồ canvas phân nhánh đa vũ trụ sáng tạo"
                                         >
                                             <span>🌌</span>
-                                            <span>Multiverse Graph</span>
+                                            <span className="truncate">Node Graph</span>
                                         </button>
 
                                         {/* 6. One-Click Talking Character & Emotional Lip-Sync */}
                                         <button
                                             type="button"
                                             onClick={() => setIsTalkingActorOpen(true)}
-                                            className="text-[10px] text-rose-300 hover:text-rose-200 font-semibold flex items-center gap-1.5 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2.5 py-1.5 rounded-xl border border-rose-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            className="w-full text-[10px] text-rose-300 hover:text-rose-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2 py-1.5 rounded-xl border border-rose-500/30 active:scale-95 shadow-sm"
                                             title="One-Click Talking Character & Emotional Lip-Sync: Chuyển đổi chân dung thành video nói chuyện Veo 3"
                                         >
                                             <span>🗣️</span>
-                                            <span>Talking Character</span>
+                                            <span className="truncate">Talking Actor</span>
                                         </button>
                                     </div>
                                 </div>
@@ -6018,27 +6106,33 @@ const App: React.FC = () => {
 
                                     {!isMultiCharacter ? (
                                         <FaceReferenceInput 
-                                            label="Universal Identity" 
+                                            label="Biometric Core" 
                                             image={refFaceImage1} 
-                                            onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
-                                            onClear={() => setRefFaceImage1(null)} 
-                                            onDrop={(f) => { fileToBase64(f).then(b => setRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
+                                            personaName={slotPersonaNames['refFace1']}
+                                            onOpenVault={() => { setVaultTargetSlot('refFace1'); setIsCharacterVaultOpen(true); }}
+                                            onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refFace1'); }} 
+                                            onClear={() => applySlotImage('refFace1', null)} 
+                                            onDrop={(f) => handleFaceUploadRequest(f, 'refFace1')} 
                                         />
                                     ) : (
                                         <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
                                             <FaceReferenceInput 
                                                 label="Male Core" 
                                                 image={refFaceImage1} 
-                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
-                                                onClear={() => setRefFaceImage1(null)} 
-                                                onDrop={(f) => { fileToBase64(f).then(b => setRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
+                                                personaName={slotPersonaNames['refFace1']}
+                                                onOpenVault={() => { setVaultTargetSlot('refFace1'); setIsCharacterVaultOpen(true); }}
+                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refFace1'); }} 
+                                                onClear={() => applySlotImage('refFace1', null)} 
+                                                onDrop={(f) => handleFaceUploadRequest(f, 'refFace1')} 
                                             />
                                             <FaceReferenceInput 
                                                 label="Female Core" 
                                                 image={refFaceImage2} 
-                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setRefFaceImage2(`data:${f.type};base64,${b}`)); }} 
-                                                onClear={() => setRefFaceImage2(null)} 
-                                                onDrop={(f) => { fileToBase64(f).then(b => setRefFaceImage2(`data:${f.type};base64,${b}`)); }} 
+                                                personaName={slotPersonaNames['refFace2']}
+                                                onOpenVault={() => { setVaultTargetSlot('refFace2'); setIsCharacterVaultOpen(true); }}
+                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refFace2'); }} 
+                                                onClear={() => applySlotImage('refFace2', null)} 
+                                                onDrop={(f) => handleFaceUploadRequest(f, 'refFace2')} 
                                             />
                                         </div>
                                     )}
@@ -6261,25 +6355,31 @@ const App: React.FC = () => {
                                             <FaceReferenceInput 
                                                 label="Biometric Core" 
                                                 image={poseRefFaceImage1} 
-                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setPoseRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
-                                                onClear={() => setPoseRefFaceImage1(null)} 
-                                                onDrop={(f) => { fileToBase64(f).then(b => setPoseRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
+                                                personaName={slotPersonaNames['poseRef1']}
+                                                onOpenVault={() => { setVaultTargetSlot('poseRef1'); setIsCharacterVaultOpen(true); }}
+                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'poseRef1'); }} 
+                                                onClear={() => applySlotImage('poseRef1', null)} 
+                                                onDrop={(f) => handleFaceUploadRequest(f, 'poseRef1')} 
                                             />
                                         ) : (
                                             <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
                                                 <FaceReferenceInput 
                                                     label="Male Core" 
                                                     image={poseRefFaceImage1} 
-                                                    onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setPoseRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
-                                                    onClear={() => setPoseRefFaceImage1(null)} 
-                                                    onDrop={(f) => { fileToBase64(f).then(b => setPoseRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
+                                                    personaName={slotPersonaNames['poseRef1']}
+                                                    onOpenVault={() => { setVaultTargetSlot('poseRef1'); setIsCharacterVaultOpen(true); }}
+                                                    onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'poseRef1'); }} 
+                                                    onClear={() => applySlotImage('poseRef1', null)} 
+                                                    onDrop={(f) => handleFaceUploadRequest(f, 'poseRef1')} 
                                                 />
                                                 <FaceReferenceInput 
                                                     label="Female Core" 
                                                     image={poseRefFaceImage2} 
-                                                    onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setPoseRefFaceImage2(`data:${f.type};base64,${b}`)); }} 
-                                                    onClear={() => setPoseRefFaceImage2(null)} 
-                                                    onDrop={(f) => { fileToBase64(f).then(b => setPoseRefFaceImage2(`data:${f.type};base64,${b}`)); }} 
+                                                    personaName={slotPersonaNames['poseRef2']}
+                                                    onOpenVault={() => { setVaultTargetSlot('poseRef2'); setIsCharacterVaultOpen(true); }}
+                                                    onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'poseRef2'); }} 
+                                                    onClear={() => applySlotImage('poseRef2', null)} 
+                                                    onDrop={(f) => handleFaceUploadRequest(f, 'poseRef2')} 
                                                 />
                                             </div>
                                         )}
@@ -6446,25 +6546,31 @@ const App: React.FC = () => {
                                         <FaceReferenceInput 
                                             label="Biometric Core" 
                                             image={composeRefFaceImage1} 
-                                            onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setComposeRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
-                                            onClear={() => setComposeRefFaceImage1(null)} 
-                                            onDrop={(f) => { fileToBase64(f).then(b => setComposeRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
+                                            personaName={slotPersonaNames['composeRef1']}
+                                            onOpenVault={() => { setVaultTargetSlot('composeRef1'); setIsCharacterVaultOpen(true); }}
+                                            onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'composeRef1'); }} 
+                                            onClear={() => applySlotImage('composeRef1', null)} 
+                                            onDrop={(f) => handleFaceUploadRequest(f, 'composeRef1')} 
                                         />
                                     ) : (
                                         <div className="space-y-3">
                                             <FaceReferenceInput 
                                                 label="Male Core" 
                                                 image={composeRefFaceImage1} 
-                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setComposeRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
-                                                onClear={() => setComposeRefFaceImage1(null)} 
-                                                onDrop={(f) => { fileToBase64(f).then(b => setComposeRefFaceImage1(`data:${f.type};base64,${b}`)); }} 
+                                                personaName={slotPersonaNames['composeRef1']}
+                                                onOpenVault={() => { setVaultTargetSlot('composeRef1'); setIsCharacterVaultOpen(true); }}
+                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'composeRef1'); }} 
+                                                onClear={() => applySlotImage('composeRef1', null)} 
+                                                onDrop={(f) => handleFaceUploadRequest(f, 'composeRef1')} 
                                             />
                                             <FaceReferenceInput 
                                                 label="Female Core" 
                                                 image={composeRefFaceImage2} 
-                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setComposeRefFaceImage2(`data:${f.type};base64,${b}`)); }} 
-                                                onClear={() => setComposeRefFaceImage2(null)} 
-                                                onDrop={(f) => { fileToBase64(f).then(b => setComposeRefFaceImage2(`data:${f.type};base64,${b}`)); }} 
+                                                personaName={slotPersonaNames['composeRef2']}
+                                                onOpenVault={() => { setVaultTargetSlot('composeRef2'); setIsCharacterVaultOpen(true); }}
+                                                onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'composeRef2'); }} 
+                                                onClear={() => applySlotImage('composeRef2', null)} 
+                                                onDrop={(f) => handleFaceUploadRequest(f, 'composeRef2')} 
                                             />
                                         </div>
                                     )}
@@ -6576,9 +6682,11 @@ const App: React.FC = () => {
                                 <FaceReferenceInput 
                                     label="Character Reference" 
                                     image={refCharImage} 
-                                    onUpload={(e) => { const f=e.target.files?.[0]; if(f) fileToBase64(f).then(b => setRefCharImage(`data:${f.type};base64,${b}`)); }} 
-                                    onClear={() => setRefCharImage(null)} 
-                                    onDrop={(f) => { fileToBase64(f).then(b => setRefCharImage(`data:${f.type};base64,${b}`)); }} 
+                                    personaName={slotPersonaNames['refChar']}
+                                    onOpenVault={() => { setVaultTargetSlot('refChar'); setIsCharacterVaultOpen(true); }}
+                                    onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refChar'); }} 
+                                    onClear={() => applySlotImage('refChar', null)} 
+                                    onDrop={(f) => handleFaceUploadRequest(f, 'refChar')} 
                                 />
 
                                 <div 
@@ -8507,6 +8615,52 @@ const App: React.FC = () => {
           setActiveTab(AppMode.VEO3_PROMPT_CREATOR);
           window.scrollTo({ top: 0, behavior: 'smooth' });
           showCleanToast('🎬 Đã chuyển chỉ thị khẩu hình sang Veo 3 Studio!');
+        }}
+      />
+
+      {/* Kho Data Nhân Vật Mẫu & Biometric Core (Model Character Vault) */}
+      <CharacterVaultModal
+        isOpen={isCharacterVaultOpen}
+        onClose={() => {
+          setIsCharacterVaultOpen(false);
+          setVaultInitialUploadFile(null);
+        }}
+        initialUploadFile={vaultInitialUploadFile}
+        onSelectAsBiometricCore={(imageUrl, persona) => {
+          const target = vaultTargetSlot || 'composeRef1';
+          applySlotImage(target, imageUrl, persona.name);
+          showCleanToast(`👑 Đã chọn ${persona.name} làm Biometric Core!`);
+        }}
+      />
+
+      {/* Upload Character Choice Modal */}
+      <UploadCharacterChoiceModal
+        isOpen={!!uploadChoiceModalData}
+        onClose={() => setUploadChoiceModalData(null)}
+        imagePreview={uploadChoiceModalData?.base64 || null}
+        onUseForSessionOnly={() => {
+          if (!uploadChoiceModalData) return;
+          applySlotImage(uploadChoiceModalData.targetSlot, uploadChoiceModalData.base64);
+          setUploadChoiceModalData(null);
+          showCleanToast('🎯 Đã gán ảnh làm Biometric Core (chỉ dùng lần này)!');
+        }}
+        onAddNewCharacter={() => {
+          if (!uploadChoiceModalData) return;
+          const slot = uploadChoiceModalData.targetSlot;
+          const file = uploadChoiceModalData.file;
+          setUploadChoiceModalData(null);
+          setVaultTargetSlot(slot);
+          setVaultInitialUploadFile(file);
+          setIsCharacterVaultOpen(true);
+        }}
+        onAddToExistingCharacter={(personaId) => {
+          if (!uploadChoiceModalData) return;
+          addPhotoToPersona(personaId, uploadChoiceModalData.base64);
+          const personas = getCharacterPersonas();
+          const targetPersona = personas.find(p => p.id === personaId);
+          applySlotImage(uploadChoiceModalData.targetSlot, uploadChoiceModalData.base64, targetPersona?.name);
+          setUploadChoiceModalData(null);
+          showCleanToast(`🖼️ Đã thêm ảnh vào hồ sơ của ${targetPersona?.name || 'người mẫu'}!`);
         }}
       />
 

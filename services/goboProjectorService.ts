@@ -1,4 +1,5 @@
 import { getGeminiClient, compressBase64Image, prepareInlineData, callWithRetry, trackRequest } from './geminiService';
+import { getStudioModelConfig } from './modelConfigService';
 
 export type GoboPatternId =
   | 'venetian_blinds'
@@ -210,7 +211,8 @@ export function generateProceduralGobo(
 export async function runGenerativeGoboRelight(
   baseImage: string,
   goboPattern: GoboPreset,
-  lightConfig: PointLightConfig
+  lightConfig: PointLightConfig,
+  customModel?: string
 ): Promise<{ resultImage: string }> {
   trackRequest(2800, "Studio Gobo Relighting");
 
@@ -234,22 +236,39 @@ Output ONLY the resulting relit composite image.`;
   if (baseInline) parts.push(baseInline);
   parts.push({ text: instructionsText });
 
-  const response = await callWithRetry(() => client.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: { parts }
-  }), 3, 2000);
+  const studioConfig = getStudioModelConfig();
+  const modelsToTry = [
+    customModel || studioConfig.studioModel,
+    'gemini-3.1-flash-image',
+    'gemini-3-pro-image',
+    'gemini-3.1-flash-lite-image',
+    'gemini-2.5-flash-image'
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-  const candidate = response.candidates?.[0];
-  if (candidate?.content?.parts) {
-    for (const part of candidate.content.parts) {
-      if (part.inlineData && part.inlineData.data) {
-        const mime = part.inlineData.mimeType || 'image/png';
-        return {
-          resultImage: `data:${mime};base64,${part.inlineData.data}`
-        };
+  let lastError: any = null;
+  for (const model of modelsToTry) {
+    try {
+      const response = await callWithRetry(() => client.models.generateContent({
+        model,
+        contents: { parts }
+      }), 2, 2000);
+
+      const candidate = response.candidates?.[0];
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+            const mime = part.inlineData.mimeType || 'image/png';
+            return {
+              resultImage: `data:${mime};base64,${part.inlineData.data}`
+            };
+          }
+        }
       }
+    } catch (err) {
+      console.warn(`Model ${model} failed for Gobo Relighting, trying fallback...`, err);
+      lastError = err;
     }
   }
 
-  throw new Error("Gobo Relighting failed to generate image.");
+  throw lastError || new Error("Gobo Relighting failed across available engines.");
 }

@@ -30,6 +30,15 @@ import {
 } from '../services/antiAiCamouflageService';
 import { AntiAiCamouflageSettings, CameraPresetType } from '../types';
 import { useTranslation, SUPPORTED_LANGUAGES, AppLanguage } from '../services/i18nService';
+import {
+  getStudioModelConfig,
+  saveStudioModelConfig,
+  StudioModelConfig,
+  AVAILABLE_STUDIO_MODELS,
+  AVAILABLE_ANALYSIS_MODELS,
+  RESOLUTION_OPTIONS,
+  DEFAULT_STUDIO_CONFIG
+} from '../services/modelConfigService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -57,7 +66,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isCloudVaultSyncing,
 }) => {
   const { lang, setLanguage, t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'language' | 'storage' | 'gallery' | 'drive' | 'update' | 'anti-ai'>('language');
+  const [activeTab, setActiveTab] = useState<'language' | 'storage' | 'gallery' | 'drive' | 'update' | 'anti-ai' | 'models'>('language');
+  const [studioConfig, setStudioConfig] = useState<StudioModelConfig>(getStudioModelConfig);
   const [driveFolderInput, setDriveFolderInput] = useState(storageSettings.driveFolderName || 'NK Imagen Storage');
   const [prefixInput, setPrefixInput] = useState(storageSettings.customPrefix || 'NKI_');
   const [namingPattern, setNamingPattern] = useState(storageSettings.namingPattern || 'subject_timestamp');
@@ -145,6 +155,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     };
 
     await saveStorageSettingsDB(updated);
+    saveStudioModelConfig(studioConfig);
     onUpdateSettings(updated);
     setSaveSuccess(true);
     setTimeout(() => {
@@ -352,6 +363,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {antiAiSettings.enabled && (
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('models')}
+              className={`px-3.5 py-2 text-xs font-bold transition-all rounded-xl flex items-center gap-2 ${
+                activeTab === 'models'
+                  ? 'bg-white/20 text-white shadow-[0_4px_16px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.3)] border border-white/25 font-black'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <span>🤖</span>
+              <span>Mô Hình & Studio</span>
+              <span className="text-[9px] bg-gradient-to-r from-purple-500/20 to-cyan-500/20 text-cyan-300 font-mono px-1.5 py-0.2 rounded-full border border-cyan-500/30 font-bold">
+                2K HD
+              </span>
             </button>
           </div>
         </div>
@@ -1338,6 +1364,174 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 7: MÔ HÌNH AI & STUDIO HIGH-RES (visionOS Model Engine) */}
+          {activeTab === 'models' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>🤖</span>
+                    <span>Tùy Chỉnh Mô Hình AI & Độ Phân Giải Studio</span>
+                  </h3>
+                  <p className="text-xs text-white/50 mt-1">
+                    Cấu hình mô hình thế hệ mới và tăng cường độ nét để ảnh sinh ra không bị mờ nhạt
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStudioConfig(DEFAULT_STUDIO_CONFIG)}
+                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 text-xs font-semibold transition-all"
+                >
+                  ↺ Khôi Phục Mặc Định HQ
+                </button>
+              </div>
+
+              {/* Blurry Fix Information Callout */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-cyan-500/10 border border-purple-500/30 flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">🔍</span>
+                <div className="space-y-1">
+                  <div className="text-xs font-bold text-purple-200 flex items-center gap-2">
+                    <span>Khắc Phục Lỗi Ảnh Mờ & Độ Phân Giải Thấp</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
+                      FIXED
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-white/70 leading-relaxed">
+                    Trước đây, bộ nén ảnh đầu vào giới hạn ở mức 480px khiến các tính năng như <strong className="text-white">Virtual Wardrobe</strong>, <strong className="text-white">Expression Sculptor</strong> và <strong className="text-white">Inpainting</strong> cho ra kết quả mờ hoặc vỡ nét. Hệ thống hiện đã nâng cấp lên chuẩn <strong className="text-cyan-300">1536px – 2048px (2K)</strong> với chất lượng nén 92%+, bảo toàn trọn vẹn chi tiết sợi vải, chân tóc và vân da quang học!
+                  </p>
+                </div>
+              </div>
+
+              {/* 1. Studio Resolution Selector */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <span>📐</span>
+                    <span>Độ Phân Giải Tối Đa Studio (Max Dimension):</span>
+                  </label>
+                  <span className="text-xs font-mono text-cyan-400 font-bold">
+                    {studioConfig.maxDimension}px
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {RESOLUTION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setStudioConfig(prev => ({ ...prev, maxDimension: opt.value }))}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                        studioConfig.maxDimension === opt.value
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-lg shadow-cyan-500/10'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{opt.label}</span>
+                        {studioConfig.maxDimension === opt.value && (
+                          <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-white/50 leading-relaxed">
+                        {opt.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Studio Image Generation Model */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>🎨</span>
+                  <span>Mô Hình Sinh Ảnh & Studio Edit:</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {AVAILABLE_STUDIO_MODELS.map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => setStudioConfig(prev => ({ ...prev, studioModel: model.id }))}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                        studioConfig.studioModel === model.id
+                          ? 'bg-purple-500/20 border-purple-400 text-white shadow-lg shadow-purple-500/10'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{model.label}</span>
+                        {studioConfig.studioModel === model.id && (
+                          <span className="text-[10px] font-mono text-purple-300 bg-purple-500/30 px-2 py-0.5 rounded-full border border-purple-400/40">
+                            Đang dùng
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-white/50 leading-relaxed">
+                        {model.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Analysis & Multimodal Vision Model */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span>🧠</span>
+                  <span>Mô Hình Phân Tích Đa Phương Thức & Tư Duy:</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {AVAILABLE_ANALYSIS_MODELS.map((model) => (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => setStudioConfig(prev => ({ ...prev, analysisModel: model.id }))}
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between gap-1.5 ${
+                        studioConfig.analysisModel === model.id
+                          ? 'bg-emerald-500/20 border-emerald-400 text-white shadow-lg shadow-emerald-500/10'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 text-white/60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white">{model.label}</span>
+                        {studioConfig.analysisModel === model.id && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-white/50 leading-relaxed">
+                        {model.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. JPEG Quality Slider */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 flex flex-col gap-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-white/80">Chất lượng nén ảnh Studio (JPEG Quality):</span>
+                  <span className="font-mono text-purple-400 font-bold">
+                    {Math.round(studioConfig.jpegQuality * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.80"
+                  max="0.98"
+                  step="0.02"
+                  value={studioConfig.jpegQuality}
+                  onChange={(e) => setStudioConfig(prev => ({ ...prev, jpegQuality: Number(e.target.value) }))}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-400"
+                />
+                <div className="flex justify-between text-[10px] text-white/40 font-mono">
+                  <span>80% (Nhanh)</span>
+                  <span>92% (Chuẩn Studio HQ)</span>
+                  <span>98% (Lossless Tối Đa)</span>
+                </div>
+              </div>
+
             </div>
           )}
         </div>

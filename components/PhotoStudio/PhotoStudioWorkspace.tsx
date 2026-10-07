@@ -1919,107 +1919,115 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
         {/* Right Inspector & Controls Sidebar */}
         <aside className="w-80 md:w-96 flex-none bg-slate-900/90 border-l border-white/10 flex flex-col z-20 backdrop-blur-md">
-          {/* Sidebar Tabs - VisionOS Acrylic Header */}
-          <div className="flex flex-col border-b border-white/10 p-2 bg-black/30 gap-1.5">
-            {/* Primary Core Tabs */}
-            <div className="flex gap-1">
+          {/* Sidebar Tabs - VisionOS Acrylic Header (Balanced 4x2 Grid: Zero Cutoffs) */}
+          <div className="flex flex-col border-b border-white/10 p-2 bg-black/30 gap-1">
+            {/* Row 1: Core Edit Suite (4 Equal Columns) */}
+            <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => {
                   setActiveTab('ai_magic');
                   if (activeTool === 'select' || activeTool === 'color') setActiveTool('brush');
                 }}
-                className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center justify-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'ai_magic'
                     ? 'bg-primary-500 text-black shadow-lg font-bold'
                     : 'text-white/60 hover:text-white bg-white/5'
                 }`}
+                title="AI Magic Inpaint & Prompt (Phím B)"
               >
                 <span>✨</span>
-                <span>AI Magic</span>
+                <span className="truncate">Magic</span>
               </button>
               <button
                 onClick={() => {
                   setActiveTab('color_grading');
                   if (activeTool === 'brush' || activeTool === 'eraser') setActiveTool('select');
                 }}
-                className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center justify-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'color_grading'
                     ? 'bg-amber-400 text-black shadow-lg font-bold'
                     : 'text-white/60 hover:text-white bg-white/5'
                 }`}
+                title="Chỉnh màu quang học & LUTs (Phím G)"
               >
                 <span>🎨</span>
-                <span>Màu Sắc</span>
+                <span className="truncate">Màu Sắc</span>
               </button>
               <button
                 onClick={() => setActiveTab('layers')}
-                className={`flex-1 py-1.5 rounded-xl text-[11px] font-bold tracking-wide transition-all flex items-center justify-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'layers'
                     ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 font-bold'
                     : 'text-white/60 hover:text-white bg-white/5'
                 }`}
+                title="Quản lý Layer & Blend Modes"
               >
                 <span>🥞</span>
-                <span>Layers ({layers.length})</span>
+                <span className="truncate">Layers ({layers.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('transform')}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
+                  activeTab === 'transform'
+                    ? 'bg-indigo-500 text-white shadow-lg font-bold'
+                    : 'text-white/60 hover:text-white bg-white/5'
+                }`}
+                title="Cắt khung hình & Biến đổi hình học (Phím C)"
+              >
+                <span>🔄</span>
+                <span className="truncate">Biến Đổi</span>
               </button>
             </div>
 
-            {/* Neural Studio Breakthrough Tabs Row */}
-            <div className="flex gap-1 overflow-x-auto no-scrollbar pt-0.5">
+            {/* Row 2: Neural Studio Breakthrough Suite (4 Equal Columns) */}
+            <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => setActiveTab('gobo')}
-                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'gobo'
                     ? 'bg-amber-500/25 border border-amber-400/50 text-amber-300 font-bold'
                     : 'text-white/50 hover:text-white bg-white/5'
                 }`}
+                title="Hắt bóng râm Gobo 3D & Spotlight quang học"
               >
                 <span>🔦</span>
-                <span>Gobo 3D</span>
+                <span className="truncate">Gobo 3D</span>
               </button>
               <button
                 onClick={() => setActiveTab('wardrobe')}
-                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'wardrobe'
                     ? 'bg-rose-500/25 border border-rose-400/50 text-rose-300 font-bold'
                     : 'text-white/50 hover:text-white bg-white/5'
                 }`}
+                title="Thay trang phục ảo Virtual Wardrobe"
               >
                 <span>👗</span>
-                <span>Wardrobe</span>
+                <span className="truncate">Wardrobe</span>
               </button>
               <button
                 onClick={() => setActiveTab('expression')}
-                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'expression'
                     ? 'bg-purple-500/25 border border-purple-400/50 text-purple-300 font-bold'
                     : 'text-white/50 hover:text-white bg-white/5'
                 }`}
+                title="Điêu khắc vi biểu cảm, tuổi tác & hướng nhìn 3D"
               >
-                <span>🎭</span>
-                <span>Sculptor</span>
+                <span>🗿</span>
+                <span className="truncate">Sculptor</span>
               </button>
               <button
                 onClick={() => setActiveTab('atmosphere')}
-                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
                   activeTab === 'atmosphere'
                     ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300 font-bold'
                     : 'text-white/50 hover:text-white bg-white/5'
                 }`}
+                title="Hiệu ứng thời tiết và khí quyển thể tích (Mưa, Tuyết, Fog)"
               >
                 <span>🌧️</span>
-                <span>Khí Quyển</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('transform')}
-                className={`px-2 py-1 rounded-xl text-[10px] font-medium transition-all whitespace-nowrap flex items-center gap-1 ${
-                  activeTab === 'transform'
-                    ? 'bg-indigo-500/25 border border-indigo-400/50 text-indigo-300 font-bold'
-                    : 'text-white/50 hover:text-white bg-white/5'
-                }`}
-              >
-                <span>🔄</span>
-                <span>Biến Đổi</span>
+                <span className="truncate">Khí Quyển</span>
               </button>
             </div>
           </div>

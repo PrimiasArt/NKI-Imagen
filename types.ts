@@ -160,7 +160,9 @@ export interface CharacterPersona {
   hairStyle: string;
   signatureOutfit: string;
   colorPalette: string;
+  bodyType?: string;
   avatarImage?: string;
+  photos?: string[];
   seed?: number;
   createdAt: number;
   isActive: boolean;
