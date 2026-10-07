@@ -1,8 +1,9 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ImagePromptJson, ScriptScene } from "../types";
+import { ImagePromptJson, ScriptScene, BiometricProfile, DualCharacterPairing } from "../types";
 import { rateLimitTracker, RateLimitState } from "./rateLimitService";
 import { recordSuccessfulGenerationPrompt } from "./promptHistoryService";
+import { buildDualBiometricPromptProtocol, buildSingleBiometricPromptDirective } from "./biometricCoreService";
 
 // Dynamic Google Gemini API Key Management for Standalone Execution
 export const getGeminiApiKey = (): string => {
@@ -823,6 +824,12 @@ export const generateImageFromJson = async (
     faceImageBase64?: string; 
     maleFaceBase64?: string; 
     femaleFaceBase64?: string; 
+    face1Profile?: BiometricProfile;
+    face2Profile?: BiometricProfile;
+    face1Name?: string;
+    face2Name?: string;
+    dualPairing?: DualCharacterPairing;
+    antiBleedLock?: boolean;
     aspectRatio?: string;
     imageSize?: string;
     useReferenceHair?: boolean; 
@@ -836,12 +843,28 @@ export const generateImageFromJson = async (
   const imageSize = options.imageSize;
   const requestedModel = options.model || 'gemini-3.1-flash-lite-image';
   
-  // Detect if strict dual character mode is needed
-  const isDualCharacterMode = options.isDualCharacter || !!(options.maleFaceBase64 && options.femaleFaceBase64);
+  // Detect if dual character mode is needed
+  const isDualCharacterMode = options.isDualCharacter || !!((options.maleFaceBase64 || options.faceImageBase64) && options.femaleFaceBase64);
   
+  const dualProtocol = isDualCharacterMode ? buildDualBiometricPromptProtocol({
+    core1: {
+      imageBase64: options.maleFaceBase64 || options.faceImageBase64,
+      profile: options.face1Profile,
+      name: options.face1Name
+    },
+    core2: {
+      imageBase64: options.femaleFaceBase64,
+      profile: options.face2Profile,
+      name: options.face2Name
+    },
+    pairing: options.dualPairing || 'auto',
+    useReferenceHair: options.useReferenceHair,
+    antiBleedLock: options.antiBleedLock !== false
+  }) : null;
+
   let coreSubject = promptJson.subject;
-  if (isDualCharacterMode) {
-      coreSubject = `TWO DISTINCT AND INDIVIDUAL CHARACTERS (1 Male and 1 Female) in the same scene. ${promptJson.subject}`;
+  if (dualProtocol) {
+    coreSubject = `${dualProtocol.sceneSubjectEnhancement} ${promptJson.subject}`;
   }
 
   const promptText = `Generate an image with the following specifications:
@@ -889,38 +912,37 @@ export const generateImageFromJson = async (
       ? "INHERIT HAIR: You MUST copy the hair style and hair color exactly from the provided reference face. Do NOT inherit any other aspects like lighting or background from the reference."
       : "IGNORE HAIR: Strictly IGNORE the hair from the reference image. Only copy facial features (eyes, nose, mouth, bone structure). Use the hair described in the prompt text.";
 
-    // 3. Handling Faces - Identity Isolation
-    if (isDualCharacterMode) {
-      parts.push({ text: "### MULTI-IDENTITY PROTOCOL: TWO DISTINCT CHARACTERS ###" });
-      parts.push({ text: "SCENE REQUIREMENT: This image MUST feature precisely two separate individuals: one MALE character and one FEMALE character. Their identities must be completely independent." });
+    // 3. Handling Faces - Identity Isolation with Google Vision Biometrics
+    if (isDualCharacterMode && dualProtocol) {
+      parts.push({ text: `### MULTI-IDENTITY BIOMETRIC PROTOCOL ###\n${dualProtocol.sceneSubjectEnhancement}` });
 
-      if (options.maleFaceBase64) {
-        parts.push({ text: `MALE IDENTITY REFERENCE:` });
-        const compressedMale = await compressBase64Image(options.maleFaceBase64);
+      const face1Img = options.maleFaceBase64 || options.faceImageBase64;
+      if (face1Img) {
+        parts.push({ text: dualProtocol.characterAInstructions });
+        const compressedMale = await compressBase64Image(face1Img);
         const inline = prepareInlineData(compressedMale, "image/jpeg");
         if (inline) parts.push(inline);
-        parts.push({ text: `INSTRUCTION: Apply facial features from this reference ONLY to the MALE character. Do not let this identity bleed into the female character. ${hairInstruction}` });
-      } else {
-        parts.push({ text: "INSTRUCTION: The MALE character should have a generic, distinct male face that is completely DIFFERENT from the female reference if provided." });
       }
 
       if (options.femaleFaceBase64) {
-        parts.push({ text: `FEMALE IDENTITY REFERENCE:` });
+        parts.push({ text: dualProtocol.characterBInstructions });
         const compressedFemale = await compressBase64Image(options.femaleFaceBase64);
         const inline = prepareInlineData(compressedFemale, "image/jpeg");
         if (inline) parts.push(inline);
-        parts.push({ text: `INSTRUCTION: Apply facial features from this reference ONLY to the FEMALE character. Do not let this identity bleed into the male character. ${hairInstruction}` });
-      } else {
-        parts.push({ text: "INSTRUCTION: The FEMALE character should have a generic, distinct female face that is completely DIFFERENT from the male reference if provided." });
       }
-      
-      parts.push({ text: "STRICT SEPARATION: Ensure there is zero identity overlap between the male and female characters. They must look like two different people." });
+
+      if (dualProtocol.antiBleedIsolationContract) {
+        parts.push({ text: dualProtocol.antiBleedIsolationContract });
+      }
     } else if (options.faceImageBase64) {
-      parts.push({ text: `IDENTITY REFERENCE (MAIN CHARACTER):` });
+      if (options.face1Profile) {
+        parts.push({ text: buildSingleBiometricPromptDirective(options.face1Profile, options.useReferenceHair) });
+      } else {
+        parts.push({ text: `IDENTITY REFERENCE (MAIN CHARACTER):\nINSTRUCTION: Apply facial anatomy strictly from this reference image. ${hairInstruction}` });
+      }
       const compressedFace = await compressBase64Image(options.faceImageBase64);
       const inline = prepareInlineData(compressedFace, "image/jpeg");
       if (inline) parts.push(inline);
-      parts.push({ text: `INSTRUCTION: Use this face for the main character. ${hairInstruction}` });
     } else {
       if (options.maleFaceBase64) {
          parts.push({ text: `IDENTITY REFERENCE (MALE CHARACTER):` });
@@ -1023,6 +1045,12 @@ export const composeImageFromPrompt = async (
     faceImageBase64?: string;
     maleFaceBase64?: string;
     femaleFaceBase64?: string;
+    face1Profile?: BiometricProfile;
+    face2Profile?: BiometricProfile;
+    face1Name?: string;
+    face2Name?: string;
+    dualPairing?: DualCharacterPairing;
+    antiBleedLock?: boolean;
     useReferenceHair?: boolean;
     isDualCharacter?: boolean;
   } = {}
@@ -1033,6 +1061,24 @@ export const composeImageFromPrompt = async (
   const imageSize = options.imageSize;
   const requestedModel = options.model || 'gemini-3.1-flash-lite-image';
   const generatedImages: string[] = [];
+
+  const isDualCharacterMode = options.isDualCharacter || !!((options.maleFaceBase64 || options.faceImageBase64) && options.femaleFaceBase64);
+
+  const dualProtocol = isDualCharacterMode ? buildDualBiometricPromptProtocol({
+    core1: {
+      imageBase64: options.maleFaceBase64 || options.faceImageBase64,
+      profile: options.face1Profile,
+      name: options.face1Name
+    },
+    core2: {
+      imageBase64: options.femaleFaceBase64,
+      profile: options.face2Profile,
+      name: options.face2Name
+    },
+    pairing: options.dualPairing || 'auto',
+    useReferenceHair: options.useReferenceHair,
+    antiBleedLock: options.antiBleedLock !== false
+  }) : null;
 
   for (let i = 0; i < count; i++) {
     trackRequest(3200, "Compose Image");
@@ -1046,50 +1092,51 @@ export const composeImageFromPrompt = async (
     }
 
     // Add Base Instructions
-    parts.push({
-      text: `Create a new image based on the following instructions: "${prompt}". 
+    const baseInstruction = dualProtocol
+      ? `Create a new image based on the following instructions: "${dualProtocol.sceneSubjectEnhancement} ${prompt}". 
       Use the provided images as visual components or style references. 
       Ensure the final image has a cohesive composition, consistent lighting, and style.`
-    });
+      : `Create a new image based on the following instructions: "${prompt}". 
+      Use the provided images as visual components or style references. 
+      Ensure the final image has a cohesive composition, consistent lighting, and style.`;
 
-    // 3. Handling Faces - Identity Isolation
-    const isDualCharacterMode = options.isDualCharacter || !!(options.maleFaceBase64 && options.femaleFaceBase64);
-    
+    parts.push({ text: baseInstruction });
+
     const hairInstruction = options.useReferenceHair 
       ? "INHERIT HAIR: You MUST copy the hair style and hair color exactly from the provided reference face."
       : "IGNORE HAIR: Strictly IGNORE the hair from the reference image. Use the hair described in the prompt text.";
 
-    if (isDualCharacterMode) {
-      parts.push({ text: "### MULTI-IDENTITY PROTOCOL: TWO DISTINCT CHARACTERS ###" });
-      parts.push({ text: "SCENE REQUIREMENT: This image MUST feature precisely two separate individuals: one MALE character and one FEMALE character. Their identities must be completely independent." });
-      
-      if (options.maleFaceBase64) {
-        parts.push({ text: `MALE IDENTITY REFERENCE:` });
-        const compressedMale = await compressBase64Image(options.maleFaceBase64);
+    // 3. Handling Faces - Identity Isolation with Google Vision Biometrics
+    if (isDualCharacterMode && dualProtocol) {
+      parts.push({ text: `### MULTI-IDENTITY BIOMETRIC PROTOCOL ###\n${dualProtocol.sceneSubjectEnhancement}` });
+
+      const face1Img = options.maleFaceBase64 || options.faceImageBase64;
+      if (face1Img) {
+        parts.push({ text: dualProtocol.characterAInstructions });
+        const compressedMale = await compressBase64Image(face1Img);
         const inline = prepareInlineData(compressedMale, "image/jpeg");
         if (inline) parts.push(inline);
-        parts.push({ text: `INSTRUCTION: Apply facial features from this reference ONLY to the MALE figure. Do not let this identity bleed into the female character. ${hairInstruction}` });
-      } else {
-        parts.push({ text: "INSTRUCTION: The MALE character should have a generic, distinct male face that is completely DIFFERENT from the female reference if provided." });
       }
 
       if (options.femaleFaceBase64) {
-        parts.push({ text: `FEMALE IDENTITY REFERENCE:` });
+        parts.push({ text: dualProtocol.characterBInstructions });
         const compressedFemale = await compressBase64Image(options.femaleFaceBase64);
         const inline = prepareInlineData(compressedFemale, "image/jpeg");
         if (inline) parts.push(inline);
-        parts.push({ text: `INSTRUCTION: Apply facial features from this reference ONLY to the FEMALE figure. Do not let this identity bleed into the male character. ${hairInstruction}` });
-      } else {
-        parts.push({ text: "INSTRUCTION: The FEMALE character should have a generic, distinct female face that is completely DIFFERENT from the male reference if provided." });
       }
-      
-      parts.push({ text: "STRICT SEPARATION: Ensure there is zero identity overlap between the male and female characters. They must look like two different people." });
+
+      if (dualProtocol.antiBleedIsolationContract) {
+        parts.push({ text: dualProtocol.antiBleedIsolationContract });
+      }
     } else if (options.faceImageBase64) {
-      parts.push({ text: `IDENTITY REFERENCE (MAIN CHARACTER):` });
+      if (options.face1Profile) {
+        parts.push({ text: buildSingleBiometricPromptDirective(options.face1Profile, options.useReferenceHair) });
+      } else {
+        parts.push({ text: `IDENTITY REFERENCE (MAIN CHARACTER):\nINSTRUCTION: Use this face for the character. ${hairInstruction}` });
+      }
       const compressedFace = await compressBase64Image(options.faceImageBase64);
       const inline = prepareInlineData(compressedFace, "image/jpeg");
       if (inline) parts.push(inline);
-      parts.push({ text: `INSTRUCTION: Use this face for the character. ${hairInstruction}` });
     }
 
     const modelsToTry = [

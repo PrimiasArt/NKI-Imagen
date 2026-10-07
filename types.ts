@@ -201,3 +201,42 @@ export interface StoryboardShot {
   audioMood?: string;
 }
 
+// --- Biometric Core & Multi-Identity Types ---
+
+export interface BiometricProfile {
+  id?: string;
+  name?: string;
+  gender: 'Female' | 'Male' | 'Non-binary';
+  estimatedAge: string;
+  ethnicity: string;
+  faceShape: string;
+  jawline: string;
+  eyes: {
+    shape: string;
+    color: string;
+    brows: string;
+  };
+  nose: string;
+  lips: string;
+  hair: {
+    color: string;
+    style: string;
+    length: string;
+    texture: string;
+  };
+  distinguishingFeatures: string;
+  undertone: string;
+  summaryDescriptor: string;
+  analyzedAt: number;
+}
+
+export type DualCharacterPairing = 'auto' | 'mf' | 'ff' | 'mm';
+
+export interface DualCharacterConfig {
+  pairing: DualCharacterPairing;
+  character1Role?: string;
+  character2Role?: string;
+  antiBleedLock: boolean;
+  useReferenceHair: boolean;
+}
+

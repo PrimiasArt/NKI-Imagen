@@ -71,7 +71,8 @@ import {
   compressFileToBase64
 } from './services/consistencyService';
 import { decodePromptFromShareHash } from './services/promptSnapshotService';
-import { CharacterPersona, StoryboardShot } from './types';
+import { CharacterPersona, StoryboardShot, BiometricProfile, DualCharacterPairing } from './types';
+import { analyzeBiometricFaceCore, convertPersonaToBiometricProfile } from './services/biometricCoreService';
 import { generationQueue } from './services/generationQueueService';
 import { SynapticCoolingBanner } from './components/SynapticCoolingBanner';
 import { GenerationQueueDrawer, FloatingQueueIndicator } from './components/GenerationQueueDrawer';
@@ -949,64 +950,214 @@ const FaceReferenceInput: React.FC<{
     onDrop: (file: File) => void;
     onOpenVault?: () => void;
     personaName?: string;
-}> = ({ label, image, onUpload, onClear, onDrop, onOpenVault, personaName }) => {
+    biometricProfile?: BiometricProfile;
+    onScanBiometrics?: () => void;
+    isScanningBiometrics?: boolean;
+}> = ({ 
+    label, 
+    image, 
+    onUpload, 
+    onClear, 
+    onDrop, 
+    onOpenVault, 
+    personaName,
+    biometricProfile,
+    onScanBiometrics,
+    isScanningBiometrics
+}) => {
     const [isDragOver, setIsDragOver] = useState(false);
+    const [showBioDetails, setShowBioDetails] = useState(false);
 
     return (
         <div 
-            className={`flex items-center justify-between glass-input rounded-xl p-3 transition-all ${
+            className={`glass-input rounded-2xl p-3 transition-all flex flex-col gap-2 ${
                 isDragOver ? 'border-primary-400 bg-white/10' : ''
             }`}
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
             onDragLeave={() => setIsDragOver(false)}
             onDrop={(e) => { e.preventDefault(); setIsDragOver(false); const f = e.dataTransfer.files?.[0]; if(f) onDrop(f); }}
         >
-            <div className="flex items-center gap-2 max-w-[50%] truncate">
-                <span className="text-xs font-bold uppercase tracking-widest text-white/50">{label}</span>
-                {personaName && (
-                    <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold truncate">
-                        👑 {personaName}
-                    </span>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 max-w-[55%] truncate">
+                    <span className="text-xs font-bold uppercase tracking-widest text-white/50">{label}</span>
+                    {personaName && (
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold truncate">
+                            👑 {personaName}
+                        </span>
+                    )}
+                </div>
+                {image ? (
+                    <div className="flex items-center gap-2">
+                        <img src={image} className="w-10 h-10 rounded-xl object-cover border border-white/20 shadow-lg" alt="ref" />
+                        {onOpenVault && (
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onOpenVault(); }}
+                                className="text-[10px] text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-2 py-1 rounded-lg font-bold transition-all flex items-center gap-1"
+                                title="Đổi hoặc chọn nhân vật mẫu khác từ Kho Data"
+                            >
+                                <span>📁</span>
+                                <span className="hidden sm:inline">Kho Mẫu</span>
+                            </button>
+                        )}
+                        <button onClick={(e) => { e.stopPropagation(); onClear(); }} className="text-white/40 hover:text-red-400 transition-colors bg-white/5 p-1.5 rounded-full" title="Xóa ảnh này">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        {onOpenVault && (
+                            <button
+                                type="button"
+                                onClick={onOpenVault}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 flex items-center gap-1 shadow-sm active:scale-95"
+                                title="Chọn người mẫu có sẵn từ Kho Data Nhân Vật"
+                            >
+                                <span>📁</span>
+                                <span>Kho Mẫu</span>
+                            </button>
+                        )}
+                        <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 border border-white/10 text-white/80 flex items-center gap-1 active:scale-95">
+                            <span>📤</span>
+                            <span>Tải Lên</span>
+                            <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
+                        </label>
+                    </div>
                 )}
             </div>
-            {image ? (
-                <div className="flex items-center gap-2">
-                    <img src={image} className="w-10 h-10 rounded-lg object-cover border border-white/20 shadow-lg" alt="ref" />
-                    {onOpenVault && (
+
+            {/* Google Vision Biometric Intelligence Bar */}
+            {image && (
+                <div className="pt-1.5 border-t border-white/5 flex items-center justify-between text-[10px] gap-2">
+                    {biometricProfile ? (
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-black text-[8px] uppercase tracking-wider flex-shrink-0">
+                                ✓ Vision
+                            </span>
+                            <span 
+                                onClick={() => setShowBioDetails(!showBioDetails)}
+                                className="text-white/70 truncate hover:text-white cursor-pointer select-none font-medium"
+                                title="Nhấp để xem chi tiết nhận diện Google Vision"
+                            >
+                                {biometricProfile.gender === 'Female' ? '👩 Nữ' : (biometricProfile.gender === 'Male' ? '👨 Nam' : '🧑')} • {biometricProfile.estimatedAge} • {biometricProfile.faceShape}
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-1.5 text-white/40">
+                            <span>🔍 Chưa quét Biometric</span>
+                        </div>
+                    )}
+
+                    {onScanBiometrics && (
                         <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpenVault(); }}
-                            className="text-[10px] text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-2 py-1 rounded-lg font-bold transition-all flex items-center gap-1"
-                            title="Đổi hoặc chọn nhân vật mẫu khác từ Kho Data"
+                            onClick={(e) => { e.stopPropagation(); onScanBiometrics(); }}
+                            disabled={isScanningBiometrics}
+                            className="px-2 py-0.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-200 font-bold transition flex items-center gap-1 text-[9px] flex-shrink-0 disabled:opacity-50"
+                            title="Chạy Google Vision để phân tích đặc điểm khuôn mặt, cấu trúc xương và màu mắt cho model này"
                         >
-                            <span>📁</span>
-                            <span className="hidden sm:inline">Kho Mẫu</span>
+                            {isScanningBiometrics ? (
+                                <>
+                                    <div className="w-2.5 h-2.5 rounded-full border border-purple-300 border-t-transparent animate-spin" />
+                                    <span>Đang quét...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>⚡</span>
+                                    <span>{biometricProfile ? 'Quét Lại' : 'Quét Vision'}</span>
+                                </>
+                            )}
                         </button>
                     )}
-                    <button onClick={(e) => { e.stopPropagation(); onClear(); }} className="text-white/40 hover:text-red-400 transition-colors bg-white/5 p-1.5 rounded-full" title="Xóa ảnh này">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                    </button>
-                </div>
-            ) : (
-                <div className="flex items-center gap-1.5">
-                    {onOpenVault && (
-                        <button
-                            type="button"
-                            onClick={onOpenVault}
-                            className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 flex items-center gap-1 shadow-sm active:scale-95"
-                            title="Chọn người mẫu có sẵn từ Kho Data Nhân Vật"
-                        >
-                            <span>📁</span>
-                            <span>Kho Mẫu</span>
-                        </button>
-                    )}
-                    <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 border border-white/10 text-white/80 flex items-center gap-1 active:scale-95">
-                        <span>📤</span>
-                        <span>Tải Lên</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
-                    </label>
                 </div>
             )}
+
+            {/* Expanded Biometric Card View */}
+            {image && biometricProfile && showBioDetails && (
+                <div className="mt-1 p-2 rounded-xl bg-black/40 border border-white/10 text-[9.5px] space-y-1 text-white/75 animate-in fade-in duration-200">
+                    <div><span className="text-white/40 font-bold">Mặt & Cằm:</span> {biometricProfile.faceShape}, {biometricProfile.jawline}</div>
+                    <div><span className="text-white/40 font-bold">Mắt & Mũi:</span> {biometricProfile.eyes.shape} ({biometricProfile.eyes.color}), {biometricProfile.nose}</div>
+                    <div><span className="text-white/40 font-bold">Tóc & Da:</span> {biometricProfile.hair.color}, {biometricProfile.hair.style} ({biometricProfile.undertone})</div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const getDualSlotLabel = (pairing: DualCharacterPairing, slotIndex: 1 | 2): string => {
+    if (pairing === 'ff') {
+        return slotIndex === 1 ? '👩 Nhân Vật Nữ 1 (Slot 1)' : '👩 Nhân Vật Nữ 2 (Slot 2)';
+    }
+    if (pairing === 'mm') {
+        return slotIndex === 1 ? '👨 Nhân Vật Nam 1 (Slot 1)' : '👨 Nhân Vật Nam 2 (Slot 2)';
+    }
+    if (pairing === 'mf') {
+        return slotIndex === 1 ? '👨/👩 Nhân Vật 1 (Slot 1)' : '👩/👨 Nhân Vật 2 (Slot 2)';
+    }
+    return slotIndex === 1 ? '🎭 Nhân Vật 1 (Slot 1)' : '🎭 Nhân Vật 2 (Slot 2)';
+};
+
+const DualCharacterControls: React.FC<{
+    pairing: DualCharacterPairing;
+    onChangePairing: (p: DualCharacterPairing) => void;
+    antiBleedLock: boolean;
+    onToggleAntiBleed: (v: boolean) => void;
+    onSwap: () => void;
+    accentColor?: string;
+}> = ({ pairing, onChangePairing, antiBleedLock, onToggleAntiBleed, onSwap, accentColor = 'purple' }) => {
+    return (
+        <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10 space-y-2 text-xs backdrop-blur-md">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Cấu Hình Ghép Đôi</span>
+                    <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[8px] font-bold border border-purple-500/30">Google Vision</span>
+                </div>
+                <button
+                    type="button"
+                    onClick={onSwap}
+                    className="px-2 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white border border-white/10 text-[10px] font-bold flex items-center gap-1 transition-all active:scale-95 shadow-sm"
+                    title="Hoán đổi ảnh và danh tính giữa Slot 1 và Slot 2 trong 1 click"
+                >
+                    <span>⇄</span>
+                    <span>Đổi Vị Trí 2 Model</span>
+                </button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1">
+                {[
+                    { id: 'auto', label: '⚡ Tự Động', desc: 'Google Vision tự nhận diện giới tính từng ảnh' },
+                    { id: 'ff', label: '👩+👩 2 Nữ', desc: 'Cặp đôi hoặc 2 bạn nữ - Chống ép nam' },
+                    { id: 'mf', label: '👨+👩 Nam-Nữ', desc: 'Cặp đôi nam nữ' },
+                    { id: 'mm', label: '👨+👨 2 Nam', desc: 'Cặp đôi hoặc 2 bạn nam - Chống ép nữ' },
+                ].map((item) => (
+                    <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onChangePairing(item.id as DualCharacterPairing)}
+                        title={item.desc}
+                        className={`py-1.5 px-1 rounded-xl text-[9.5px] font-bold text-center transition-all border ${
+                            pairing === item.id
+                                ? 'bg-purple-600/30 border-purple-500/60 text-purple-200 shadow-sm ring-1 ring-purple-500/30'
+                                : 'bg-white/5 border-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                        }`}
+                    >
+                        {item.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-white/70 select-none">
+                    <input
+                        type="checkbox"
+                        checked={antiBleedLock}
+                        onChange={(e) => onToggleAntiBleed(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded bg-white/10 border-white/20 text-purple-500 focus:ring-purple-500/40"
+                    />
+                    <span className="font-semibold text-white/80">🛡️ Anti-Bleed Lock</span>
+                </label>
+                <span className="text-[9px] text-white/40">Cách ly độc lập 2 khuôn mặt</span>
+            </div>
         </div>
     );
 };
@@ -2864,8 +3015,52 @@ const App: React.FC = () => {
     targetSlot: string;
   } | null>(null);
   const [slotPersonaNames, setSlotPersonaNames] = useState<Record<string, string>>({});
+  const [slotBiometricProfiles, setSlotBiometricProfiles] = useState<Record<string, BiometricProfile>>({});
+  const [isScanningBiometrics, setIsScanningBiometrics] = useState<Record<string, boolean>>({});
 
-  const applySlotImage = (slot: string, image: string | null, personaName?: string) => {
+  // Dual Character Pairing Configurations (Auto / FF / MF / MM)
+  const [dualPairing, setDualPairing] = useState<DualCharacterPairing>('auto');
+  const [poseDualPairing, setPoseDualPairing] = useState<DualCharacterPairing>('auto');
+  const [composeDualPairing, setComposeDualPairing] = useState<DualCharacterPairing>('auto');
+
+  // Anti-Bleed Isolation Contract
+  const [dualAntiBleedLock, setDualAntiBleedLock] = useState<boolean>(true);
+  const [poseDualAntiBleedLock, setPoseDualAntiBleedLock] = useState<boolean>(true);
+  const [composeDualAntiBleedLock, setComposeDualAntiBleedLock] = useState<boolean>(true);
+
+  const handleScanBiometrics = async (slot: string, imageBase64?: string | null, nameHint?: string) => {
+    let targetImage = imageBase64;
+    if (!targetImage) {
+      if (slot === 'refFace1') targetImage = refFaceImage1;
+      else if (slot === 'refFace2') targetImage = refFaceImage2;
+      else if (slot === 'poseRef1') targetImage = poseRefFaceImage1;
+      else if (slot === 'poseRef2') targetImage = poseRefFaceImage2;
+      else if (slot === 'composeRef1') targetImage = composeRefFaceImage1;
+      else if (slot === 'composeRef2') targetImage = composeRefFaceImage2;
+      else if (slot === 'refChar') targetImage = refCharImage;
+    }
+    if (!targetImage) return;
+
+    setIsScanningBiometrics(prev => ({ ...prev, [slot]: true }));
+    try {
+      const effectiveName = nameHint || slotPersonaNames[slot];
+      const profile = await analyzeBiometricFaceCore(targetImage, effectiveName);
+      setSlotBiometricProfiles(prev => ({ ...prev, [slot]: profile }));
+      showCleanToast(`✨ Đã phân tích Biometric cho ${effectiveName || 'model'}: ${profile.gender === 'Female' ? 'Nữ' : 'Nam'}, ~${profile.estimatedAge} tuổi, mặt ${profile.faceShape}`);
+    } catch (err: any) {
+      console.warn('[Biometric Vision Scan] Error:', err);
+    } finally {
+      setIsScanningBiometrics(prev => ({ ...prev, [slot]: false }));
+    }
+  };
+
+  const applySlotImage = (
+    slot: string, 
+    image: string | null, 
+    personaName?: string, 
+    biometric?: BiometricProfile, 
+    persona?: CharacterPersona
+  ) => {
     if (slot === 'refFace1') setRefFaceImage1(image);
     else if (slot === 'refFace2') setRefFaceImage2(image);
     else if (slot === 'poseRef1') setPoseRefFaceImage1(image);
@@ -2880,6 +3075,39 @@ const App: React.FC = () => {
       else delete next[slot];
       return next;
     });
+
+    if (image) {
+      if (biometric) {
+        setSlotBiometricProfiles(prev => ({ ...prev, [slot]: biometric }));
+      } else if (persona) {
+        const converted = convertPersonaToBiometricProfile(persona);
+        setSlotBiometricProfiles(prev => ({ ...prev, [slot]: converted }));
+      } else {
+        // Trigger background biometric scan if not yet scanned
+        handleScanBiometrics(slot, image, personaName);
+      }
+    } else {
+      setSlotBiometricProfiles(prev => {
+        const next = { ...prev };
+        delete next[slot];
+        return next;
+      });
+    }
+  };
+
+  const handleSwapDualSlots = (slot1: string, slot2: string) => {
+    const img1 = slot1 === 'refFace1' ? refFaceImage1 : (slot1 === 'poseRef1' ? poseRefFaceImage1 : composeRefFaceImage1);
+    const img2 = slot2 === 'refFace2' ? refFaceImage2 : (slot2 === 'poseRef2' ? poseRefFaceImage2 : composeRefFaceImage2);
+
+    const name1 = slotPersonaNames[slot1];
+    const name2 = slotPersonaNames[slot2];
+
+    const bio1 = slotBiometricProfiles[slot1];
+    const bio2 = slotBiometricProfiles[slot2];
+
+    applySlotImage(slot1, img2, name2, bio2);
+    applySlotImage(slot2, img1, name1, bio1);
+    showCleanToast('⇄ Đã hoán đổi vị trí Slot 1 & Slot 2!');
   };
 
   const handleFaceUploadRequest = async (file: File, targetSlot: string) => {
@@ -3497,6 +3725,10 @@ const App: React.FC = () => {
           const faceClean = !isMultiCharacter ? getCleanB64(refFaceImage1) : undefined;
           const maleFaceClean = isMultiCharacter ? getCleanB64(refFaceImage1) : undefined;
           const femaleFaceClean = isMultiCharacter ? getCleanB64(refFaceImage2) : undefined;
+          const face1Profile = slotBiometricProfiles['refFace1'];
+          const face2Profile = isMultiCharacter ? slotBiometricProfiles['refFace2'] : undefined;
+          const face1Name = slotPersonaNames['refFace1'];
+          const face2Name = slotPersonaNames['refFace2'];
 
           const tasks = [];
           for (let v = 0; v < variantCount; v++) {
@@ -3517,7 +3749,13 @@ const App: React.FC = () => {
                   femaleFaceBase64: femaleFaceClean,
                   useReferenceHair: useReferenceHair,
                   isDualCharacter: isMultiCharacter,
-                  model: selectedModel
+                  model: selectedModel,
+                  face1Profile,
+                  face2Profile,
+                  face1Name,
+                  face2Name,
+                  dualPairing,
+                  antiBleedLock: dualAntiBleedLock
                 });
               },
               onSuccess: (imgs: string[]) => {
@@ -3580,6 +3818,8 @@ const App: React.FC = () => {
               aspectRatio: refCreationAspectRatio,
               imageSize: refCreationImageSize,
               faceImageBase64: isBiometricCore ? charBase64 : undefined,
+              face1Profile: isBiometricCore ? slotBiometricProfiles['refChar'] : undefined,
+              face1Name: slotPersonaNames['refChar'],
               useReferenceHair: true,
               model: selectedModel
             });
@@ -3642,6 +3882,10 @@ const App: React.FC = () => {
                   const faceClean = !isPoseMultiCharacter ? getCleanB64(poseRefFaceImage1) : undefined;
                   const maleFaceClean = isPoseMultiCharacter ? getCleanB64(poseRefFaceImage1) : undefined;
                   const femaleFaceClean = isPoseMultiCharacter ? getCleanB64(poseRefFaceImage2) : undefined;
+                  const face1Profile = slotBiometricProfiles['poseRef1'];
+                  const face2Profile = isPoseMultiCharacter ? slotBiometricProfiles['poseRef2'] : undefined;
+                  const face1Name = slotPersonaNames['poseRef1'];
+                  const face2Name = slotPersonaNames['poseRef2'];
                   
                   const imgs = await generateImageFromJson(variantJson, {
                       numberOfImages: 1,
@@ -3652,7 +3896,13 @@ const App: React.FC = () => {
                       femaleFaceBase64: femaleFaceClean,
                       useReferenceHair: usePoseReferenceHair,
                       isDualCharacter: isPoseMultiCharacter,
-                      model: selectedModel 
+                      model: selectedModel,
+                      face1Profile,
+                      face2Profile,
+                      face1Name,
+                      face2Name,
+                      dualPairing: poseDualPairing,
+                      antiBleedLock: poseDualAntiBleedLock
                   });
                   return { imgs, index: i, variantJson };
                 },
@@ -3693,6 +3943,10 @@ const App: React.FC = () => {
           const faceClean = !isComposeMultiCharacter ? getCleanB64(composeRefFaceImage1) : undefined;
           const maleFaceClean = isComposeMultiCharacter ? getCleanB64(composeRefFaceImage1) : undefined;
           const femaleFaceClean = isComposeMultiCharacter ? getCleanB64(composeRefFaceImage2) : undefined;
+          const face1Profile = slotBiometricProfiles['composeRef1'];
+          const face2Profile = isComposeMultiCharacter ? slotBiometricProfiles['composeRef2'] : undefined;
+          const face1Name = slotPersonaNames['composeRef1'];
+          const face2Name = slotPersonaNames['composeRef2'];
 
           const elements = composeImageElements.map(e => ({ data: e.base64, mimeType: e.mimeType }));
 
@@ -3710,7 +3964,13 @@ const App: React.FC = () => {
                 maleFaceBase64: maleFaceClean,
                 femaleFaceBase64: femaleFaceClean,
                 useReferenceHair: useComposeReferenceHair,
-                isDualCharacter: isComposeMultiCharacter
+                isDualCharacter: isComposeMultiCharacter,
+                face1Profile,
+                face2Profile,
+                face1Name,
+                face2Name,
+                dualPairing: composeDualPairing,
+                antiBleedLock: composeDualAntiBleedLock
               });
             },
             onSuccess: (resImages: string[]) => {
@@ -6143,22 +6403,39 @@ const App: React.FC = () => {
                                 <div className="space-y-3 pt-2 border-t border-white/5">
                                     <div className="flex items-center justify-between px-1">
                                         <div className="flex flex-col">
-                                            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em]">Biometric Core Mode</label>
-                                            <span className="text-[8px] text-white/20 uppercase">Enable for Dual Characters</span>
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.15em]">Biometric Core Mode</label>
+                                                <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[8px] font-bold border border-purple-500/30">Google Vision</span>
+                                            </div>
+                                            <span className="text-[8px] text-white/30 uppercase">Bật để kích hoạt 2 nhân vật (Dual Characters)</span>
                                         </div>
                                         <button 
                                             onClick={() => setIsMultiCharacter(!isMultiCharacter)}
                                             className={`w-11 h-6 rounded-full transition-all relative ${isMultiCharacter ? 'bg-primary-500 shadow-[0_0_10px_rgba(var(--primary-500-rgb),0.4)]' : 'bg-white/10 border border-white/10'}`}
+                                            title="Bật/Tắt chế độ ghép đôi 2 nhân vật"
                                         >
                                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${isMultiCharacter ? 'left-6' : 'left-1'}`} />
                                         </button>
                                     </div>
 
+                                    {isMultiCharacter && (
+                                        <DualCharacterControls
+                                            pairing={dualPairing}
+                                            onChangePairing={setDualPairing}
+                                            antiBleedLock={dualAntiBleedLock}
+                                            onToggleAntiBleed={setDualAntiBleedLock}
+                                            onSwap={() => handleSwapDualSlots('refFace1', 'refFace2')}
+                                        />
+                                    )}
+
                                     {!isMultiCharacter ? (
                                         <FaceReferenceInput 
-                                            label="Biometric Core" 
+                                            label="Biometric Core (Model Đơn)" 
                                             image={refFaceImage1} 
                                             personaName={slotPersonaNames['refFace1']}
+                                            biometricProfile={slotBiometricProfiles['refFace1']}
+                                            onScanBiometrics={() => handleScanBiometrics('refFace1')}
+                                            isScanningBiometrics={isScanningBiometrics['refFace1']}
                                             onOpenVault={() => { setVaultTargetSlot('refFace1'); setIsCharacterVaultOpen(true); }}
                                             onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refFace1'); }} 
                                             onClear={() => applySlotImage('refFace1', null)} 
@@ -6167,18 +6444,24 @@ const App: React.FC = () => {
                                     ) : (
                                         <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
                                             <FaceReferenceInput 
-                                                label="Male Core" 
+                                                label={getDualSlotLabel(dualPairing, 1)}
                                                 image={refFaceImage1} 
                                                 personaName={slotPersonaNames['refFace1']}
+                                                biometricProfile={slotBiometricProfiles['refFace1']}
+                                                onScanBiometrics={() => handleScanBiometrics('refFace1')}
+                                                isScanningBiometrics={isScanningBiometrics['refFace1']}
                                                 onOpenVault={() => { setVaultTargetSlot('refFace1'); setIsCharacterVaultOpen(true); }}
                                                 onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refFace1'); }} 
                                                 onClear={() => applySlotImage('refFace1', null)} 
                                                 onDrop={(f) => handleFaceUploadRequest(f, 'refFace1')} 
                                             />
                                             <FaceReferenceInput 
-                                                label="Female Core" 
+                                                label={getDualSlotLabel(dualPairing, 2)}
                                                 image={refFaceImage2} 
                                                 personaName={slotPersonaNames['refFace2']}
+                                                biometricProfile={slotBiometricProfiles['refFace2']}
+                                                onScanBiometrics={() => handleScanBiometrics('refFace2')}
+                                                isScanningBiometrics={isScanningBiometrics['refFace2']}
                                                 onOpenVault={() => { setVaultTargetSlot('refFace2'); setIsCharacterVaultOpen(true); }}
                                                 onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refFace2'); }} 
                                                 onClear={() => applySlotImage('refFace2', null)} 
@@ -6392,20 +6675,40 @@ const App: React.FC = () => {
 
                                     <div className="space-y-3 pt-2 border-t border-white/5">
                                         <div className="flex items-center justify-between px-1">
-                                            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em]">Dual Identity Mode</label>
+                                            <div className="flex flex-col">
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.15em]">Dual Identity Mode</label>
+                                                    <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[8px] font-bold border border-purple-500/30">Google Vision</span>
+                                                </div>
+                                                <span className="text-[8px] text-white/30 uppercase">Ghép đôi 2 khuôn mặt độc lập</span>
+                                            </div>
                                             <button 
                                                 onClick={() => setIsPoseMultiCharacter(!isPoseMultiCharacter)}
                                                 className={`w-11 h-6 rounded-full transition-all relative ${isPoseMultiCharacter ? 'bg-primary-500' : 'bg-white/10 border border-white/10'}`}
+                                                title="Bật/Tắt chế độ ghép đôi 2 nhân vật"
                                             >
                                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${isPoseMultiCharacter ? 'left-6' : 'left-1'}`} />
                                             </button>
                                         </div>
 
+                                        {isPoseMultiCharacter && (
+                                            <DualCharacterControls
+                                                pairing={poseDualPairing}
+                                                onChangePairing={setPoseDualPairing}
+                                                antiBleedLock={poseDualAntiBleedLock}
+                                                onToggleAntiBleed={setPoseDualAntiBleedLock}
+                                                onSwap={() => handleSwapDualSlots('poseRef1', 'poseRef2')}
+                                            />
+                                        )}
+
                                         {!isPoseMultiCharacter ? (
                                             <FaceReferenceInput 
-                                                label="Biometric Core" 
+                                                label="Biometric Core (Model Đơn)" 
                                                 image={poseRefFaceImage1} 
                                                 personaName={slotPersonaNames['poseRef1']}
+                                                biometricProfile={slotBiometricProfiles['poseRef1']}
+                                                onScanBiometrics={() => handleScanBiometrics('poseRef1')}
+                                                isScanningBiometrics={isScanningBiometrics['poseRef1']}
                                                 onOpenVault={() => { setVaultTargetSlot('poseRef1'); setIsCharacterVaultOpen(true); }}
                                                 onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'poseRef1'); }} 
                                                 onClear={() => applySlotImage('poseRef1', null)} 
@@ -6414,18 +6717,24 @@ const App: React.FC = () => {
                                         ) : (
                                             <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
                                                 <FaceReferenceInput 
-                                                    label="Male Core" 
+                                                    label={getDualSlotLabel(poseDualPairing, 1)}
                                                     image={poseRefFaceImage1} 
                                                     personaName={slotPersonaNames['poseRef1']}
+                                                    biometricProfile={slotBiometricProfiles['poseRef1']}
+                                                    onScanBiometrics={() => handleScanBiometrics('poseRef1')}
+                                                    isScanningBiometrics={isScanningBiometrics['poseRef1']}
                                                     onOpenVault={() => { setVaultTargetSlot('poseRef1'); setIsCharacterVaultOpen(true); }}
                                                     onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'poseRef1'); }} 
                                                     onClear={() => applySlotImage('poseRef1', null)} 
                                                     onDrop={(f) => handleFaceUploadRequest(f, 'poseRef1')} 
                                                 />
                                                 <FaceReferenceInput 
-                                                    label="Female Core" 
+                                                    label={getDualSlotLabel(poseDualPairing, 2)}
                                                     image={poseRefFaceImage2} 
                                                     personaName={slotPersonaNames['poseRef2']}
+                                                    biometricProfile={slotBiometricProfiles['poseRef2']}
+                                                    onScanBiometrics={() => handleScanBiometrics('poseRef2')}
+                                                    isScanningBiometrics={isScanningBiometrics['poseRef2']}
                                                     onOpenVault={() => { setVaultTargetSlot('poseRef2'); setIsCharacterVaultOpen(true); }}
                                                     onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'poseRef2'); }} 
                                                     onClear={() => applySlotImage('poseRef2', null)} 
@@ -6583,40 +6892,66 @@ const App: React.FC = () => {
 
                                 <div className="space-y-3 pt-2 border-t border-white/5">
                                     <div className="flex items-center justify-between px-1">
-                                        <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.15em]">Dual Identity Mode</label>
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.15em]">Dual Identity Mode</label>
+                                                <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 text-[8px] font-bold border border-indigo-500/30">Google Vision</span>
+                                            </div>
+                                            <span className="text-[8px] text-white/30 uppercase">Ghép đôi 2 khuôn mặt độc lập</span>
+                                        </div>
                                         <button 
                                             onClick={() => setIsComposeMultiCharacter(!isComposeMultiCharacter)}
-                                            className={`w-11 h-6 rounded-full transition-all relative ${isComposeMultiCharacter ? 'bg-indigo-500' : 'bg-white/10 border border-white/10'}`}
+                                            className={`w-11 h-6 rounded-full transition-all relative ${isComposeMultiCharacter ? 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'bg-white/10 border border-white/10'}`}
+                                            title="Bật/Tắt chế độ ghép đôi 2 nhân vật"
                                         >
                                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${isComposeMultiCharacter ? 'left-6' : 'left-1'}`} />
                                         </button>
                                     </div>
 
+                                    {isComposeMultiCharacter && (
+                                        <DualCharacterControls
+                                            pairing={composeDualPairing}
+                                            onChangePairing={setComposeDualPairing}
+                                            antiBleedLock={composeDualAntiBleedLock}
+                                            onToggleAntiBleed={setComposeDualAntiBleedLock}
+                                            onSwap={() => handleSwapDualSlots('composeRef1', 'composeRef2')}
+                                        />
+                                    )}
+
                                     {!isComposeMultiCharacter ? (
                                         <FaceReferenceInput 
-                                            label="Biometric Core" 
+                                            label="Biometric Core (Model Đơn)" 
                                             image={composeRefFaceImage1} 
                                             personaName={slotPersonaNames['composeRef1']}
+                                            biometricProfile={slotBiometricProfiles['composeRef1']}
+                                            onScanBiometrics={() => handleScanBiometrics('composeRef1')}
+                                            isScanningBiometrics={isScanningBiometrics['composeRef1']}
                                             onOpenVault={() => { setVaultTargetSlot('composeRef1'); setIsCharacterVaultOpen(true); }}
                                             onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'composeRef1'); }} 
                                             onClear={() => applySlotImage('composeRef1', null)} 
                                             onDrop={(f) => handleFaceUploadRequest(f, 'composeRef1')} 
                                         />
                                     ) : (
-                                        <div className="space-y-3">
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-300">
                                             <FaceReferenceInput 
-                                                label="Male Core" 
+                                                label={getDualSlotLabel(composeDualPairing, 1)}
                                                 image={composeRefFaceImage1} 
                                                 personaName={slotPersonaNames['composeRef1']}
+                                                biometricProfile={slotBiometricProfiles['composeRef1']}
+                                                onScanBiometrics={() => handleScanBiometrics('composeRef1')}
+                                                isScanningBiometrics={isScanningBiometrics['composeRef1']}
                                                 onOpenVault={() => { setVaultTargetSlot('composeRef1'); setIsCharacterVaultOpen(true); }}
                                                 onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'composeRef1'); }} 
                                                 onClear={() => applySlotImage('composeRef1', null)} 
                                                 onDrop={(f) => handleFaceUploadRequest(f, 'composeRef1')} 
                                             />
                                             <FaceReferenceInput 
-                                                label="Female Core" 
+                                                label={getDualSlotLabel(composeDualPairing, 2)}
                                                 image={composeRefFaceImage2} 
                                                 personaName={slotPersonaNames['composeRef2']}
+                                                biometricProfile={slotBiometricProfiles['composeRef2']}
+                                                onScanBiometrics={() => handleScanBiometrics('composeRef2')}
+                                                isScanningBiometrics={isScanningBiometrics['composeRef2']}
                                                 onOpenVault={() => { setVaultTargetSlot('composeRef2'); setIsCharacterVaultOpen(true); }}
                                                 onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'composeRef2'); }} 
                                                 onClear={() => applySlotImage('composeRef2', null)} 
@@ -6733,6 +7068,9 @@ const App: React.FC = () => {
                                     label="Character Reference" 
                                     image={refCharImage} 
                                     personaName={slotPersonaNames['refChar']}
+                                    biometricProfile={slotBiometricProfiles['refChar']}
+                                    onScanBiometrics={() => handleScanBiometrics('refChar')}
+                                    isScanningBiometrics={isScanningBiometrics['refChar']}
                                     onOpenVault={() => { setVaultTargetSlot('refChar'); setIsCharacterVaultOpen(true); }}
                                     onUpload={(e) => { const f=e.target.files?.[0]; if(f) handleFaceUploadRequest(f, 'refChar'); }} 
                                     onClear={() => applySlotImage('refChar', null)} 
@@ -8678,7 +9016,7 @@ const App: React.FC = () => {
         initialUploadFile={vaultInitialUploadFile}
         onSelectAsBiometricCore={(imageUrl, persona) => {
           const target = vaultTargetSlot || 'composeRef1';
-          applySlotImage(target, imageUrl, persona.name);
+          applySlotImage(target, imageUrl, persona.name, undefined, persona);
           showCleanToast(`👑 Đã chọn ${persona.name} làm Biometric Core!`);
         }}
       />
@@ -8708,7 +9046,7 @@ const App: React.FC = () => {
           addPhotoToPersona(personaId, uploadChoiceModalData.base64);
           const personas = getCharacterPersonas();
           const targetPersona = personas.find(p => p.id === personaId);
-          applySlotImage(uploadChoiceModalData.targetSlot, uploadChoiceModalData.base64, targetPersona?.name);
+          applySlotImage(uploadChoiceModalData.targetSlot, uploadChoiceModalData.base64, targetPersona?.name, undefined, targetPersona);
           setUploadChoiceModalData(null);
           showCleanToast(`🖼️ Đã thêm ảnh vào hồ sơ của ${targetPersona?.name || 'người mẫu'}!`);
         }}
