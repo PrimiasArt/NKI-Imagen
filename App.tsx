@@ -54,6 +54,12 @@ import { PromptABCompareModal } from './components/PromptABCompareModal';
 import { PromptSnapshotModal } from './components/PromptSnapshotModal';
 import { CameraTrajectoryVisualizer } from './components/CameraTrajectoryVisualizer';
 import { TimelineStoryboard } from './components/TimelineStoryboard';
+import { VirtualGafferRelightingModal } from './components/VirtualGafferRelightingModal';
+import { VoiceDirectorModal } from './components/VoiceDirectorModal';
+import { Spatial3DViewerModal } from './components/Spatial3DViewerModal';
+import { AestheticDnaBlenderModal } from './components/AestheticDnaBlenderModal';
+import { MultiverseNodeGraphModal } from './components/MultiverseNodeGraphModal';
+import { TalkingActorModal } from './components/TalkingActorModal';
 import { 
   getActivePersona, 
   isConsistencyLockEnabled, 
@@ -483,15 +489,25 @@ const ActionButton = ({ onClick, title, children, colorClass }: { onClick: (e: R
 );
 
 const FunctionalButtonGroup = ({ 
-  onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio 
+  onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onRelight, onSpatial3D 
 }: { 
-  onVeoStart: (e: React.MouseEvent) => void, onVeoEnd: (e: React.MouseEvent) => void, onPose: (e: React.MouseEvent) => void, onCompose: (e: React.MouseEvent) => void, onInspect: (e: React.MouseEvent) => void, onDownload: (e: React.MouseEvent) => void, onUpscale: (e: React.MouseEvent) => void, onUpscale4k: (e: React.MouseEvent) => void, onStudio?: (e: React.MouseEvent) => void 
+  onVeoStart: (e: React.MouseEvent) => void, onVeoEnd: (e: React.MouseEvent) => void, onPose: (e: React.MouseEvent) => void, onCompose: (e: React.MouseEvent) => void, onInspect: (e: React.MouseEvent) => void, onDownload: (e: React.MouseEvent) => void, onUpscale: (e: React.MouseEvent) => void, onUpscale4k: (e: React.MouseEvent) => void, onStudio?: (e: React.MouseEvent) => void, onRelight?: (e: React.MouseEvent) => void, onSpatial3D?: (e: React.MouseEvent) => void 
 }) => (
   <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0 z-20">
     <div className="flex justify-center items-center gap-1.5 w-full">
       {onStudio && (
         <ActionButton onClick={onStudio} title="Photo Studio AI (Chỉnh sửa ảnh)" colorClass="text-emerald-400">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+        </ActionButton>
+      )}
+      {onRelight && (
+        <ActionButton onClick={onRelight} title="Virtual 3D Gaffer (Hắt sáng & Relighting)" colorClass="text-amber-400">
+          <span className="text-[10px]">💡</span>
+        </ActionButton>
+      )}
+      {onSpatial3D && (
+        <ActionButton onClick={onSpatial3D} title="Apple Vision Pro Spatial 3D Converter" colorClass="text-cyan-400">
+          <span className="text-[10px]">🥽</span>
         </ActionButton>
       )}
       <ActionButton onClick={onVeoStart} title="Veo Start" colorClass="text-rose-400">
@@ -2757,6 +2773,16 @@ const App: React.FC = () => {
 
   // 3. Prompt Time-Machine Snapshots & Share Vault Modal
   const [isSnapshotModalOpen, setIsSnapshotModalOpen] = useState(false);
+
+  // Breakthrough Next-Gen Suite Modals (v4.3 / v5.0)
+  const [isRelightingOpen, setIsRelightingOpen] = useState(false);
+  const [isVoiceDirectorOpen, setIsVoiceDirectorOpen] = useState(false);
+  const [isSpatial3DOpen, setIsSpatial3DOpen] = useState(false);
+  const [isDnaBlenderOpen, setIsDnaBlenderOpen] = useState(false);
+  const [isNodeGraphOpen, setIsNodeGraphOpen] = useState(false);
+  const [isTalkingActorOpen, setIsTalkingActorOpen] = useState(false);
+  const [activeSpatial3DImage, setActiveSpatial3DImage] = useState<string | undefined>(undefined);
+  const [activeRelightImage, setActiveRelightImage] = useState<string | undefined>(undefined);
 
   // Check URL hash for shared preset on load (#preset=...)
   useEffect(() => {
@@ -5868,6 +5894,92 @@ const App: React.FC = () => {
                                     </div>
                                 </div>
 
+                                {/* Next-Gen Breakthrough Suite Ribbon (v4.3 / v5.0) */}
+                                <div className="p-2 rounded-2xl bg-gradient-to-r from-slate-900/90 via-slate-950/90 to-slate-900/90 border border-white/10 shadow-lg backdrop-blur-xl flex flex-col gap-2">
+                                    <div className="flex items-center justify-between px-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                                            <span className="text-[10px] font-black text-cyan-300 uppercase tracking-widest">
+                                                NEXT-GEN BREAKTHROUGH SUITE
+                                            </span>
+                                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-cyan-500/10 text-cyan-400/80 border border-cyan-500/20 font-mono">
+                                                visionOS
+                                            </span>
+                                        </div>
+                                        <span className="text-[9px] text-white/30 hidden sm:inline">
+                                            6 Bộ Công Cụ Đột Phá Thế Hệ Mới
+                                        </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                                        {/* 1. Virtual 3D Gaffer & Generative Relighting */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsRelightingOpen(true)}
+                                            className="text-[10px] text-amber-300 hover:text-amber-200 font-semibold flex items-center gap-1.5 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1.5 rounded-xl border border-amber-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            title="Virtual 3D Gaffer & Relighting: Hắt sáng 3D trực quan và tái tạo ánh sáng điện ảnh"
+                                        >
+                                            <span>💡</span>
+                                            <span>3D Relighting</span>
+                                        </button>
+
+                                        {/* 2. AI Voice Director */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsVoiceDirectorOpen(true)}
+                                            className="text-[10px] text-sky-300 hover:text-sky-200 font-semibold flex items-center gap-1.5 transition-all bg-sky-500/15 hover:bg-sky-500/25 px-2.5 py-1.5 rounded-xl border border-sky-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            title="AI Voice Director: Chỉ đạo đạo diễn prompt bằng giọng nói tự nhiên Tiếng Việt/English"
+                                        >
+                                            <span>🎙️</span>
+                                            <span>Voice Director</span>
+                                        </button>
+
+                                        {/* 3. Apple Vision Pro Spatial 3D Converter */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsSpatial3DOpen(true)}
+                                            className="text-[10px] text-cyan-300 hover:text-cyan-200 font-semibold flex items-center gap-1.5 transition-all bg-cyan-500/15 hover:bg-cyan-500/25 px-2.5 py-1.5 rounded-xl border border-cyan-400/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            title="Apple Vision Pro Spatial 3D Converter: Tạo hiệu ứng nghiêng Parallax, Stereo SBS & Kính 3D"
+                                        >
+                                            <span>🥽</span>
+                                            <span>Spatial 3D</span>
+                                        </button>
+
+                                        {/* 4. Neural Aesthetic DNA Blender */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsDnaBlenderOpen(true)}
+                                            className="text-[10px] text-purple-300 hover:text-purple-200 font-semibold flex items-center gap-1.5 transition-all bg-purple-500/15 hover:bg-purple-500/25 px-2.5 py-1.5 rounded-xl border border-purple-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            title="Neural Aesthetic DNA Blender: Lai tạo 4 nhánh gen Màu sắc, Quang học, Chất liệu & Trường phái"
+                                        >
+                                            <span>🧬</span>
+                                            <span>DNA Blender</span>
+                                        </button>
+
+                                        {/* 5. Infinite Multiverse Node Graph */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsNodeGraphOpen(true)}
+                                            className="text-[10px] text-emerald-300 hover:text-emerald-200 font-semibold flex items-center gap-1.5 transition-all bg-emerald-500/15 hover:bg-emerald-500/25 px-2.5 py-1.5 rounded-xl border border-emerald-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            title="Infinite Multiverse Node Graph: Sơ đồ canvas phân nhánh đa vũ trụ sáng tạo"
+                                        >
+                                            <span>🌌</span>
+                                            <span>Multiverse Graph</span>
+                                        </button>
+
+                                        {/* 6. One-Click Talking Character & Emotional Lip-Sync */}
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsTalkingActorOpen(true)}
+                                            className="text-[10px] text-rose-300 hover:text-rose-200 font-semibold flex items-center gap-1.5 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2.5 py-1.5 rounded-xl border border-rose-500/30 active:scale-95 shadow-sm whitespace-nowrap"
+                                            title="One-Click Talking Character & Emotional Lip-Sync: Chuyển đổi chân dung thành video nói chuyện Veo 3"
+                                        >
+                                            <span>🗣️</span>
+                                            <span>Talking Character</span>
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <JsonPromptEditor 
                                     value={jsonInput} 
                                     onChange={(val) => updateJsonInput(val)} 
@@ -6034,12 +6146,20 @@ const App: React.FC = () => {
                                             >
                                                 <img src={src} className="w-full h-auto object-cover image-render-reveal rounded-xl" alt="Generated" />
                                                 <FunctionalButtonGroup 
+                                                  onStudio={() => handleOpenStudio(src)}
+                                                  onRelight={() => {
+                                                    setActiveRelightImage(src);
+                                                    setIsRelightingOpen(true);
+                                                  }}
+                                                  onSpatial3D={() => {
+                                                    setActiveSpatial3DImage(src);
+                                                    setIsSpatial3DOpen(true);
+                                                  }}
                                                   onVeoStart={() => handleUseAsVeoStart(src)} 
                                                   onVeoEnd={() => handleUseAsVeoEnd(src)} 
                                                   onPose={() => handleUseAsPoseBase(src)} 
                                                   onCompose={() => handleUseInCompose(src)} 
                                                   onInspect={() => handleInspectImage(src)} 
-                                                  onStudio={() => handleOpenStudio(src)}
                                                   onDownload={() => handleDownloadImage(src, JSON.parse(jsonInput).subject)} 
                                                   onUpscale={() => handleUpscale(src, false)}
                                                   onUpscale4k={() => {
@@ -8297,6 +8417,96 @@ const App: React.FC = () => {
         onRestoreSnapshot={(restored) => {
           updateJsonInput(JSON.stringify(restored, null, 2));
           showCleanToast('↶ Đã khôi phục bản snapshot thành công!');
+        }}
+      />
+
+      {/* 1. Virtual 3D Gaffer & Generative Relighting Modal */}
+      <VirtualGafferRelightingModal
+        isOpen={isRelightingOpen}
+        onClose={() => {
+          setIsRelightingOpen(false);
+          setActiveRelightImage(undefined);
+        }}
+        initialImageSrc={activeRelightImage || generatedImages[0]}
+        galleryImages={generatedImages}
+        onApplyPrompt={(relitPrompt) => {
+          updateJsonInput(JSON.stringify(relitPrompt, null, 2));
+          showCleanToast('💡 Đã cập nhật công thức ánh sáng 3D vào Studio!');
+        }}
+      />
+
+      {/* 2. AI Voice Director Modal */}
+      <VoiceDirectorModal
+        isOpen={isVoiceDirectorOpen}
+        onClose={() => setIsVoiceDirectorOpen(false)}
+        currentPromptJson={(() => {
+          try { return JSON.parse(jsonInput); }
+          catch { return DEFAULT_JSON; }
+        })()}
+        onApplyPromptDelta={(updated) => {
+          updateJsonInput(JSON.stringify(updated, null, 2));
+          showCleanToast('🎙️ Giọng nói AI đã điều chỉnh prompt thành công!');
+        }}
+      />
+
+      {/* 3. Apple Vision Pro Spatial 3D Converter Modal */}
+      <Spatial3DViewerModal
+        isOpen={isSpatial3DOpen}
+        onClose={() => {
+          setIsSpatial3DOpen(false);
+          setActiveSpatial3DImage(undefined);
+        }}
+        initialImageSrc={activeSpatial3DImage || generatedImages[0]}
+        galleryImages={generatedImages}
+      />
+
+      {/* 4. Neural Aesthetic DNA Blender Modal */}
+      <AestheticDnaBlenderModal
+        isOpen={isDnaBlenderOpen}
+        onClose={() => setIsDnaBlenderOpen(false)}
+        galleryImages={generatedImages}
+        currentSubject={(() => {
+          try { return JSON.parse(jsonInput).subject || ''; }
+          catch { return ''; }
+        })()}
+        onApplyDna={(mergedJson) => {
+          updateJsonInput(JSON.stringify(mergedJson, null, 2));
+          showCleanToast('🧬 Đã nạp ma trận DNA thẩm mỹ vào Studio!');
+        }}
+      />
+
+      {/* 5. Infinite Multiverse Node Graph Modal */}
+      <MultiverseNodeGraphModal
+        isOpen={isNodeGraphOpen}
+        onClose={() => setIsNodeGraphOpen(false)}
+        currentPromptText={(() => {
+          try { return JSON.parse(jsonInput).subject || jsonInput; }
+          catch { return jsonInput; }
+        })()}
+        currentThumbnail={generatedImages[0]}
+        onSelectPrompt={(selectedText) => {
+          try {
+            const curr = JSON.parse(jsonInput);
+            curr.subject = selectedText;
+            updateJsonInput(JSON.stringify(curr, null, 2));
+          } catch {
+            updateJsonInput(selectedText);
+          }
+          showCleanToast('🌌 Đã tải nhánh Đa Vũ Trụ vào Studio!');
+        }}
+      />
+
+      {/* 6. One-Click Talking Character & Emotional Lip-Sync Modal */}
+      <TalkingActorModal
+        isOpen={isTalkingActorOpen}
+        onClose={() => setIsTalkingActorOpen(false)}
+        initialImageSrc={generatedImages[0]}
+        galleryImages={generatedImages}
+        onSendToVeo={(veoPrompt) => {
+          setVeoUserPrompt(veoPrompt);
+          setActiveTab(AppMode.VEO3_PROMPT_CREATOR);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          showCleanToast('🎬 Đã chuyển chỉ thị khẩu hình sang Veo 3 Studio!');
         }}
       />
 
