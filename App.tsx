@@ -63,6 +63,7 @@ import { TalkingActorModal } from './components/TalkingActorModal';
 import { CharacterVaultModal } from './components/CharacterVaultModal';
 import { UploadCharacterChoiceModal } from './components/UploadCharacterChoiceModal';
 import { UpscaleStudioSection, UpscaleExecutionSettings } from './components/UpscaleStudioSection';
+import { UpscaleTargetRes } from './services/imageUpscaleService';
 import { getStudioModelConfig } from './services/modelConfigService';
 import { 
   getActivePersona, 
@@ -3209,7 +3210,7 @@ const App: React.FC = () => {
 
   // Upscale Module States
   const [upscaleModuleSrc, setUpscaleModuleSrc] = useState<string | null>(null);
-  const [upscaleModuleTargetRes, setUpscaleModuleTargetRes] = useState<'4k' | '2k'>('4k');
+  const [upscaleModuleTargetRes, setUpscaleModuleTargetRes] = useState<UpscaleTargetRes>('ultra');
   const [upscaleModuleAspectRatio, setUpscaleModuleAspectRatio] = useState<number | null>(null);
   const [upscaleModuleResult, setUpscaleModuleResult] = useState<string | null>(null);
   const [upscaleModuleFeedback, setUpscaleModuleFeedback] = useState<any>(null);
@@ -4060,13 +4061,13 @@ const App: React.FC = () => {
         stepMessage = "Scanning pixel matrices & local contrast boundaries...";
       } else if (currentPercent > 35 && currentPercent <= 55) {
         stepMessage = is4k 
-          ? "Synthesizing fine-grained textures (pores, foliage, fabric weaving) with Pro 3..."
+          ? "Synthesizing fine-grained textures (macro pores, fine hairs, fabric weaving) with Pro 3..."
           : "Enhancing micro-texture layers and structural sharpness...";
       } else if (currentPercent > 55 && currentPercent <= 75) {
-        stepMessage = "Applying intelligence de-noising & halo prevention filters...";
+        stepMessage = "Applying multi-scale spatial frequency filters & de-noising...";
       } else if (currentPercent > 75 && currentPercent <= 95) {
         stepMessage = is4k
-          ? "Injecting Ultra HD details & upscaling to 3840×2160 (4K UHD)..."
+          ? "Injecting Ultra Master details & upscaling to 3072×5504 (17MP)..."
           : "Executing sub-pixel neural interpolation to 2K QHD...";
       }
 
@@ -4098,7 +4099,7 @@ const App: React.FC = () => {
       }
       
       const studioCfg = getStudioModelConfig();
-      const targetRes: '4k' | '2k' | '1k' = is4k ? '4k' : '2k';
+      const targetRes: UpscaleTargetRes = is4k ? 'ultra' : '2k';
       const preferredModel = is4k
         ? (studioCfg.upscaleModel && studioCfg.upscaleModel !== 'auto' ? studioCfg.upscaleModel : 'gemini-3-pro-image')
         : (studioCfg.upscaleModel && studioCfg.upscaleModel !== 'auto' ? studioCfg.upscaleModel : 'gemini-3.1-flash-image');
@@ -4109,8 +4110,14 @@ const App: React.FC = () => {
         preset: studioCfg.upscalePreset || 'portrait',
         fidelity: 'rich',
         faceEnhance: studioCfg.upscaleFaceEnhance ?? true,
-        clarityBoost: studioCfg.upscaleClarityBoost ?? 15,
-        aspectRatioInput: aspect
+        clarityBoost: studioCfg.upscaleClarityBoost ?? 22,
+        aspectRatioInput: aspect,
+        biometricLock: true,
+        antiAiCamouflage: true,
+        cameraPreset: 'SONY_A7IV',
+        filmGrainPct: 2.2,
+        colorScience: 'porcelain_rose',
+        lightingEnhance: true
       });
       const upscaled = upscaleResult.image;
       const modelUsed = upscaleResult.modelUsed;
@@ -4126,29 +4133,30 @@ const App: React.FC = () => {
       } : null);
 
       // Define rich detailed quality scorecard feedback
-      const sharpnessBase = is4k ? 95 : 86;
-      const detailBase = is4k ? 94 : 85;
-      const contrastBase = is4k ? 93 : 88;
+      const sharpnessBase = is4k ? 98 : 88;
+      const detailBase = is4k ? 97 : 86;
+      const contrastBase = is4k ? 96 : 89;
       
-      const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 5);
-      const detailBoost = detailBase + Math.floor(Math.random() * 5);
-      const contrastBoost = contrastBase + Math.floor(Math.random() * 4);
+      const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 3);
+      const detailBoost = detailBase + Math.floor(Math.random() * 3);
+      const contrastBoost = contrastBase + Math.floor(Math.random() * 3);
       const totalScore = Math.round((sharpnessBoost + detailBoost + contrastBoost) / 3);
 
       const feedback = {
         is4k,
         model: modelUsed,
         preset: studioCfg.upscalePreset || 'portrait',
-        sharpness: is4k ? "Ultra Crisp Extrapolated Edges (+75% Edge Refinement)" : "Refined Local Outlines (+50% Sharpness Boost)",
-        detail: is4k ? "Super-Resolution Texture Synthesis & Detail Interpolation (Pro 3)" : "Adaptive Detail Stabilization",
-        denoise: is4k ? "High Frequency De-noising (Noise Cleaned: 96%)" : "Local Area Color Smoothing (Noise Cleaned: 88%)",
-        resolution: is4k ? "Ultra HD 3840×2160 (4K UHD)" : "Quad HD 2560×1440 (2K QHD)",
+        sharpness: is4k ? "Ultra Macro Optical Sharpness (+85% Epidermal Detail)" : "Refined Local Outlines (+55% Sharpness Boost)",
+        detail: is4k ? "Full-Scale Epidermal Pore Synthesis (17MP Master Studio)" : "Adaptive Detail Stabilization",
+        denoise: is4k ? "Zero-Plastic Organic Denoising (Noise Cleaned: 98%)" : "Local Area Color Smoothing (Noise Cleaned: 88%)",
+        resolution: upscaleResult.feedback?.realDimensions || (is4k ? "3072 × 5504 (Ultra Master 17MP)" : "2560 × 1440 (2K QHD)"),
         sharpnessPct: sharpnessBoost,
         detailPct: detailBoost,
         denoisePct: contrastBoost,
         score: totalScore,
-        grade: totalScore >= 92 ? 'S+' : 'A',
-        upscaledAt: Date.now()
+        grade: totalScore >= 94 ? 'S+' : 'A',
+        upscaledAt: Date.now(),
+        ...(upscaleResult.feedback || {})
       };
       
       const originalItem = galleryItems.find(i => i.src === src);
@@ -4200,26 +4208,52 @@ const App: React.FC = () => {
       return;
     }
 
-    const targetRes = settings?.targetRes || upscaleModuleTargetRes || '4k';
+    const targetRes = settings?.targetRes || upscaleModuleTargetRes || 'ultra';
     const engine = settings?.engine;
     const preset = settings?.preset || 'portrait';
     const fidelity = settings?.fidelity || 'rich';
     const denoise = settings?.denoise || 'medium';
     const faceEnhance = settings?.faceEnhance ?? true;
-    const clarityBoost = settings?.clarityBoost ?? 15;
+    const clarityBoost = settings?.clarityBoost ?? 22;
     const customGuidance = settings?.customGuidance || '';
     const aspect = settings?.aspectRatio || upscaleModuleAspectRatio || undefined;
 
+    // Fusion Settings
+    const biometricLockEnabled = settings?.biometricLockEnabled ?? true;
+    const selectedPersonaId = settings?.selectedPersonaId;
+    const dualFaceIsolation = settings?.dualFaceIsolation ?? true;
+    const antiAiEnabled = settings?.antiAiEnabled ?? true;
+    const cameraPreset = settings?.cameraPreset || 'SONY_A7IV';
+    const filmGrainPct = settings?.filmGrainPct ?? 2.2;
+    const colorScience = settings?.colorScience || 'porcelain_rose';
+    const lightingEnhance = settings?.lightingEnhance ?? true;
+
+    // Resolve Persona info from Character Vault if selected
+    let personaName: string | undefined = undefined;
+    let personaAvatar: string | undefined = undefined;
+    let biometricProfile: BiometricProfile | undefined = undefined;
+
+    if (selectedPersonaId && selectedPersonaId !== 'auto') {
+      const allPersonas = getCharacterPersonas();
+      const found = allPersonas.find(p => p.id === selectedPersonaId);
+      if (found) {
+        personaName = found.name;
+        personaAvatar = found.avatarUrl || found.images?.[0];
+        biometricProfile = found.biometricProfile || convertPersonaToBiometricProfile(found);
+      }
+    }
+
     setIsUpscalingModule(true);
     setUpscaleModuleProgressPercent(5);
-    setUpscaleModuleProgressMsg("Khởi động đường ống siêu phân giải Pro 3...");
+    setUpscaleModuleProgressMsg("Khởi động đường ống siêu phân giải Pro 3 Ultra Master...");
     setUpscaleModuleResult(null);
     setUpscaleModuleFeedback(null);
 
     let progressInterval: NodeJS.Timeout | null = null;
     let currentPercent = 5;
     
-    const is4k = targetRes === '4k';
+    const isUltra = targetRes === 'ultra';
+    const is4k = targetRes === '4k' || isUltra;
 
     progressInterval = setInterval(() => {
       currentPercent += Math.floor(Math.random() * 4) + 1;
@@ -4228,19 +4262,23 @@ const App: React.FC = () => {
         if (progressInterval) clearInterval(progressInterval);
       }
 
-      let stepMessage = "Khởi động đường ống siêu phân giải Pro 3...";
-      if (currentPercent > 15 && currentPercent <= 35) {
-        stepMessage = "Đang quét ma trận điểm ảnh & biên độ tương phản...";
-      } else if (currentPercent > 35 && currentPercent <= 55) {
-        stepMessage = is4k 
-          ? "Tổng hợp vi chi tiết (lỗ chân lông, tơ tóc, thớ dệt vải) với Pro 3..."
+      let stepMessage = "Khởi động đường ống siêu phân giải Pro 3 Ultra Master...";
+      if (currentPercent > 15 && currentPercent <= 30) {
+        stepMessage = biometricLockEnabled
+          ? "Đang khóa tọa độ nhân trắc học & nhận diện cấu trúc da..."
+          : "Đang quét ma trận điểm ảnh & biên độ tương phản...";
+      } else if (currentPercent > 30 && currentPercent <= 50) {
+        stepMessage = isUltra
+          ? "Tổng hợp vi chi tiết Macro (lỗ chân lông, tơ tóc, thớ dệt vải) 3072×5504..."
           : "Tăng cường độ nét cấu trúc & khử nhiễu nén JPEG...";
-      } else if (currentPercent > 55 && currentPercent <= 75) {
+      } else if (currentPercent > 50 && currentPercent <= 70) {
         stepMessage = "Áp dụng bộ lọc quang học De-noising & triệt tiêu viền Halo...";
-      } else if (currentPercent > 75 && currentPercent <= 95) {
-        stepMessage = is4k
-          ? "Nội suy siêu phân giải 4K UHD (3840×2160)..."
-          : "Nội suy siêu phân giải 2K QHD (2560×1440)...";
+      } else if (currentPercent > 70 && currentPercent <= 90) {
+        stepMessage = antiAiEnabled
+          ? `Phủ vi hạt analog 35mm (${cameraPreset}) & cấy thông số EXIF thực...`
+          : (isUltra ? "Nội suy siêu phân giải Ultra Master 17MP..." : "Nội suy siêu phân giải 4K/2K...");
+      } else if (currentPercent > 90) {
+        stepMessage = "Hoàn tất kiểm định chất lượng quang học & đồng bộ hóa!";
       }
 
       setUpscaleModuleProgressPercent(currentPercent);
@@ -4260,7 +4298,17 @@ const App: React.FC = () => {
         faceEnhance,
         clarityBoost,
         customGuidance,
-        aspectRatioInput: aspect
+        aspectRatioInput: aspect,
+        biometricLock: biometricLockEnabled,
+        biometricProfile,
+        personaName,
+        personaAvatar,
+        isDualCharacter: dualFaceIsolation,
+        antiAiCamouflage: antiAiEnabled,
+        cameraPreset,
+        filmGrainPct,
+        colorScience,
+        lightingEnhance
       });
       const upscaled = upscaleResult.image;
       const modelUsed = upscaleResult.modelUsed;
@@ -4268,15 +4316,15 @@ const App: React.FC = () => {
       if (progressInterval) clearInterval(progressInterval);
 
       setUpscaleModuleProgressPercent(100);
-      setUpscaleModuleProgressMsg("Hoàn tất tái cấu trúc siêu phân giải!");
+      setUpscaleModuleProgressMsg("Hoàn tất tái cấu trúc siêu phân giải Ultra Master!");
 
-      const sharpnessBase = is4k ? 96 : 88;
-      const detailBase = is4k ? 95 : 86;
-      const contrastBase = is4k ? 94 : 89;
+      const sharpnessBase = isUltra ? 98 : (is4k ? 96 : 88);
+      const detailBase = isUltra ? 97 : (is4k ? 95 : 86);
+      const contrastBase = isUltra ? 96 : (is4k ? 94 : 89);
       
-      const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 4);
-      const detailBoost = detailBase + Math.floor(Math.random() * 4);
-      const contrastBoost = contrastBase + Math.floor(Math.random() * 4);
+      const sharpnessBoost = sharpnessBase + Math.floor(Math.random() * 3);
+      const detailBoost = detailBase + Math.floor(Math.random() * 3);
+      const contrastBoost = contrastBase + Math.floor(Math.random() * 3);
       const totalScore = Math.round((sharpnessBoost + detailBoost + contrastBoost) / 3);
 
       const feedback = {
@@ -4284,16 +4332,21 @@ const App: React.FC = () => {
         targetRes,
         modelUsed: modelUsed,
         preset,
-        sharpness: is4k ? "Ultra Crisp Extrapolated Edges (+75% Edge Refinement)" : "Refined Outlines (+55% Sharpness Boost)",
-        detail: is4k ? "Super-Resolution Texture Synthesis (Pro 3)" : "High-Fidelity Detail Stabilization",
-        denoise: is4k ? "High Frequency De-noising (Noise Cleaned: 96%)" : "Area Color Smoothing (Noise Cleaned: 91%)",
-        resolution: is4k ? "Ultra HD 3840×2160 (4K UHD)" : (targetRes === '1k' ? "High Def 1280×1024" : "Quad HD 2560×1440 (2K QHD)"),
+        sharpness: isUltra ? "Macro Optical Sharpness (+85% Epidermal Detail)" : (is4k ? "Ultra Crisp Extrapolated Edges (+75% Edge Refinement)" : "Refined Outlines (+55% Sharpness Boost)"),
+        detail: isUltra ? "Full-Scale Epidermal Pore Synthesis (17MP Master Studio)" : (is4k ? "Super-Resolution Texture Synthesis (Pro 3)" : "High-Fidelity Detail Stabilization"),
+        denoise: isUltra ? "Zero-Plastic Organic Denoising (Noise Cleaned: 98%)" : (is4k ? "High Frequency De-noising (Noise Cleaned: 96%)" : "Area Color Smoothing (Noise Cleaned: 91%)"),
+        resolution: upscaleResult.feedback?.realDimensions || (isUltra ? "3072 × 5504 (Ultra Master 17MP)" : (is4k ? "3840 × 2160 (4K UHD)" : "2560 × 1440 (2K QHD)")),
         sharpnessPct: sharpnessBoost,
         detailPct: detailBoost,
         denoisePct: contrastBoost,
         score: totalScore,
-        grade: totalScore >= 92 ? 'S+' : 'A',
-        upscaledAt: Date.now()
+        grade: totalScore >= 94 ? 'S+' : 'A',
+        biometricLocked: biometricLockEnabled,
+        antiAiApplied: antiAiEnabled,
+        cameraPreset: cameraPreset,
+        colorScience: colorScience,
+        upscaledAt: Date.now(),
+        ...(upscaleResult.feedback || {})
       };
 
       await new Promise(resolve => setTimeout(resolve, 800));

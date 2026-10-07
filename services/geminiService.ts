@@ -1,18 +1,22 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ImagePromptJson, ScriptScene, BiometricProfile, DualCharacterPairing } from "../types";
+import { ImagePromptJson, ScriptScene, BiometricProfile, DualCharacterPairing, CameraPresetType } from "../types";
 import { rateLimitTracker, RateLimitState } from "./rateLimitService";
 import { recordSuccessfulGenerationPrompt } from "./promptHistoryService";
 import { buildDualBiometricPromptProtocol, buildSingleBiometricPromptDirective } from "./biometricCoreService";
 import { 
   buildEnhancedUpscalePrompt, 
   applyMicroContrastClarity,
+  computeTargetResolutionDimensions,
+  rescaleCanvasToTargetResolution,
   UpscaleTargetRes,
   UpscaleModelId,
   UpscalePresetId,
   UpscaleFidelityLevel,
-  UpscaleDenoiseLevel
+  UpscaleDenoiseLevel,
+  UpscaleColorScience
 } from "./imageUpscaleService";
+import { applyAntiAiCamouflage } from "./antiAiCamouflageService";
 
 // Dynamic Google Gemini API Key Management for Standalone Execution
 export const getGeminiApiKey = (): string => {
@@ -1333,7 +1337,7 @@ export const generateVeo3Prompt = async (userPrompt: string, startImageBase64?: 
 
 /**
 export interface UpscaleImageOptions {
-    targetRes?: '4k' | '2k' | '1k';
+    targetRes?: UpscaleTargetRes;
     customModel?: string;
     preset?: UpscalePresetId;
     fidelity?: UpscaleFidelityLevel;
@@ -1342,6 +1346,20 @@ export interface UpscaleImageOptions {
     clarityBoost?: number;
     customGuidance?: string;
     aspectRatioInput?: number | string;
+
+    // --- All-in-One Fusion Directives ---
+    biometricLock?: boolean;
+    biometricProfile?: BiometricProfile;
+    personaName?: string;
+    personaAvatar?: string;
+    isDualCharacter?: boolean;
+    characterAProfile?: BiometricProfile;
+    characterBProfile?: BiometricProfile;
+    antiAiCamouflage?: boolean;
+    cameraPreset?: CameraPresetType;
+    filmGrainPct?: number;
+    colorScience?: UpscaleColorScience;
+    lightingEnhance?: boolean;
 }
 
 /**
@@ -1394,18 +1412,18 @@ export const getStandardAspectRatio = (
 
 /**
  * Upscales an image using either a standard or high-quality engine with robust automatic fallbacks.
- * Prioritizes Gemini 3 Pro for 4K / Pro Tier and respects specialized domain presets.
+ * Prioritizes Gemini 3 Pro & Gemini 3.1 Flash for 4K / Ultra Master Tier and respects specialized domain presets.
  */
 export const upscaleImage = async (
     base64Image: string, 
     mimeType: string, 
-    is4kOrResOrOptions: '4k' | '2k' | '1k' | boolean | UpscaleImageOptions = false, 
+    is4kOrResOrOptions: 'ultra' | '4k' | '2k' | '1k' | boolean | UpscaleImageOptions = false, 
     customModelParam?: string,
     aspectRatioParam?: number | string
 ): Promise<{ image: string; modelUsed: string; feedback?: any }> => {
     trackRequest(2500, "Upscale Image");
     
-    let targetRes: '4k' | '2k' | '1k' = '2k';
+    let targetRes: UpscaleTargetRes = 'ultra';
     let chosenModel: string | undefined = customModelParam;
     let preset: UpscalePresetId = 'portrait';
     let fidelity: UpscaleFidelityLevel = 'rich';
@@ -1415,8 +1433,22 @@ export const upscaleImage = async (
     let customGuidance = '';
     let aspectInput: number | string | undefined = aspectRatioParam;
 
+    // Fusion parameters
+    let biometricLock = true;
+    let biometricProfile: BiometricProfile | undefined = undefined;
+    let personaName: string | undefined = undefined;
+    let personaAvatar: string | undefined = undefined;
+    let isDualCharacter = false;
+    let characterAProfile: BiometricProfile | undefined = undefined;
+    let characterBProfile: BiometricProfile | undefined = undefined;
+    let antiAiCamouflage = true;
+    let cameraPreset: CameraPresetType = 'SONY_A7IV';
+    let filmGrainPct = 2.2;
+    let colorScience: UpscaleColorScience = 'porcelain_rose';
+    let lightingEnhance = true;
+
     if (typeof is4kOrResOrOptions === 'object' && is4kOrResOrOptions !== null) {
-        targetRes = is4kOrResOrOptions.targetRes || '4k';
+        targetRes = is4kOrResOrOptions.targetRes || 'ultra';
         chosenModel = is4kOrResOrOptions.customModel || chosenModel;
         preset = is4kOrResOrOptions.preset || 'portrait';
         fidelity = is4kOrResOrOptions.fidelity || 'rich';
@@ -1425,8 +1457,23 @@ export const upscaleImage = async (
         clarityBoost = is4kOrResOrOptions.clarityBoost ?? 0;
         customGuidance = is4kOrResOrOptions.customGuidance || '';
         aspectInput = is4kOrResOrOptions.aspectRatioInput ?? aspectInput;
+
+        biometricLock = is4kOrResOrOptions.biometricLock ?? true;
+        biometricProfile = is4kOrResOrOptions.biometricProfile;
+        personaName = is4kOrResOrOptions.personaName;
+        personaAvatar = is4kOrResOrOptions.personaAvatar;
+        isDualCharacter = is4kOrResOrOptions.isDualCharacter ?? false;
+        characterAProfile = is4kOrResOrOptions.characterAProfile;
+        characterBProfile = is4kOrResOrOptions.characterBProfile;
+        antiAiCamouflage = is4kOrResOrOptions.antiAiCamouflage ?? true;
+        cameraPreset = is4kOrResOrOptions.cameraPreset || 'SONY_A7IV';
+        filmGrainPct = is4kOrResOrOptions.filmGrainPct ?? 2.2;
+        colorScience = is4kOrResOrOptions.colorScience || 'porcelain_rose';
+        lightingEnhance = is4kOrResOrOptions.lightingEnhance ?? true;
     } else {
-        if (is4kOrResOrOptions === '4k' || is4kOrResOrOptions === true) {
+        if (is4kOrResOrOptions === 'ultra') {
+            targetRes = 'ultra';
+        } else if (is4kOrResOrOptions === '4k' || is4kOrResOrOptions === true) {
             targetRes = '4k';
         } else if (is4kOrResOrOptions === '1k') {
             targetRes = '1k';
@@ -1435,22 +1482,24 @@ export const upscaleImage = async (
         }
     }
 
-    const is4k = targetRes === '4k';
+    const isUltra = targetRes === 'ultra';
+    const is4k = targetRes === '4k' || isUltra;
     const is1k = targetRes === '1k';
 
-    // Model selection priority: Gemini 3 Pro is Google's flagship engine for 4K / Studio Quality
+    // Model selection priority:
+    // IMPORTANT: For 4K / Ultra Master (3072x5504), STRICTLY restrict to 4K engines (Gemini 3 Pro Image or Gemini 3.1 Flash Image).
+    // NEVER fall back to Gemini 3.1 Flash Lite because Flash Lite only supports 1K (768px) and results in blurry, smoothed-out faces!
     let modelsToTry: string[];
     if (chosenModel && chosenModel !== 'auto') {
         modelsToTry = [chosenModel];
         if (chosenModel === 'gemini-3-pro-image') {
-            modelsToTry.push('gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image');
+            modelsToTry.push('gemini-3.1-flash-image');
         } else if (chosenModel === 'gemini-3.1-flash-image') {
-            modelsToTry.push('gemini-3-pro-image', 'gemini-3.1-flash-lite-image');
+            modelsToTry.push('gemini-3-pro-image');
         }
     } else {
         if (is4k) {
-            // Priority for 4K: Gemini 3 Pro Image provides maximum detail & texture fidelity
-            modelsToTry = ['gemini-3-pro-image', 'gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image'];
+            modelsToTry = ['gemini-3-pro-image', 'gemini-3.1-flash-image'];
         } else {
             modelsToTry = ['gemini-3.1-flash-image', 'gemini-3-pro-image', 'gemini-3.1-flash-lite-image'];
         }
@@ -1462,7 +1511,15 @@ export const upscaleImage = async (
         fidelity,
         denoise,
         faceEnhance,
-        customGuidance
+        customGuidance,
+        biometricLock,
+        biometricProfile,
+        personaName,
+        isDualCharacter,
+        characterAProfile,
+        characterBProfile,
+        colorScience,
+        lightingEnhance
     });
 
     const standardAspect = getStandardAspectRatio(aspectInput);
@@ -1487,10 +1544,29 @@ export const upscaleImage = async (
                 };
             }
             
-            const inline = prepareInlineData(base64Image, mimeType);
             const parts: any[] = [];
-            if (inline) parts.push(inline);
+
+            // Add text prompt first so model understands its role as Director of Photography & Raw Sensor Upscaler
             parts.push({ text: promptText });
+
+            // If a character persona avatar was provided from Character Vault, inject it as reference identity
+            if (personaAvatar) {
+                try {
+                    const compressedAvatar = await compressBase64Image(personaAvatar, 768, 0.85);
+                    const avInline = prepareInlineData(compressedAvatar, 'image/jpeg');
+                    if (avInline) {
+                        parts.push({ text: "IDENTITY REFERENCE FACE FROM CHARACTER VAULT (Preserve this exact facial bone structure, eyes, and markings):" });
+                        parts.push(avInline);
+                    }
+                } catch (avErr) {
+                    console.warn('[Upscale] Failed to prepare persona avatar:', avErr);
+                }
+            }
+
+            // Provide source image to be super-resolved
+            parts.push({ text: "SOURCE IMAGE TO BE RESTORED & SUPER-RESOLVED (Maintain composition, lighting, pose, and frame):" });
+            const inline = prepareInlineData(base64Image, mimeType);
+            if (inline) parts.push(inline);
 
             const client = getGeminiClient();
             const response = await callWithRetry(() => client.models.generateContent({
@@ -1505,12 +1581,38 @@ export const upscaleImage = async (
                         const outMime = part.inlineData.mimeType || 'image/png';
                         let finalImage = `data:${outMime};base64,${part.inlineData.data}`;
                         
-                        // Apply optional browser-native micro-contrast clarity boost if configured
-                        if (clarityBoost > 0) {
+                        // 1. Rescale to target pixel dimensions (e.g. 3072 × 5504 for Ultra Master 9:16)
+                        const targetDims = computeTargetResolutionDimensions(aspectInput, targetRes);
+                        try {
+                            finalImage = await rescaleCanvasToTargetResolution(finalImage, targetDims.width, targetDims.height);
+                        } catch (rErr) {
+                            console.warn('[Upscale] Canvas resolution alignment skipped:', rErr);
+                        }
+
+                        // 2. Multi-Scale Luminance Micro-Contrast & Texture Clarity Filter
+                        const effectiveClarity = clarityBoost > 0 ? clarityBoost : (isUltra ? 22 : 18);
+                        try {
+                            finalImage = await applyMicroContrastClarity(finalImage, effectiveClarity);
+                        } catch (cErr) {
+                            console.warn('[Upscale] Multi-scale micro-contrast boost skipped:', cErr);
+                        }
+
+                        // 3. Anti-AI Camouflage & Organic Film Grain (Leica / Sony A7IV sensor grain & EXIF)
+                        let antiAiApplied = false;
+                        if (antiAiCamouflage) {
                             try {
-                                finalImage = await applyMicroContrastClarity(finalImage, clarityBoost);
-                            } catch (cErr) {
-                                console.warn('[Upscale] Clarity boost skipped:', cErr);
+                                const camResult = await applyAntiAiCamouflage(finalImage, {
+                                    enabled: true,
+                                    grainIntensity: (filmGrainPct / 100),
+                                    cameraPreset: cameraPreset,
+                                    stripMetadata: true
+                                });
+                                if (camResult.applied) {
+                                    finalImage = camResult.dataUrl;
+                                    antiAiApplied = true;
+                                }
+                            } catch (aErr) {
+                                console.warn('[Upscale] Anti-AI camouflage skipped:', aErr);
                             }
                         }
 
@@ -1519,10 +1621,15 @@ export const upscaleImage = async (
                             modelUsed: model,
                             feedback: {
                                 targetRes,
+                                realDimensions: `${targetDims.width} × ${targetDims.height}`,
                                 modelUsed: model,
                                 preset,
                                 fidelity,
-                                clarityBoost,
+                                clarityBoost: effectiveClarity,
+                                biometricLocked: biometricLock,
+                                antiAiApplied,
+                                filmGrainPct,
+                                colorScience,
                                 upscaledAt: Date.now()
                             }
                         };
