@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import JSZip from 'jszip';
 import { GalleryItem, CharacterPersona, CameraPresetType } from '../types';
 import {
   UpscaleTargetRes,
@@ -13,9 +14,21 @@ import {
   getUpscaleStudioSettings,
   saveUpscaleStudioSettings
 } from '../services/imageUpscaleService';
-import { fileToBase64, imageUrlToBase64 } from '../services/geminiService';
+import { fileToBase64, imageUrlToBase64, upscaleImage } from '../services/geminiService';
 import { getCharacterPersonas } from '../services/consistencyService';
 import { CAMERA_PROFILES } from '../services/antiAiCamouflageService';
+
+export interface BatchQueueItem {
+  id: string;
+  name: string;
+  src: string;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  progress: number;
+  resultUrl?: string;
+  error?: string;
+  dimensions?: { width: number; height: number };
+  aspectRatio?: number;
+}
 
 export interface UpscaleExecutionSettings {
   targetRes: UpscaleTargetRes;
@@ -118,6 +131,228 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
   const [isFusionOpen, setIsFusionOpen] = useState(true);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
+  // --- BATCH SUPER-RESOLUTION 5.5K STATES ---
+  const [studioMode, setStudioMode] = useState<'single' | 'batch'>('single');
+  const [batchQueue, setBatchQueue] = useState<BatchQueueItem[]>([]);
+  const [isBatchRunning, setIsBatchRunning] = useState<boolean>(false);
+  const [coolingCountdown, setCoolingCountdown] = useState<number>(0);
+  const [isExportingBatchZip, setIsExportingBatchZip] = useState<boolean>(false);
+  const [isGalleryPickerOpen, setIsGalleryPickerOpen] = useState<boolean>(false);
+  const [selectedGalleryItemIds, setSelectedGalleryItemIds] = useState<Set<string>>(new Set());
+  const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
+  const stopBatchRef = useRef<boolean>(false);
+
+  // File adding to queue
+  const handleAddBatchFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    const newItems: BatchQueueItem[] = [];
+
+    for (const file of list) {
+      if (!file.type.startsWith('image/')) continue;
+      try {
+        const b64 = await fileToBase64(file);
+        const dataUrl = `data:${file.type};base64,${b64}`;
+        const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve({ width: img.naturalWidth || 1024, height: img.naturalHeight || 1024 });
+          img.onerror = () => resolve({ width: 1024, height: 1024 });
+          img.src = dataUrl;
+        });
+
+        newItems.push({
+          id: crypto.randomUUID(),
+          name: file.name,
+          src: dataUrl,
+          status: 'pending',
+          progress: 0,
+          dimensions: dims,
+          aspectRatio: dims.width / dims.height
+        });
+      } catch (err) {
+        console.warn("Failed reading batch file", file.name, err);
+      }
+    }
+
+    if (newItems.length > 0) {
+      setBatchQueue(prev => [...prev, ...newItems]);
+    }
+  };
+
+  const handleToggleGallerySelection = (id: string) => {
+    setSelectedGalleryItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAllGalleryItems = () => {
+    const eligible = galleryItems.filter(i => i.src && !i.src.includes('video'));
+    setSelectedGalleryItemIds(new Set(eligible.map(i => i.id)));
+  };
+
+  const handleClearGallerySelection = () => {
+    setSelectedGalleryItemIds(new Set());
+  };
+
+  const handleConfirmAddFromGallery = () => {
+    const eligible = galleryItems.filter(i => selectedGalleryItemIds.has(i.id));
+    const newItems: BatchQueueItem[] = eligible.map(g => ({
+      id: crypto.randomUUID(),
+      name: g.description ? `${g.description.slice(0, 30)}.png` : `image_${g.id.slice(0, 6)}.png`,
+      src: g.src,
+      status: 'pending',
+      progress: 0,
+      dimensions: { width: 1024, height: 1024 }
+    }));
+    setBatchQueue(prev => [...prev, ...newItems]);
+    setIsGalleryPickerOpen(false);
+    setSelectedGalleryItemIds(new Set());
+  };
+
+  const handleRemoveBatchItem = (id: string) => {
+    setBatchQueue(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleClearBatchQueue = () => {
+    if (isBatchRunning) return;
+    setBatchQueue([]);
+  };
+
+  const handleStopBatch = () => {
+    stopBatchRef.current = true;
+  };
+
+  const handleStartBatch = async () => {
+    if (isBatchRunning) return;
+    const pendingItems = batchQueue.filter(i => i.status === 'pending' || i.status === 'error');
+    if (pendingItems.length === 0) return;
+
+    setIsBatchRunning(true);
+    stopBatchRef.current = false;
+
+    for (let i = 0; i < batchQueue.length; i++) {
+      if (stopBatchRef.current) break;
+      const currentItem = batchQueue[i];
+      if (currentItem.status === 'done') continue;
+
+      // Mark processing
+      setBatchQueue(prev => prev.map(it => it.id === currentItem.id ? { ...it, status: 'processing', progress: 15 } : it));
+
+      const ticker = setInterval(() => {
+        setBatchQueue(prev => prev.map(it => {
+          if (it.id === currentItem.id && it.status === 'processing') {
+            const nextP = Math.min(92, it.progress + Math.floor(Math.random() * 8) + 3);
+            return { ...it, progress: nextP };
+          }
+          return it;
+        }));
+      }, 350);
+
+      try {
+        const m = currentItem.src.match(/^data:(.+);base64,(.+)$/);
+        if (!m) throw new Error("Định dạng ảnh không hợp lệ.");
+
+        const upscaleRes = await upscaleImage(m[2], m[1], {
+          targetRes,
+          customModel: engine === 'auto' ? undefined : engine,
+          preset,
+          fidelity,
+          denoise,
+          faceEnhance,
+          clarityBoost,
+          customGuidance,
+          aspectRatioInput: currentItem.aspectRatio,
+          biometricLock: biometricLockEnabled,
+          antiAiCamouflage: antiAiEnabled,
+          cameraPreset,
+          filmGrainPct,
+          colorScience,
+          lightingEnhance
+        });
+
+        clearInterval(ticker);
+
+        const resultImage = upscaleRes.image;
+
+        setBatchQueue(prev => prev.map(it => it.id === currentItem.id ? {
+          ...it,
+          status: 'done',
+          progress: 100,
+          resultUrl: resultImage
+        } : it));
+
+        // Save to gallery
+        onSaveToGallery(
+          resultImage,
+          `Batch 5.5K - ${currentItem.name}`,
+          {
+            model: engine,
+            targetRes,
+            preset,
+            upscaledFrom: currentItem.src
+          }
+        );
+
+        // Synaptic Cooling (3s delay before next request)
+        const hasNextPending = batchQueue.slice(i + 1).some(it => it.status === 'pending');
+        if (hasNextPending && !stopBatchRef.current) {
+          for (let c = 3; c > 0; c--) {
+            if (stopBatchRef.current) break;
+            setCoolingCountdown(c);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+          setCoolingCountdown(0);
+        }
+      } catch (err: any) {
+        clearInterval(ticker);
+        console.error(`Batch error for item ${currentItem.id}:`, err);
+        setBatchQueue(prev => prev.map(it => it.id === currentItem.id ? {
+          ...it,
+          status: 'error',
+          progress: 0,
+          error: err?.message || 'Lỗi nâng cấp'
+        } : it));
+      }
+    }
+
+    setIsBatchRunning(false);
+    setCoolingCountdown(0);
+  };
+
+  const handleDownloadAllZip = async () => {
+    const completed = batchQueue.filter(i => i.status === 'done' && i.resultUrl);
+    if (completed.length === 0 || isExportingBatchZip) return;
+
+    setIsExportingBatchZip(true);
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < completed.length; i++) {
+        const item = completed[i];
+        const match = item.resultUrl!.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+        if (match) {
+          const ext = match[1].includes('jpeg') || match[1].includes('jpg') ? 'jpg' : 'png';
+          const cleanName = item.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+          zip.file(`${i + 1}_${cleanName}_5.5K.${ext}`, match[2], { base64: true });
+        }
+      }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NKI_Batch_SuperRes_5.5K_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("ZIP creation failed:", err);
+    } finally {
+      setIsExportingBatchZip(false);
+    }
+  };
+
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
   // Automatically measure aspect ratio when image changes
@@ -207,7 +442,50 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
   const selectedPersona = availablePersonas.find(p => p.id === selectedPersonaId);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
+    <div className="w-full space-y-6">
+      {/* Studio Mode Selector: Single Image vs Batch Super-Resolution */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/80 backdrop-blur-xl p-2.5 rounded-2xl border border-white/10 shadow-xl">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setStudioMode('single')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              studioMode === 'single'
+                ? 'bg-gradient-to-r from-primary-600 to-indigo-600 text-white shadow-lg shadow-primary-500/25 ring-1 ring-white/20'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <span>📸</span>
+            <span>Nâng Cấp 1 Ảnh (Ultra 5.5K)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStudioMode('batch')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 relative ${
+              studioMode === 'batch'
+                ? 'bg-gradient-to-r from-amber-600 to-rose-600 text-white shadow-lg shadow-amber-500/25 ring-1 ring-white/20'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <span>⚡</span>
+            <span>Hàng Đợi Siêu Phân Giải (Batch 5.5K)</span>
+            {batchQueue.length > 0 && (
+              <span className="bg-amber-400 text-black text-[10px] font-black px-1.5 py-0.2 rounded-full ml-1">
+                {batchQueue.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-white/50 px-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Google Gemini Pro 3 Engine • 3072×5504 Master Matrix</span>
+        </div>
+      </div>
+
+      {studioMode === 'single' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
       {/* Left Column: Controls & Optical Configuration */}
       <div className="lg:col-span-6 glass-card p-6 lg:p-8 rounded-[2rem] flex flex-col space-y-5 shadow-2xl">
         {/* Header */}
@@ -1172,6 +1450,540 @@ export const UpscaleStudioSection: React.FC<UpscaleStudioSectionProps> = ({
           </div>
         )}
       </div>
+    </div>
+  ) : (
+    /* --- BATCH SUPER-RESOLUTION 5.5K VIEW --- */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
+          {/* Left Column: Batch Optical Config & Multi-Uploader */}
+          <div className="lg:col-span-5 glass-card p-6 lg:p-7 rounded-[2rem] flex flex-col space-y-5 shadow-2xl">
+            {/* Batch Header */}
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚡</span>
+                <h3 className="text-xl font-black text-white tracking-tight">Hàng Đợi Nâng Cấp 5.5K</h3>
+                <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-black uppercase tracking-wider border border-rose-500/40">
+                  Batch Multi-Upscale
+                </span>
+              </div>
+              <p className="text-xs text-white/50 mt-1">
+                Tự động xử lý tuần tự nhiều ảnh với cơ chế chống nghẽn Synaptic Cooling và xuất file nén ZIP một chạm.
+              </p>
+            </div>
+
+            {/* Multi-File Upload & Gallery Add Area */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] block">
+                Nguồn ảnh vào hàng đợi
+              </label>
+
+              <label
+                className="border-2 border-dashed border-white/15 hover:border-amber-400/50 bg-white/5 hover:bg-amber-500/5 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all group"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleAddBatchFiles(e.dataTransfer.files);
+                  }
+                }}
+              >
+                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform border border-white/10 text-amber-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Kéo thả nhiều ảnh vào đây</span>
+                <span className="text-[10px] text-white/40 mt-0.5">Chọn nhiều file cùng lúc (PNG, JPG, WEBP)</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleAddBatchFiles(e.target.files);
+                    }
+                  }}
+                />
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsGalleryPickerOpen(true)}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 hover:from-indigo-600/50 hover:to-purple-600/50 text-indigo-200 border border-indigo-500/30 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <span>📁</span>
+                  <span>Chọn từ Thư Viện ({galleryItems.filter(i => i.src && !i.src.includes('video')).length} ảnh)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Target Resolution Options */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] block flex items-center justify-between">
+                <span>Độ phân giải áp dụng</span>
+                <span className="text-[9px] text-amber-400 font-bold">Ultra Master 5.5K (17MP)</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {UPSCALE_RESOLUTION_OPTIONS.map((res) => {
+                  const isSelected = targetRes === res.id;
+                  const isUltra = res.id === 'ultra';
+                  return (
+                    <button
+                      key={res.id}
+                      type="button"
+                      onClick={() => setTargetRes(res.id)}
+                      className={`p-2.5 rounded-xl border transition-all text-left flex flex-col justify-between ${
+                        isSelected
+                          ? (isUltra ? 'bg-amber-500/25 border-amber-400 text-white ring-2 ring-amber-500/40 shadow-lg' : 'bg-indigo-500/20 border-indigo-400 text-white ring-2 ring-indigo-500/20')
+                          : 'bg-white/5 border-white/10 hover:border-white/20 text-white/60'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-black uppercase tracking-wider">{res.label}</span>
+                        {isSelected && <span className={`w-2 h-2 rounded-full ${isUltra ? 'bg-amber-400 animate-pulse' : 'bg-indigo-400'}`} />}
+                      </div>
+                      <span className={`text-[9px] font-mono font-bold ${isUltra ? 'text-amber-300' : 'text-indigo-300'}`}>
+                        {res.pixels}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Preset Selector */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] block">
+                Preset Phục Hồi Chi Tiết
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {UPSCALE_PRESETS_METADATA.map((p) => {
+                  const isSelected = preset === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPreset(p.id)}
+                      className={`p-2 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
+                        isSelected
+                          ? `bg-gradient-to-b ${p.color} border-white/40 shadow-md ring-2 ring-indigo-500/30 text-white font-bold`
+                          : 'bg-white/5 border-white/10 hover:border-white/20 text-white/60'
+                      }`}
+                    >
+                      <span className="text-lg">{p.icon}</span>
+                      <span className="text-[10px] font-bold truncate max-w-full">{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Engine & Optics */}
+            <div className="space-y-2.5 pt-1">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                <div>
+                  <span className="text-xs font-bold text-white block">Tự động tăng nét Macro</span>
+                  <span className="text-[10px] text-white/40">Khôi phục lỗ chân lông & vi chi tiết</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={50}
+                    value={clarityBoost}
+                    onChange={(e) => setClarityBoost(Number(e.target.value))}
+                    className="w-20 accent-amber-400"
+                  />
+                  <span className="text-xs font-mono font-bold text-amber-300 w-8 text-right">+{clarityBoost}%</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                <div>
+                  <span className="text-xs font-bold text-white block">Khóa nhân trắc học</span>
+                  <span className="text-[10px] text-white/40">Giữ nguyên diện mạo khuôn mặt</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBiometricLockEnabled(!biometricLockEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${biometricLockEnabled ? 'bg-emerald-500' : 'bg-white/20'}`}
+                >
+                  <span className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${biometricLockEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/10">
+                <div>
+                  <span className="text-xs font-bold text-white block">Khử Bẫy AI & Phủ hạt 35mm</span>
+                  <span className="text-[10px] text-white/40">Triệt tiêu chất nhựa sáp nhân tạo</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAntiAiEnabled(!antiAiEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center px-0.5 ${antiAiEnabled ? 'bg-amber-500' : 'bg-white/20'}`}
+                >
+                  <span className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${antiAiEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Live Queue Execution & Status */}
+          <div className="lg:col-span-7 glass-card p-6 lg:p-7 rounded-[2rem] flex flex-col space-y-5 shadow-2xl min-h-[500px]">
+            {/* Queue Header & Action Bar */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <span>📋</span>
+                  <span>Danh Sách Hàng Đợi</span>
+                  <span className="bg-white/10 text-white px-2 py-0.5 rounded-full text-xs font-mono font-bold">
+                    {batchQueue.length}
+                  </span>
+                </h3>
+                <div className="flex items-center gap-2 mt-1 text-[11px] text-white/50 flex-wrap">
+                  <span className="text-emerald-400 font-bold">✅ Đã xong: {batchQueue.filter(i => i.status === 'done').length}</span>
+                  <span>•</span>
+                  <span className="text-amber-400 font-bold">⚡ Đang chạy: {batchQueue.filter(i => i.status === 'processing').length}</span>
+                  <span>•</span>
+                  <span className="text-white/60">⏳ Chờ: {batchQueue.filter(i => i.status === 'pending').length}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                {isBatchRunning ? (
+                  <button
+                    type="button"
+                    onClick={handleStopBatch}
+                    className="flex-1 sm:flex-initial px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-lg shadow-rose-500/20"
+                  >
+                    <span>⏸️</span>
+                    <span>Tạm Dừng</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleStartBatch}
+                    disabled={batchQueue.filter(i => i.status === 'pending' || i.status === 'error').length === 0}
+                    className="flex-1 sm:flex-initial px-5 py-2.5 bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-amber-500/25 flex items-center justify-center gap-2"
+                  >
+                    <span>🚀</span>
+                    <span>Bắt Đầu Nâng Cấp ({batchQueue.filter(i => i.status === 'pending' || i.status === 'error').length})</span>
+                  </button>
+                )}
+
+                {batchQueue.some(i => i.status === 'done') && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadAllZip}
+                    disabled={isExportingBatchZip}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20"
+                    title="Tải toàn bộ ảnh đã nâng cấp thành 1 file zip"
+                  >
+                    {isExportingBatchZip ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Đang nén ZIP...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>📦</span>
+                        <span>Tải Tất Cả (.ZIP)</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {batchQueue.length > 0 && !isBatchRunning && (
+                  <button
+                    type="button"
+                    onClick={handleClearBatchQueue}
+                    className="p-2.5 bg-white/5 hover:bg-red-500/20 hover:text-red-300 text-white/50 rounded-xl transition-colors border border-white/10"
+                    title="Xóa toàn bộ hàng đợi"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Synaptic Cooling Live Alert */}
+            {coolingCountdown > 0 && (
+              <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 text-cyan-200 flex items-center justify-between animate-pulse">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">❄️</span>
+                  <div>
+                    <span className="text-xs font-bold block">Synaptic Cooling kích hoạt</span>
+                    <span className="text-[10px] text-cyan-300/70">Đang làm mát API để triệt tiêu lỗi 429 và chuẩn hóa hàng đợi...</span>
+                  </div>
+                </div>
+                <span className="font-mono font-black text-sm bg-cyan-500/20 px-2.5 py-1 rounded-xl border border-cyan-400/40">
+                  {coolingCountdown}s
+                </span>
+              </div>
+            )}
+
+            {/* Queue Items List */}
+            {batchQueue.length === 0 ? (
+              <div className="flex flex-col items-center justify-center flex-1 text-center py-16 opacity-40 select-none space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                  <span className="text-3xl">📭</span>
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Hàng đợi đang trống</h4>
+                  <p className="text-xs text-white/50 max-w-sm mt-1">
+                    Hãy kéo thả nhiều ảnh hoặc bấm "Chọn từ Thư Viện" ở cột bên trái để bắt đầu nâng cấp hàng loạt.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
+                {batchQueue.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                      item.status === 'processing'
+                        ? 'border-amber-400/60 bg-amber-500/10 shadow-lg shadow-amber-500/10'
+                        : item.status === 'done'
+                        ? 'border-emerald-500/30 bg-emerald-500/5'
+                        : item.status === 'error'
+                        ? 'border-red-500/30 bg-red-500/5'
+                        : 'border-white/10 bg-white/[0.02]'
+                    }`}
+                  >
+                    {/* Left: Thumbnail with click to preview */}
+                    <div
+                      onClick={() => setPreviewModalImage(item.resultUrl || item.src)}
+                      className="w-16 h-16 rounded-xl overflow-hidden relative flex-none cursor-pointer group/thumb border border-white/15 bg-black/40"
+                      title="Bấm để xem lớn"
+                    >
+                      <img src={item.resultUrl || item.src} className="w-full h-full object-cover group-hover/thumb:scale-110 transition-transform" alt={item.name} />
+                      <div className="absolute top-1 left-1 bg-black/70 backdrop-blur-md text-[9px] font-black text-white px-1.5 py-0.2 rounded">
+                        #{idx + 1}
+                      </div>
+                      {item.resultUrl && (
+                        <div className="absolute inset-0 bg-emerald-500/20 flex items-center justify-center">
+                          <span className="text-xs">✨</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Middle: Info & Progress Bar */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-white truncate" title={item.name}>
+                          {item.name}
+                        </span>
+                        {item.status === 'pending' && (
+                          <span className="text-[10px] text-white/40 bg-white/5 px-2 py-0.5 rounded-full font-mono">
+                            Chờ xử lý
+                          </span>
+                        )}
+                        {item.status === 'processing' && (
+                          <span className="text-[10px] text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full font-bold animate-pulse flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                            Đang nâng cấp ({item.progress}%)
+                          </span>
+                        )}
+                        {item.status === 'done' && (
+                          <span className="text-[10px] text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <span>✅</span>
+                            3072×5504
+                          </span>
+                        )}
+                        {item.status === 'error' && (
+                          <span className="text-[10px] text-red-300 bg-red-500/20 px-2 py-0.5 rounded-full font-bold">
+                            Lỗi
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Technical Specs Tags */}
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-white/40 flex-wrap">
+                        {item.dimensions && (
+                          <span className="font-mono">
+                            {item.dimensions.width}×{item.dimensions.height}
+                          </span>
+                        )}
+                        <span>➔</span>
+                        <span className="font-mono text-amber-300 font-bold">
+                          {targetRes === 'ultra' ? '3072×5504 Ultra Master' : targetRes.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Progress Bar for processing */}
+                      {item.status === 'processing' && (
+                        <div className="w-full bg-white/10 rounded-full h-1.5 mt-2 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-amber-500 to-rose-500 h-1.5 rounded-full transition-all duration-300"
+                            style={{ width: `${item.progress}%` }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Error details */}
+                      {item.error && (
+                        <p className="text-[10px] text-red-300 mt-1 line-clamp-1 italic">
+                          {item.error}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Right: Actions */}
+                    <div className="flex items-center gap-1 flex-none">
+                      {item.resultUrl && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onDownload(item.resultUrl!, `${item.name.replace(/\.[^/.]+$/, '')}_5.5K`)}
+                            className="p-2 bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 rounded-xl transition-all"
+                            title="Tải ảnh này về máy"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </button>
+                          {onOpenInStudio && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenInStudio(item.resultUrl!)}
+                              className="p-2 bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 rounded-xl transition-all"
+                              title="Mở trong Photo Studio"
+                            >
+                              <span className="text-xs">🎨</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {!isBatchRunning && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBatchItem(item.id)}
+                          className="p-2 hover:bg-red-500/20 text-white/30 hover:text-red-300 rounded-xl transition-all"
+                          title="Xóa ảnh này khỏi hàng đợi"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Gallery Multi-Picker Modal for Batch */}
+      {isGalleryPickerOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-card bg-slate-900/95 border border-white/15 rounded-3xl p-6 max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div>
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <span>📁</span>
+                  <span>Chọn ảnh từ Thư Viện đưa vào Hàng Đợi 5.5K</span>
+                </h3>
+                <p className="text-xs text-white/50 mt-0.5">
+                  Đã chọn {selectedGalleryItemIds.size} / {galleryItems.filter(i => i.src && !i.src.includes('video')).length} ảnh
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGalleryPickerOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllGalleryItems}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white font-semibold transition-colors"
+                >
+                  Chọn tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearGallerySelection}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+            </div>
+
+            {/* Gallery Grid */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 p-1 custom-scrollbar">
+              {galleryItems.filter(i => i.src && !i.src.includes('video')).map((item) => {
+                const isSelected = selectedGalleryItemIds.has(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => handleToggleGallerySelection(item.id)}
+                    className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
+                      isSelected
+                        ? 'border-amber-400 ring-2 ring-amber-400/40 scale-[0.96] shadow-lg'
+                        : 'border-white/10 hover:border-white/30 opacity-75 hover:opacity-100'
+                    }`}
+                  >
+                    <img src={item.src} className="w-full h-full object-cover" alt="Gallery thumbnail" />
+                    <div className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                      isSelected ? 'bg-amber-400 border-amber-300 text-black font-black' : 'bg-black/50 border-white/40'
+                    }`}>
+                      {isSelected && '✓'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="pt-3 border-t border-white/10 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsGalleryPickerOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white/60 hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAddFromGallery}
+                disabled={selectedGalleryItemIds.size === 0}
+                className="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-amber-500/25 active:scale-95"
+              >
+                Thêm ({selectedGalleryItemIds.size}) ảnh vào hàng đợi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Preview Modal */}
+      {previewModalImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4"
+          onClick={() => setPreviewModalImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img src={previewModalImage} className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/20" alt="Preview" />
+            <button
+              onClick={() => setPreviewModalImage(null)}
+              className="absolute top-4 right-4 bg-black/60 hover:bg-red-600/80 text-white p-2.5 rounded-full backdrop-blur-md transition-all"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

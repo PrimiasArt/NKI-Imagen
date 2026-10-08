@@ -63,6 +63,10 @@ import { TalkingActorModal } from './components/TalkingActorModal';
 import { CharacterVaultModal } from './components/CharacterVaultModal';
 import { UploadCharacterChoiceModal } from './components/UploadCharacterChoiceModal';
 import { UpscaleStudioSection, UpscaleExecutionSettings } from './components/UpscaleStudioSection';
+import { InpaintingStudioModal } from './components/InpaintingStudioModal';
+import { VirtualTryOnModal } from './components/VirtualTryOnModal';
+import { CharacterTurnaroundModal } from './components/CharacterTurnaroundModal';
+import { BiometricMorphModal } from './components/BiometricMorphModal';
 import { UpscaleTargetRes } from './services/imageUpscaleService';
 import { getStudioModelConfig } from './services/modelConfigService';
 import { 
@@ -501,12 +505,17 @@ const ActionButton = ({ onClick, title, children, colorClass }: { onClick: (e: R
 );
 
 const FunctionalButtonGroup = ({ 
-  onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onRelight, onSpatial3D 
+  onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onRelight, onSpatial3D, onInpainting 
 }: { 
-  onVeoStart: (e: React.MouseEvent) => void, onVeoEnd: (e: React.MouseEvent) => void, onPose: (e: React.MouseEvent) => void, onCompose: (e: React.MouseEvent) => void, onInspect: (e: React.MouseEvent) => void, onDownload: (e: React.MouseEvent) => void, onUpscale: (e: React.MouseEvent) => void, onUpscale4k: (e: React.MouseEvent) => void, onStudio?: (e: React.MouseEvent) => void, onRelight?: (e: React.MouseEvent) => void, onSpatial3D?: (e: React.MouseEvent) => void 
+  onVeoStart: (e: React.MouseEvent) => void, onVeoEnd: (e: React.MouseEvent) => void, onPose: (e: React.MouseEvent) => void, onCompose: (e: React.MouseEvent) => void, onInspect: (e: React.MouseEvent) => void, onDownload: (e: React.MouseEvent) => void, onUpscale: (e: React.MouseEvent) => void, onUpscale4k: (e: React.MouseEvent) => void, onStudio?: (e: React.MouseEvent) => void, onRelight?: (e: React.MouseEvent) => void, onSpatial3D?: (e: React.MouseEvent) => void, onInpainting?: (e: React.MouseEvent) => void 
 }) => (
   <div className="absolute inset-x-2 bottom-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0 z-20">
     <div className="flex justify-center items-center gap-1.5 w-full">
+      {onInpainting && (
+        <ActionButton onClick={onInpainting} title="Cọ Ma Thuật Inpainting (Sửa bàn tay, đổi trang phục, sửa chi tiết)" colorClass="text-pink-400">
+          <span className="text-[10px]">🪄</span>
+        </ActionButton>
+      )}
       {onStudio && (
         <ActionButton onClick={onStudio} title="Photo Studio AI (Chỉnh sửa ảnh)" colorClass="text-emerald-400">
           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -1183,6 +1192,7 @@ const MasonryImage: React.FC<{
     onUpscale: (e: React.MouseEvent) => void;
     onUpscale4k: (e: React.MouseEvent) => void;
     onStudio?: (e: React.MouseEvent) => void;
+    onInpainting?: (e: React.MouseEvent) => void;
     onGoogleDrive?: (e: React.MouseEvent) => void;
     isSavingDrive?: boolean;
     driveFileId?: string;
@@ -1192,7 +1202,7 @@ const MasonryImage: React.FC<{
     density?: GalleryDensity;
 }> = ({ 
     src, alt, selected, onSelect, onClick, selectionMode, index = 0, 
-    onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio, 
+    onVeoStart, onVeoEnd, onPose, onCompose, onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onInpainting, 
     onGoogleDrive, isSavingDrive, driveFileId, collectionId, collections, item, density = 'medium' 
 }) => {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -1298,6 +1308,7 @@ const MasonryImage: React.FC<{
                     onUpscale={onUpscale}
                     onUpscale4k={onUpscale4k}
                     onStudio={onStudio}
+                    onInpainting={onInpainting}
                 />
             </div>
 
@@ -1355,12 +1366,13 @@ const GalleryListItem: React.FC<{
     onUpscale: (e: React.MouseEvent) => void;
     onUpscale4k: (e: React.MouseEvent) => void;
     onStudio?: (e: React.MouseEvent) => void;
+    onInpainting?: (e: React.MouseEvent) => void;
     onGoogleDrive?: (e: React.MouseEvent) => void;
     isSavingDrive?: boolean;
     collections?: Collection[];
 }> = ({
     item, selected, onSelect, onClick, onVeoStart, onVeoEnd, onPose, onCompose,
-    onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onGoogleDrive, isSavingDrive, collections
+    onInspect, onDownload, onUpscale, onUpscale4k, onStudio, onInpainting, onGoogleDrive, isSavingDrive, collections
 }) => {
     const matchedCol = collections?.find(c => c.id === item.collectionId);
     const [thumbError, setThumbError] = useState(false);
@@ -1463,6 +1475,11 @@ const GalleryListItem: React.FC<{
 
             {/* Right Section: Compact Functional Button Group */}
             <div className="flex items-center gap-1.5 self-end md:self-center flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                {onInpainting && (
+                    <ActionButton onClick={onInpainting} title="Cọ Ma Thuật Inpainting (Sửa bàn tay, chi tiết)" colorClass="text-pink-400">
+                        <span className="text-[10px]">🪄</span>
+                    </ActionButton>
+                )}
                 {onStudio && (
                     <ActionButton onClick={onStudio} title="Mở trong AI Photo Studio (Sửa ảnh)" colorClass="text-emerald-400">
                         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
@@ -1790,6 +1807,10 @@ interface InspectorModalProps {
   onUpdateItem?: (updatedItem: GalleryItem) => void;
   onStudio?: (item: GalleryItem) => void;
   onUpscaleStudio?: (item: GalleryItem) => void;
+  onInpainting?: (item: GalleryItem) => void;
+  onVirtualTryOn?: (item: GalleryItem) => void;
+  onCharacterTurnaround?: (item: GalleryItem) => void;
+  onBiometricMorph?: (item: GalleryItem) => void;
 }
 
 const InspectorModal: React.FC<InspectorModalProps> = ({ 
@@ -1813,7 +1834,11 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
   onGoogleSignIn,
   onUpdateItem,
   onStudio,
-  onUpscaleStudio
+  onUpscaleStudio,
+  onInpainting,
+  onVirtualTryOn,
+  onCharacterTurnaround,
+  onBiometricMorph
 }) => {
     const [displaySrc, setDisplaySrc] = useState<string>(item.src);
     const [isRecovering, setIsRecovering] = useState<boolean>(false);
@@ -2257,34 +2282,74 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                         )}
                     </div>
                     <div className="p-8 border-t border-white/10 bg-black/20 space-y-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                             {onUpscaleStudio && (
                                 <button 
                                     onClick={() => onUpscaleStudio({ ...item, src: displaySrc })} 
-                                    className="py-3.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs"
+                                    className="py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
                                     title="Mở ảnh trong Upscale Studio 4K để tinh chỉnh chi tiết & chọn preset"
                                 >
                                     <span className="text-sm">✨</span>
                                     <span>Upscale 4K</span>
                                 </button>
                             )}
+                            {onInpainting && (
+                                <button 
+                                    onClick={() => onInpainting({ ...item, src: displaySrc })} 
+                                    className="py-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    title="Cọ Ma Thuật AI Inpainting: Sửa bàn tay 5 ngón, đổi trang phục, chỉnh sửa cục bộ"
+                                >
+                                    <span className="text-sm">🪄</span>
+                                    <span>Cọ Sửa AI</span>
+                                </button>
+                            )}
+                            {onVirtualTryOn && (
+                                <button 
+                                    onClick={() => onVirtualTryOn({ ...item, src: displaySrc })} 
+                                    className="py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    title="Virtual Try-On 2.0: Thử trang phục từ ảnh sản phẩm lên người mẫu"
+                                >
+                                    <span className="text-sm">👗</span>
+                                    <span>Thử Đồ 2.0</span>
+                                </button>
+                            )}
+                            {onCharacterTurnaround && (
+                                <button 
+                                    onClick={() => onCharacterTurnaround({ ...item, src: displaySrc })} 
+                                    className="py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    title="Character Sheet 360: Xuất bộ xoay 8 hướng chuẩn Game & VFX"
+                                >
+                                    <span className="text-sm">🔄</span>
+                                    <span>Xoay 360°</span>
+                                </button>
+                            )}
+                            {onBiometricMorph && (
+                                <button 
+                                    onClick={() => onBiometricMorph({ ...item, src: displaySrc })} 
+                                    className="py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    title="Biometric Morph: Thanh trượt tuổi 18-70 & cảm xúc khuôn mặt"
+                                >
+                                    <span className="text-sm">⏳</span>
+                                    <span>Tuổi & Cảm Xúc</span>
+                                </button>
+                            )}
                             {onStudio && (
                                 <button 
                                     onClick={() => onStudio({ ...item, src: displaySrc })} 
-                                    className="py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs"
+                                    className="py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
                                     title="Mở ảnh trong Photo Studio 2026 để chỉnh màu nâng cao & AI Inpaint"
                                 >
                                     <span className="text-sm">🎨</span>
                                     <span>Studio AI</span>
                                 </button>
                             )}
-                            <button onClick={() => onRemix(item)} className="py-3.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs">
+                            <button onClick={() => onRemix(item)} className="py-3 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                                Remix
+                                <span>Remix</span>
                             </button>
-                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 text-xs">
+                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                Compose
+                                <span>Compose</span>
                             </button>
                         </div>
                         <div className="flex flex-col gap-3">
@@ -3019,6 +3084,50 @@ const App: React.FC = () => {
   const [isTalkingActorOpen, setIsTalkingActorOpen] = useState(false);
   const [activeSpatial3DImage, setActiveSpatial3DImage] = useState<string | undefined>(undefined);
   const [activeRelightImage, setActiveRelightImage] = useState<string | undefined>(undefined);
+
+  // Local Inpainting & Magic Brush Studio (v4.3)
+  const [isInpaintingOpen, setIsInpaintingOpen] = useState(false);
+  const [inpaintingTargetSrc, setInpaintingTargetSrc] = useState<string | null>(null);
+
+  const handleOpenInpainting = (src?: string) => {
+    const target = src || (generatedImages.length > 0 ? generatedImages[0] : (galleryItems.length > 0 ? galleryItems[0].src : null));
+    if (target) {
+      setInpaintingTargetSrc(target);
+      setIsInpaintingOpen(true);
+    } else {
+      showCleanToast('Vui lòng chọn hoặc tạo một ảnh để sử dụng Cọ Ma Thuật Inpainting!');
+    }
+  };
+
+  // Virtual Try-On 2.0 Studio (v4.3)
+  const [isVirtualTryOnOpen, setIsVirtualTryOnOpen] = useState(false);
+  const [virtualTryOnModelSrc, setVirtualTryOnModelSrc] = useState<string | null>(null);
+
+  const handleOpenVirtualTryOn = (src?: string) => {
+    const target = src || (generatedImages.length > 0 ? generatedImages[0] : (galleryItems.length > 0 ? galleryItems[0].src : null));
+    setVirtualTryOnModelSrc(target);
+    setIsVirtualTryOnOpen(true);
+  };
+
+  // Character Sheet 360° Studio (v4.3)
+  const [isCharacterTurnaroundOpen, setIsCharacterTurnaroundOpen] = useState(false);
+  const [characterTurnaroundSrc, setCharacterTurnaroundSrc] = useState<string | null>(null);
+
+  const handleOpenCharacterTurnaround = (src?: string) => {
+    const target = src || (generatedImages.length > 0 ? generatedImages[0] : (galleryItems.length > 0 ? galleryItems[0].src : null));
+    setCharacterTurnaroundSrc(target);
+    setIsCharacterTurnaroundOpen(true);
+  };
+
+  // Biometric Morph Studio - Aging & Emotion (v4.3)
+  const [isBiometricMorphOpen, setIsBiometricMorphOpen] = useState(false);
+  const [biometricMorphSrc, setBiometricMorphSrc] = useState<string | null>(null);
+
+  const handleOpenBiometricMorph = (src?: string) => {
+    const target = src || (generatedImages.length > 0 ? generatedImages[0] : (galleryItems.length > 0 ? galleryItems[0].src : null));
+    setBiometricMorphSrc(target);
+    setIsBiometricMorphOpen(true);
+  };
 
   // 5. Character Model Vault & Biometric Core state
   const [isCharacterVaultOpen, setIsCharacterVaultOpen] = useState(false);
@@ -5644,6 +5753,26 @@ const App: React.FC = () => {
               setInspectorItem(null);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            onInpainting={(item) => {
+              setInpaintingTargetSrc(item.src);
+              setIsInpaintingOpen(true);
+              setInspectorItem(null);
+            }}
+            onVirtualTryOn={(item) => {
+              setVirtualTryOnModelSrc(item.src);
+              setIsVirtualTryOnOpen(true);
+              setInspectorItem(null);
+            }}
+            onCharacterTurnaround={(item) => {
+              setCharacterTurnaroundSrc(item.src);
+              setIsCharacterTurnaroundOpen(true);
+              setInspectorItem(null);
+            }}
+            onBiometricMorph={(item) => {
+              setBiometricMorphSrc(item.src);
+              setIsBiometricMorphOpen(true);
+              setInspectorItem(null);
+            }}
             onRemix={(item) => { if(item.metadata?.promptJson) { setJsonInput(JSON.stringify(item.metadata.promptJson, null, 2)); setActiveTab(AppMode.JSON_TO_IMG); setInspectorItem(null); window.scrollTo(0,0); } }}
             onCompose={(item) => { handleUseInCompose(item.src); setInspectorItem(null); }}
             onDelete={(id) => removeFromGallery(id)} 
@@ -5668,6 +5797,120 @@ const App: React.FC = () => {
             }}
           />
       )}
+      {/* Local Inpainting & Magic Brush Studio Modal (v4.3) */}
+      <InpaintingStudioModal
+        isOpen={isInpaintingOpen}
+        onClose={() => {
+          setIsInpaintingOpen(false);
+          setInpaintingTargetSrc(null);
+        }}
+        imageSrc={inpaintingTargetSrc}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Inpainting Local Edit', meta);
+          addToHistory('Inpainting Edit', `Chỉnh sửa cục bộ: ${desc || 'Inpainting'}`, 'inpainting_edit.png', image);
+          showCleanToast('Đã lưu kết quả Cọ Ma Thuật vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'Inpainting-Result');
+        }}
+        onOpenInUpscale={(image) => {
+          setUpscaleModuleSrc(image);
+          setActiveTab(AppMode.UPSCALE_IMAGE);
+          setIsInpaintingOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        t={t}
+      />
+
+      {/* Virtual Try-On 2.0 Studio Modal (v4.3 Phase 2) */}
+      <VirtualTryOnModal
+        isOpen={isVirtualTryOnOpen}
+        onClose={() => {
+          setIsVirtualTryOnOpen(false);
+          setVirtualTryOnModelSrc(null);
+        }}
+        initialModelImage={virtualTryOnModelSrc}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Virtual Try-On 2.0', meta);
+          addToHistory('Virtual Try-On', `Thử đồ thời trang: ${desc || 'Try-On'}`, 'tryon_result.png', image);
+          showCleanToast('Đã lưu kết quả Thử Đồ 2.0 vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'TryOn-Result');
+        }}
+        onOpenInUpscale={(image) => {
+          setUpscaleModuleSrc(image);
+          setActiveTab(AppMode.UPSCALE_IMAGE);
+          setIsVirtualTryOnOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenInInpainting={(image) => {
+          setInpaintingTargetSrc(image);
+          setIsInpaintingOpen(true);
+          setIsVirtualTryOnOpen(false);
+        }}
+        t={t}
+      />
+
+      {/* Character Sheet 360° Studio Modal (v4.3 Phase 2) */}
+      <CharacterTurnaroundModal
+        isOpen={isCharacterTurnaroundOpen}
+        onClose={() => {
+          setIsCharacterTurnaroundOpen(false);
+          setCharacterTurnaroundSrc(null);
+        }}
+        initialCharacterImage={characterTurnaroundSrc}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Character Turnaround 360°', meta);
+          addToHistory('Character Turnaround 360°', `Bộ xoay nhân vật 360°: ${desc || 'Turnaround'}`, 'turnaround_result.png', image);
+          showCleanToast('Đã lưu bản vẽ Xoay 360° vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'Turnaround-360-Result');
+        }}
+        onOpenInUpscale={(image) => {
+          setUpscaleModuleSrc(image);
+          setActiveTab(AppMode.UPSCALE_IMAGE);
+          setIsCharacterTurnaroundOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenInInpainting={(image) => {
+          setInpaintingTargetSrc(image);
+          setIsInpaintingOpen(true);
+          setIsCharacterTurnaroundOpen(false);
+        }}
+        t={t}
+      />
+
+      {/* Biometric Morph Studio - Aging & Emotion Modal (v4.3 Phase 3) */}
+      <BiometricMorphModal
+        isOpen={isBiometricMorphOpen}
+        onClose={() => {
+          setIsBiometricMorphOpen(false);
+          setBiometricMorphSrc(null);
+        }}
+        initialImage={biometricMorphSrc}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Biometric Morph Studio', meta);
+          addToHistory('Biometric Morph', `Biến đổi Tuổi & Cảm xúc: ${desc || 'Morph'}`, 'biometric_morph_result.png', image);
+          showCleanToast('Đã lưu kết quả Tuổi & Cảm xúc vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'Biometric-Morph-Result');
+        }}
+        onOpenInUpscale={(image) => {
+          setUpscaleModuleSrc(image);
+          setActiveTab(AppMode.UPSCALE_IMAGE);
+          setIsBiometricMorphOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenInInpainting={(image) => {
+          setInpaintingTargetSrc(image);
+          setIsInpaintingOpen(true);
+          setIsBiometricMorphOpen(false);
+        }}
+        t={t}
+      />
       {isCollectionHubOpen && (
           <CollectionManagerModal 
             collections={collections}
@@ -6441,11 +6684,11 @@ const App: React.FC = () => {
                                             </span>
                                         </div>
                                         <span className="text-[9px] text-white/30 hidden sm:inline">
-                                            6 Bộ Công Cụ Đột Phá Thế Hệ Mới
+                                            10 Bộ Công Cụ Đột Phá Thế Hệ Mới
                                         </span>
                                     </div>
 
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 w-full">
+                                    <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1.5 w-full">
                                         {/* 1. Virtual 3D Gaffer & Generative Relighting */}
                                         <button
                                             type="button"
@@ -6510,6 +6753,50 @@ const App: React.FC = () => {
                                         >
                                             <span>🗣️</span>
                                             <span className="truncate">Talking Actor</span>
+                                        </button>
+
+                                        {/* 7. Local Inpainting & Magic Brush */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenInpainting()}
+                                            className="w-full text-[10px] text-pink-300 hover:text-pink-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-pink-500/15 hover:bg-pink-500/25 px-2 py-1.5 rounded-xl border border-pink-500/30 active:scale-95 shadow-sm"
+                                            title="Local Inpainting & Magic Brush: Tô mask sửa cục bộ bàn tay 5 ngón, đổi trang phục, xóa vật thể thừa"
+                                        >
+                                            <span>🪄</span>
+                                            <span className="truncate">Cọ Sửa AI</span>
+                                        </button>
+
+                                        {/* 8. Virtual Try-On 2.0 Studio */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenVirtualTryOn()}
+                                            className="w-full text-[10px] text-rose-300 hover:text-rose-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2 py-1.5 rounded-xl border border-rose-500/30 active:scale-95 shadow-sm"
+                                            title="Virtual Try-On 2.0: Thử đồ trực tiếp từ ảnh sản phẩm flat-lay lên người mẫu"
+                                        >
+                                            <span>👗</span>
+                                            <span className="truncate">Thử Đồ 2.0</span>
+                                        </button>
+
+                                        {/* 9. Character Sheet 360° Studio */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenCharacterTurnaround()}
+                                            className="w-full text-[10px] text-indigo-300 hover:text-indigo-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-indigo-500/15 hover:bg-indigo-500/25 px-2 py-1.5 rounded-xl border border-indigo-500/30 active:scale-95 shadow-sm"
+                                            title="Character Turnaround 360°: Tạo bộ xoay 8 hướng chuẩn VFX/Game/Anime từ 1 nhân vật duy nhất"
+                                        >
+                                            <span>🔄</span>
+                                            <span className="truncate">Xoay 360°</span>
+                                        </button>
+
+                                        {/* 10. Biometric Morph Studio - Aging & Emotion */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenBiometricMorph()}
+                                            className="w-full text-[10px] text-amber-300 hover:text-amber-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2 py-1.5 rounded-xl border border-amber-500/30 active:scale-95 shadow-sm"
+                                            title="Biometric Morph Studio: Thanh trượt tuổi tác 18-70 và 6 biểu cảm cảm xúc vi mô"
+                                        >
+                                            <span>⏳</span>
+                                            <span className="truncate">Tuổi & Cảm Xúc</span>
                                         </button>
                                     </div>
                                 </div>
@@ -6709,6 +6996,10 @@ const App: React.FC = () => {
                                             >
                                                 <img src={src} className="w-full h-auto object-cover image-render-reveal rounded-xl" alt="Generated" />
                                                 <FunctionalButtonGroup 
+                                                  onInpainting={() => {
+                                                    setInpaintingTargetSrc(src);
+                                                    setIsInpaintingOpen(true);
+                                                  }}
                                                   onStudio={() => handleOpenStudio(src)}
                                                   onRelight={() => {
                                                     setActiveRelightImage(src);
@@ -6934,6 +7225,10 @@ const App: React.FC = () => {
                                                       onCompose={() => handleUseInCompose(variantImages[idx])} 
                                                       onInspect={() => handleInspectImage(variantImages[idx])} 
                                                       onStudio={() => handleOpenStudio(variantImages[idx])}
+                                                      onInpainting={() => {
+                                                        setInpaintingTargetSrc(variantImages[idx]);
+                                                        setIsInpaintingOpen(true);
+                                                      }}
                                                       onDownload={() => handleDownloadImage(variantImages[idx], variant.subject)} 
                                                       onUpscale={() => handleUpscale(variantImages[idx], false)}
                                                       onUpscale4k={() => {
@@ -7149,6 +7444,10 @@ const App: React.FC = () => {
                                               onCompose={() => handleUseInCompose(src)} 
                                               onInspect={() => handleInspectImage(src)} 
                                               onStudio={() => handleOpenStudio(src)}
+                                              onInpainting={() => {
+                                                setInpaintingTargetSrc(src);
+                                                setIsInpaintingOpen(true);
+                                              }}
                                               onDownload={() => handleDownloadImage(src, composePrompt)} 
                                               onUpscale={() => handleUpscale(src, false)}
                                               onUpscale4k={() => {
@@ -7338,6 +7637,10 @@ const App: React.FC = () => {
                                               onCompose={() => handleUseInCompose(src)} 
                                               onInspect={() => handleInspectImage(src)} 
                                               onStudio={() => handleOpenStudio(src)}
+                                              onInpainting={() => {
+                                                setInpaintingTargetSrc(src);
+                                                setIsInpaintingOpen(true);
+                                              }}
                                               onDownload={() => handleDownloadImage(src, "Reference Creation")} 
                                               onUpscale={() => handleUpscale(src, false)}
                                               onUpscale4k={() => {
@@ -8435,6 +8738,7 @@ const App: React.FC = () => {
                                 onCompose={(e) => { e.stopPropagation(); handleUseInCompose(item.src); }}
                                 onInspect={(e) => { e.stopPropagation(); handleInspectImage(item.src); }}
                                 onStudio={(e) => { e.stopPropagation(); handleOpenStudio(item.src); }}
+                                onInpainting={(e) => { e.stopPropagation(); setInpaintingTargetSrc(item.src); setIsInpaintingOpen(true); }}
                                 onDownload={(e) => { e.stopPropagation(); handleDownloadImage(item.src, item.description); }}
                                 onUpscale={(e) => { e.stopPropagation(); handleUpscale(item.src, false); }}
                                 onUpscale4k={(e) => { 
@@ -8474,6 +8778,7 @@ const App: React.FC = () => {
                                 onCompose={(e) => { e.stopPropagation(); handleUseInCompose(item.src); }}
                                 onInspect={(e) => { e.stopPropagation(); handleInspectImage(item.src); }}
                                 onStudio={(e) => { e.stopPropagation(); handleOpenStudio(item.src); }}
+                                onInpainting={(e) => { e.stopPropagation(); setInpaintingTargetSrc(item.src); setIsInpaintingOpen(true); }}
                                 onDownload={(e) => { e.stopPropagation(); handleDownloadImage(item.src, item.description); }}
                                 onUpscale={(e) => { e.stopPropagation(); handleUpscale(item.src, false); }}
                                 onUpscale4k={(e) => { 
