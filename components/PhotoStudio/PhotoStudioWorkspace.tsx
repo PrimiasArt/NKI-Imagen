@@ -34,6 +34,10 @@ import { AtmosphereWeatherPanel } from './AtmosphereWeatherPanel';
 import { BeautyRetouchPanel } from './BeautyRetouchPanel';
 import { OpticalBokehPanel } from './OpticalBokehPanel';
 import { StudioLighting3DPanel } from './StudioLighting3DPanel';
+import { PhotoshopCurvesPanel } from './PhotoshopCurvesPanel';
+import { PhotoshopHslPanel } from './PhotoshopHslPanel';
+import { PhotoshopLiquifyPanel } from './PhotoshopLiquifyPanel';
+import { PhotoshopRetouchBrushesPanel } from './PhotoshopRetouchBrushesPanel';
 import {
   StudioLayer,
   StudioBlendMode,
@@ -42,6 +46,31 @@ import {
   compositeLayersToCanvas,
   flattenLayers
 } from '../../services/studioLayerService';
+import {
+  PhotoshopCurvesSettings,
+  DEFAULT_CURVES_SETTINGS,
+  computeHistogram,
+  applyPhotoshopCurvesToImageData,
+  ImageHistogram
+} from '../../services/photoshopCurvesService';
+import {
+  HslSettings,
+  DEFAULT_HSL_SETTINGS,
+  applyPhotoshopHslToImageData
+} from '../../services/photoshopHslService';
+import {
+  LiquifyBrushSettings,
+  DEFAULT_LIQUIFY_SETTINGS,
+  applyLiquifyStroke
+} from '../../services/photoshopLiquifyService';
+import {
+  DodgeBurnSettings,
+  DEFAULT_DODGE_BURN_SETTINGS,
+  applyDodgeBurnStamp,
+  CloneStampSettings,
+  DEFAULT_CLONE_STAMP_SETTINGS,
+  applyCloneStamp
+} from '../../services/photoshopRetouchBrushService';
 
 export interface PhotoStudioWorkspaceProps {
   initialImageSrc?: string | null;
@@ -50,13 +79,28 @@ export interface PhotoStudioWorkspaceProps {
   galleryItems?: GalleryItem[];
 }
 
-type StudioTool = 'select' | 'brush' | 'eraser' | 'crop' | 'color' | 'hand';
+type StudioTool =
+  | 'select'
+  | 'brush'
+  | 'eraser'
+  | 'crop'
+  | 'color'
+  | 'hand'
+  | 'curves'
+  | 'hsl'
+  | 'liquify'
+  | 'dodge_burn'
+  | 'clone_stamp';
 type RightSidebarTab =
   | 'ai_magic'
   | 'beauty_retouch'
   | 'optical_bokeh'
   | 'studio_lighting'
   | 'color_grading'
+  | 'curves'
+  | 'hsl'
+  | 'liquify'
+  | 'retouch_brushes'
   | 'layers'
   | 'gobo'
   | 'wardrobe'
@@ -262,6 +306,21 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   const [newPresetName, setNewPresetName] = useState<string>('');
   const [presetFilter, setPresetFilter] = useState<'all' | 'custom' | 'cinematic'>('all');
 
+  // Photoshop Pro Suite States (100% Zero-API)
+  const [curvesSettings, setCurvesSettings] = useState<PhotoshopCurvesSettings>(DEFAULT_CURVES_SETTINGS);
+  const [histogram, setHistogram] = useState<ImageHistogram | null>(null);
+
+  const [hslSettings, setHslSettings] = useState<HslSettings>(DEFAULT_HSL_SETTINGS);
+
+  const [liquifySettings, setLiquifySettings] = useState<LiquifyBrushSettings>(DEFAULT_LIQUIFY_SETTINGS);
+  const [liquifyOriginalData, setLiquifyOriginalData] = useState<ImageData | null>(null);
+  const liquifyLastPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  const [retouchBrushType, setRetouchBrushType] = useState<'dodge_burn' | 'clone_stamp'>('dodge_burn');
+  const [dodgeBurnSettings, setDodgeBurnSettings] = useState<DodgeBurnSettings>(DEFAULT_DODGE_BURN_SETTINGS);
+  const [cloneStampSettings, setCloneStampSettings] = useState<CloneStampSettings>(DEFAULT_CLONE_STAMP_SETTINGS);
+  const [cloneSourceSnapshot, setCloneSourceSnapshot] = useState<ImageData | null>(null);
+  const cloneStrokeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Canvas Viewport Pan & Zoom
   const [zoom, setZoom] = useState<number>(1);
@@ -363,6 +422,20 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     }
     setHasMask(false);
     setIsMaskVisible(true);
+  }, []);
+
+  // Real-time histogram calculator for Curves & Levels
+  const refreshHistogram = useCallback(() => {
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+    const ctx = mainCanvas.getContext('2d');
+    if (!ctx) return;
+    try {
+      const imgData = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+      setHistogram(computeHistogram(imgData));
+    } catch (e) {
+      console.warn('Histogram compute error', e);
+    }
   }, []);
 
   // Sync base layer when initialImageSrc changes
@@ -588,6 +661,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       });
 
       renderMainCanvas();
+      setTimeout(refreshHistogram, 60);
     };
     img.src = currentImageSrc;
   }, [currentImageSrc]);
@@ -690,8 +764,8 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
     if (!currentImageSrc) return;
 
-    // Pan mode: Middle click OR Hand tool OR Space held
-    if (e.button === 1 || activeTool === 'hand' || e.altKey) {
+    // Pan mode: Middle click OR Hand tool OR Space held (unless Alt key is pressed for Clone Stamp sampling)
+    if (e.button === 1 || activeTool === 'hand' || (e.altKey && activeTool !== 'clone_stamp')) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       return;
@@ -711,12 +785,78 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
         }
       }
 
+      // Clone Stamp Alt+Click source sampling
+      if (activeTool === 'clone_stamp' && (e.altKey || !cloneStampSettings.sourcePoint)) {
+        if (e.altKey) {
+          const coords = clientToCanvasCoords(e.clientX, e.clientY);
+          setCloneStampSettings(prev => ({ ...prev, sourcePoint: coords }));
+          const mainCanvas = mainCanvasRef.current;
+          if (mainCanvas) {
+            const ctx = mainCanvas.getContext('2d');
+            if (ctx) {
+              setCloneSourceSnapshot(ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height));
+            }
+          }
+          showToast(`Đã lấy mẫu nguồn Clone Stamp tại (${Math.round(coords.x)}, ${Math.round(coords.y)})`);
+          return;
+        }
+      }
+
       if (activeTool === 'brush' || activeTool === 'eraser') {
         const coords = clientToCanvasCoords(e.clientX, e.clientY);
         // Only draw if inside or immediately along canvas boundaries
         if (coords.x >= 0 && coords.x <= imageSize.width && coords.y >= 0 && coords.y <= imageSize.height) {
           setIsDrawing(true);
           drawMaskStroke(coords.x, coords.y, true);
+        }
+      } else if (activeTool === 'liquify') {
+        const coords = clientToCanvasCoords(e.clientX, e.clientY);
+        if (coords.x >= 0 && coords.x <= imageSize.width && coords.y >= 0 && coords.y <= imageSize.height) {
+          const mainCanvas = mainCanvasRef.current;
+          if (mainCanvas) {
+            const ctx = mainCanvas.getContext('2d');
+            if (ctx && !liquifyOriginalData) {
+              setLiquifyOriginalData(ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height));
+            }
+          }
+          setIsDrawing(true);
+          liquifyLastPointRef.current = coords;
+        }
+      } else if (activeTool === 'dodge_burn') {
+        const coords = clientToCanvasCoords(e.clientX, e.clientY);
+        if (coords.x >= 0 && coords.x <= imageSize.width && coords.y >= 0 && coords.y <= imageSize.height) {
+          setIsDrawing(true);
+          const mainCanvas = mainCanvasRef.current;
+          if (mainCanvas) {
+            const ctx = mainCanvas.getContext('2d');
+            if (ctx) {
+              applyDodgeBurnStamp(ctx, coords, dodgeBurnSettings);
+            }
+          }
+        }
+      } else if (activeTool === 'clone_stamp') {
+        const coords = clientToCanvasCoords(e.clientX, e.clientY);
+        if (coords.x >= 0 && coords.x <= imageSize.width && coords.y >= 0 && coords.y <= imageSize.height) {
+          if (!cloneStampSettings.sourcePoint) {
+            showToast('Giữ phím Alt và Click chuột để lấy điểm mẫu nguồn (Alt+Click)!');
+            return;
+          }
+          setIsDrawing(true);
+          cloneStrokeStartRef.current = coords;
+          const mainCanvas = mainCanvasRef.current;
+          if (mainCanvas && cloneSourceSnapshot) {
+            const ctx = mainCanvas.getContext('2d');
+            if (ctx) {
+              applyCloneStamp(
+                ctx,
+                cloneSourceSnapshot,
+                cloneStampSettings.sourcePoint,
+                coords,
+                coords,
+                cloneStampSettings
+              );
+            }
+          }
         }
       } else if (activeTool === 'crop' && cropBox) {
         // Crop box dragging
@@ -759,6 +899,51 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       return;
     }
 
+    if (isDrawing && activeTool === 'liquify' && liquifyLastPointRef.current && mainCanvasRef.current) {
+      const ctx = mainCanvasRef.current.getContext('2d');
+      if (ctx) {
+        applyLiquifyStroke(
+          ctx,
+          liquifyLastPointRef.current,
+          coords,
+          liquifySettings,
+          liquifyOriginalData
+        );
+        liquifyLastPointRef.current = coords;
+      }
+      return;
+    }
+
+    if (isDrawing && activeTool === 'dodge_burn' && mainCanvasRef.current) {
+      const ctx = mainCanvasRef.current.getContext('2d');
+      if (ctx) {
+        applyDodgeBurnStamp(ctx, coords, dodgeBurnSettings);
+      }
+      return;
+    }
+
+    if (
+      isDrawing &&
+      activeTool === 'clone_stamp' &&
+      mainCanvasRef.current &&
+      cloneSourceSnapshot &&
+      cloneStampSettings.sourcePoint &&
+      cloneStrokeStartRef.current
+    ) {
+      const ctx = mainCanvasRef.current.getContext('2d');
+      if (ctx) {
+        applyCloneStamp(
+          ctx,
+          cloneSourceSnapshot,
+          cloneStampSettings.sourcePoint,
+          coords,
+          cloneStrokeStartRef.current,
+          cloneStampSettings
+        );
+      }
+      return;
+    }
+
     if (isDraggingCrop && cropStartRef.current && cropBox) {
       const dx = coords.x - cropStartRef.current.mouseX;
       const dy = coords.y - cropStartRef.current.mouseY;
@@ -786,10 +971,21 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
   // Mouse Up Event Handler
   const handleMouseUp = () => {
+    if (isDrawing && (activeTool === 'liquify' || activeTool === 'dodge_burn' || activeTool === 'clone_stamp')) {
+      const mainCanvas = mainCanvasRef.current;
+      if (mainCanvas) {
+        const newUrl = mainCanvas.toDataURL('image/png');
+        pushHistory(newUrl);
+        refreshHistogram();
+      }
+    }
+
     setIsPanning(false);
     setIsDrawing(false);
     setIsDraggingCrop(false);
     lastDrawPointRef.current = null;
+    liquifyLastPointRef.current = null;
+    cloneStrokeStartRef.current = null;
     cropStartRef.current = null;
   };
 
@@ -1004,6 +1200,64 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     setAdjustments(DEFAULT_COLOR_ADJUSTMENTS);
     setActivePresetId(null);
     showToast('Đã lưu cố định chỉnh màu vào ảnh');
+  };
+
+  // Photoshop Pro Suite Handlers (100% Zero-API)
+  const handleApplyCurves = () => {
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+    const ctx = mainCanvas.getContext('2d');
+    if (!ctx) return;
+    const imgData = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    applyPhotoshopCurvesToImageData(imgData, curvesSettings);
+    ctx.putImageData(imgData, 0, 0);
+    const newUrl = mainCanvas.toDataURL('image/png');
+    pushHistory(newUrl);
+    setCurvesSettings(DEFAULT_CURVES_SETTINGS);
+    refreshHistogram();
+    showToast('Đã áp dụng Curves & Levels vào ảnh');
+  };
+
+  const handleResetCurves = () => {
+    setCurvesSettings(DEFAULT_CURVES_SETTINGS);
+    showToast('Đã đặt lại Curves & Levels về mặc định');
+  };
+
+  const handleApplyHsl = () => {
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+    const ctx = mainCanvas.getContext('2d');
+    if (!ctx) return;
+    const imgData = ctx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+    applyPhotoshopHslToImageData(imgData, hslSettings);
+    ctx.putImageData(imgData, 0, 0);
+    const newUrl = mainCanvas.toDataURL('image/png');
+    pushHistory(newUrl);
+    setHslSettings(DEFAULT_HSL_SETTINGS);
+    showToast('Đã áp dụng bộ trộn 8 kênh HSL vào ảnh');
+  };
+
+  const handleResetHsl = () => {
+    setHslSettings(DEFAULT_HSL_SETTINGS);
+    showToast('Đã đặt lại thông số 8 kênh HSL');
+  };
+
+  const handleReconstructAllLiquify = () => {
+    if (!liquifyOriginalData) return;
+    const mainCanvas = mainCanvasRef.current;
+    if (!mainCanvas) return;
+    const ctx = mainCanvas.getContext('2d');
+    if (!ctx) return;
+    ctx.putImageData(liquifyOriginalData, 0, 0);
+    const newUrl = mainCanvas.toDataURL('image/png');
+    pushHistory(newUrl);
+    showToast('Đã khôi phục toàn bộ hình dáng gốc (Reconstruct All)');
+  };
+
+  const handleClearCloneSource = () => {
+    setCloneStampSettings(prev => ({ ...prev, sourcePoint: null }));
+    setCloneSourceSnapshot(null);
+    showToast('Đã xóa điểm mẫu nguồn Clone Stamp');
   };
 
   // ==========================================
@@ -1270,6 +1524,22 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       } else if (e.key.toLowerCase() === 'g') {
         setActiveTool('select');
         setActiveTab('color_grading');
+      } else if (e.key.toLowerCase() === 'm') {
+        setActiveTab('curves');
+        refreshHistogram();
+      } else if (e.key.toLowerCase() === 'j') {
+        setActiveTab('hsl');
+      } else if (e.key.toLowerCase() === 'w') {
+        setActiveTool('liquify');
+        setActiveTab('liquify');
+      } else if (e.key.toLowerCase() === 'o') {
+        setActiveTool('dodge_burn');
+        setActiveTab('retouch_brushes');
+        setRetouchBrushType('dodge_burn');
+      } else if (e.key.toLowerCase() === 's') {
+        setActiveTool('clone_stamp');
+        setActiveTab('retouch_brushes');
+        setRetouchBrushType('clone_stamp');
       } else if (e.key === ' ') { // Space for quick pan
         setActiveTool('hand');
       }
@@ -1277,7 +1547,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo, handleRedo, clearMask, hasMask, activeTool]);
+  }, [handleUndo, handleRedo, clearMask, hasMask, activeTool, refreshHistogram]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 select-none overflow-hidden text-white font-sans">
@@ -1477,19 +1747,19 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Toolbar Dock */}
-        <aside className="w-16 flex-none bg-slate-900/80 border-r border-white/10 flex flex-col items-center py-3 gap-2 z-20 backdrop-blur-md">
+        <aside className="w-16 flex-none bg-slate-900/80 border-r border-white/10 flex flex-col items-center py-3 gap-1.5 z-20 backdrop-blur-md overflow-y-auto custom-scrollbar">
           {/* Select Tool */}
           <button
             onClick={() => setActiveTool('select')}
             className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
               activeTool === 'select'
-                ? 'bg-primary-500 text-black shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.5)] font-bold'
+                ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
             title="Công cụ Di chuyển / Chọn (Phím V)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
             </svg>
             <span className="text-[8px] font-bold mt-0.5">V</span>
           </button>
@@ -1502,13 +1772,13 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             }}
             className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
               activeTool === 'brush'
-                ? 'bg-primary-500 text-black shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.5)] font-bold'
+                ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
             title="Cọ Quét Vùng Chọn AI Inpaint (Phím B)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
             <span className="text-[8px] font-bold mt-0.5">B</span>
           </button>
@@ -1518,34 +1788,111 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             onClick={() => setActiveTool('eraser')}
             className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
               activeTool === 'eraser'
-                ? 'bg-primary-500 text-black shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.5)] font-bold'
+                ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
             title="Tẩy nét quét cọ (Phím E)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             <span className="text-[8px] font-bold mt-0.5">E</span>
           </button>
 
-          {/* Crop Tool */}
+          {/* Liquify Warp Tool */}
           <button
             onClick={() => {
-              setActiveTool('crop');
-              setActiveTab('transform');
+              setActiveTool('liquify');
+              setActiveTab('liquify');
             }}
             className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
-              activeTool === 'crop'
-                ? 'bg-primary-500 text-black shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.5)] font-bold'
+              activeTool === 'liquify'
+                ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
-            title="Cắt khung hình (Phím C)"
+            title="Nắn thon gọn mặt, mũi, eo Liquify (Phím W)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0L8 8m4-4v12" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
-            <span className="text-[8px] font-bold mt-0.5">C</span>
+            <span className="text-[8px] font-bold mt-0.5">W</span>
+          </button>
+
+          {/* Dodge & Burn Retouch Tool */}
+          <button
+            onClick={() => {
+              setActiveTool('dodge_burn');
+              setActiveTab('retouch_brushes');
+              setRetouchBrushType('dodge_burn');
+            }}
+            className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
+              activeTool === 'dodge_burn'
+                ? 'bg-white text-black shadow-sm font-bold'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+            title="Làm sáng & Tối cục bộ Dodge/Burn (Phím O)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <circle cx="12" cy="12" r="8" strokeWidth={1.8} />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+            </svg>
+            <span className="text-[8px] font-bold mt-0.5">O</span>
+          </button>
+
+          {/* Clone Stamp Tool */}
+          <button
+            onClick={() => {
+              setActiveTool('clone_stamp');
+              setActiveTab('retouch_brushes');
+              setRetouchBrushType('clone_stamp');
+            }}
+            className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
+              activeTool === 'clone_stamp'
+                ? 'bg-white text-black shadow-sm font-bold'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+            title="Đóng dấu xóa khuyết điểm Clone Stamp (Phím S - Giữ Alt để lấy mẫu)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+            </svg>
+            <span className="text-[8px] font-bold mt-0.5">S</span>
+          </button>
+
+          {/* Curves & Levels Tool */}
+          <button
+            onClick={() => {
+              setActiveTab('curves');
+              refreshHistogram();
+            }}
+            className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
+              activeTab === 'curves'
+                ? 'bg-white text-black shadow-sm font-bold'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+            title="Đồ thị Curves & Levels (Phím M)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 21h18M3 21V3m0 18c3-1 6-7 9-10s6-3 9-6" />
+            </svg>
+            <span className="text-[8px] font-bold mt-0.5">M</span>
+          </button>
+
+          {/* HSL Mixer Tool */}
+          <button
+            onClick={() => setActiveTab('hsl')}
+            className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
+              activeTab === 'hsl'
+                ? 'bg-white text-black shadow-sm font-bold'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+            title="Bộ trộn 8 kênh HSL Selective Color (Phím J)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 3a9 9 0 019 9M12 3v18" />
+            </svg>
+            <span className="text-[8px] font-bold mt-0.5">J</span>
           </button>
 
           {/* Color Grading Tool */}
@@ -1556,15 +1903,34 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             }}
             className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
               activeTab === 'color_grading'
-                ? 'bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.5)] font-bold'
+                ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
-            title="Chỉnh màu nâng cao & Presets LUT (Phím G)"
+            title="Chỉnh màu quang học & Presets LUT (Phím G)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.48 0 .93.08 1.35.24A4 4 0 0113 9a4 4 0 014 4c0 .48-.08.93-.24 1.35A4 4 0 0121 17a4 4 0 01-4 4H7z" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.48 0 .93.08 1.35.24A4 4 0 0113 9a4 4 0 014 4c0 .48-.08.93-.24 1.35A4 4 0 0121 17a4 4 0 01-4 4H7z" />
             </svg>
             <span className="text-[8px] font-bold mt-0.5">G</span>
+          </button>
+
+          {/* Crop Tool */}
+          <button
+            onClick={() => {
+              setActiveTool('crop');
+              setActiveTab('transform');
+            }}
+            className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
+              activeTool === 'crop'
+                ? 'bg-white text-black shadow-sm font-bold'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+            title="Cắt khung hình (Phím C)"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0L8 8m4-4v12" />
+            </svg>
+            <span className="text-[8px] font-bold mt-0.5">C</span>
           </button>
 
           {/* Hand Pan Tool */}
@@ -1572,13 +1938,13 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             onClick={() => setActiveTool('hand')}
             className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all ${
               activeTool === 'hand'
-                ? 'bg-primary-500 text-black shadow-[0_0_15px_rgba(var(--primary-500-rgb),0.5)] font-bold'
+                ? 'bg-white text-black shadow-sm font-bold'
                 : 'text-white/60 hover:text-white hover:bg-white/5'
             }`}
             title="Công cụ Bàn tay Pan di chuyển (Phím H hoặc Giữ Space)"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
             </svg>
             <span className="text-[8px] font-bold mt-0.5">H</span>
           </button>
@@ -1890,6 +2256,71 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             </div>
           )}
 
+          {/* Liquify Active HUD Capsule */}
+          {activeTool === 'liquify' && (
+            <div 
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-sky-400/30 px-3.5 py-1.5 rounded-2xl backdrop-blur-2xl flex items-center gap-2.5 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 studio-overlay-interactive"
+            >
+              <div className="flex items-center gap-1.5 text-xs text-sky-300 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                <span>Nắn Liquify ({liquifySettings.mode.toUpperCase()})</span>
+              </div>
+              <div className="w-px h-4 bg-white/15"></div>
+              <span className="text-[11px] text-white/70 font-mono">Cỡ: {liquifySettings.size}px</span>
+              <button
+                onClick={handleReconstructAllLiquify}
+                className="px-2 py-0.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold border border-white/20 transition-all active:scale-95"
+                title="Khôi phục toàn bộ hình ảnh gốc trước khi nắn"
+              >
+                Khôi phục gốc
+              </button>
+            </div>
+          )}
+
+          {/* Dodge & Burn Active HUD Capsule */}
+          {activeTool === 'dodge_burn' && (
+            <div 
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-amber-400/30 px-3.5 py-1.5 rounded-2xl backdrop-blur-2xl flex items-center gap-2.5 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 studio-overlay-interactive"
+            >
+              <div className="flex items-center gap-1.5 text-xs text-amber-300 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span>{dodgeBurnSettings.mode === 'dodge' ? 'Dodge (Sáng)' : 'Burn (Tối)'}</span>
+              </div>
+              <div className="w-px h-4 bg-white/15"></div>
+              <span className="text-[11px] text-white/70 font-mono">Dải: {dodgeBurnSettings.range} | {dodgeBurnSettings.exposure}%</span>
+            </div>
+          )}
+
+          {/* Clone Stamp Active HUD Capsule */}
+          {activeTool === 'clone_stamp' && (
+            <div 
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-emerald-400/30 px-3.5 py-1.5 rounded-2xl backdrop-blur-2xl flex items-center gap-2.5 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 studio-overlay-interactive"
+            >
+              <div className="flex items-center gap-1.5 text-xs text-emerald-300 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Clone Stamp</span>
+              </div>
+              <div className="w-px h-4 bg-white/15"></div>
+              <span className="text-[11px] text-white/80">
+                {cloneStampSettings.sourcePoint ? '✓ Đã có điểm mẫu' : '⚠️ Giữ Alt + Click ảnh để lấy mẫu'}
+              </span>
+              {cloneStampSettings.sourcePoint && (
+                <button
+                  onClick={handleClearCloneSource}
+                  className="px-2 py-0.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold border border-white/20 transition-all active:scale-95"
+                >
+                  Đổi mẫu
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Canvas Rendering Box (Transformed with Pan & Zoom) */}
           <div
             className="absolute top-0 left-0 origin-top-left pointer-events-none transition-transform duration-75"
@@ -1999,6 +2430,75 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 }}
               />
             )}
+
+            {/* Liquify Brush Circle Cursor */}
+            {cursorPos && activeTool === 'liquify' &&
+             cursorPos.x >= 0 && cursorPos.x <= imageSize.width && cursorPos.y >= 0 && cursorPos.y <= imageSize.height && (
+              <div
+                className="absolute rounded-full border border-sky-400 pointer-events-none -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_rgba(56,189,248,0.4)]"
+                style={{
+                  left: cursorPos.x,
+                  top: cursorPos.y,
+                  width: liquifySettings.size,
+                  height: liquifySettings.size,
+                  backgroundColor: 'rgba(56,189,248,0.1)'
+                }}
+              />
+            )}
+
+            {/* Dodge & Burn Circle Cursor */}
+            {cursorPos && activeTool === 'dodge_burn' &&
+             cursorPos.x >= 0 && cursorPos.x <= imageSize.width && cursorPos.y >= 0 && cursorPos.y <= imageSize.height && (
+              <div
+                className="absolute rounded-full border border-amber-400 pointer-events-none -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_rgba(251,191,36,0.4)]"
+                style={{
+                  left: cursorPos.x,
+                  top: cursorPos.y,
+                  width: dodgeBurnSettings.size,
+                  height: dodgeBurnSettings.size,
+                  backgroundColor: dodgeBurnSettings.mode === 'dodge' ? 'rgba(251,191,36,0.15)' : 'rgba(0,0,0,0.35)'
+                }}
+              />
+            )}
+
+            {/* Clone Stamp Circle Cursor */}
+            {cursorPos && activeTool === 'clone_stamp' &&
+             cursorPos.x >= 0 && cursorPos.x <= imageSize.width && cursorPos.y >= 0 && cursorPos.y <= imageSize.height && (
+              <div
+                className="absolute rounded-full border border-emerald-400 pointer-events-none -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_rgba(52,211,153,0.4)]"
+                style={{
+                  left: cursorPos.x,
+                  top: cursorPos.y,
+                  width: cloneStampSettings.size,
+                  height: cloneStampSettings.size,
+                  backgroundColor: 'rgba(52,211,153,0.15)'
+                }}
+              />
+            )}
+
+            {/* Clone Stamp Source Anchor Crosshair */}
+            {cloneStampSettings.sourcePoint && activeTool === 'clone_stamp' && (
+              <div
+                className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2 z-10"
+                style={{
+                  left: cloneStampSettings.sourcePoint.x,
+                  top: cloneStampSettings.sourcePoint.y
+                }}
+              >
+                <div className="relative flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full border border-emerald-400 animate-pulse bg-emerald-500/10 flex items-center justify-center shadow-[0_0_10px_rgba(52,211,153,0.8)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  </div>
+                  <div className="absolute -top-2 w-0.5 h-1.5 bg-emerald-400" />
+                  <div className="absolute -bottom-2 w-0.5 h-1.5 bg-emerald-400" />
+                  <div className="absolute -left-2 h-0.5 w-1.5 bg-emerald-400" />
+                  <div className="absolute -right-2 h-0.5 w-1.5 bg-emerald-400" />
+                  <span className="absolute -top-5 left-3 text-[9px] font-mono font-bold text-emerald-300 bg-black/80 px-1.5 py-0.5 rounded whitespace-nowrap border border-emerald-500/40 shadow-lg">
+                    SOURCE (ALT)
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* AI Execution Loading Modal */}
@@ -2037,24 +2537,79 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           {/* Sidebar Tabs - VisionOS Acrylic Header (3 Balanced Rows: Minimalist Pro Styling) */}
           <div className="flex flex-col border-b border-white/10 p-2 bg-black/40 gap-1.5">
             {/* Row 1: Core Edit Suite (4 Equal Columns) */}
+            {/* Row 1: Photoshop Pro Suite (Curves, HSL, Liquify, Retouch) */}
             <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => {
-                  setActiveTab('ai_magic');
-                  if (activeTool === 'select' || activeTool === 'color') setActiveTool('brush');
+                  setActiveTab('curves');
+                  refreshHistogram();
                 }}
                 className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
-                  activeTab === 'ai_magic'
+                  activeTab === 'curves'
                     ? 'bg-white text-black border-white shadow-sm font-semibold'
                     : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
-                title="AI Magic Inpaint & Prompt (Phím B)"
+                title="Đồ thị Curves & Levels chuyên nghiệp (Phím M)"
               >
                 <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 21h18M3 21V3m0 18c3-1 6-7 9-10s6-3 9-6" />
                 </svg>
-                <span className="truncate">Magic</span>
+                <span className="truncate">Curves</span>
               </button>
+              <button
+                onClick={() => setActiveTab('hsl')}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'hsl'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="Bộ trộn 8 kênh HSL Selective Color (Phím J)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <circle cx="12" cy="12" r="9" strokeWidth={1.8} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 3a9 9 0 019 9M12 3v18" />
+                </svg>
+                <span className="truncate">HSL 8-Kênh</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('liquify');
+                  setActiveTool('liquify');
+                }}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'liquify'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="Nắn thon gọn mặt, mũi, eo Liquify (Phím W)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+                <span className="truncate">Liquify</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('retouch_brushes');
+                  setActiveTool(retouchBrushType);
+                }}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'retouch_brushes'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="Dodge, Burn & Đóng dấu Clone Stamp (Phím O / S)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <circle cx="12" cy="12" r="8" strokeWidth={1.8} />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 2v4m0 12v4M2 12h4m12 0h4" />
+                </svg>
+                <span className="truncate">Retouch</span>
+              </button>
+            </div>
+
+            {/* Row 2: Core Edit Suite (4 Equal Columns) */}
+            <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => {
                   setActiveTab('color_grading');
@@ -2071,6 +2626,23 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.8 0 1.5.3 2.1.8l6.3-6.3a2 2 0 112.8 2.8l-6.3 6.3c.5.6.8 1.3.8 2.1a4 4 0 01-4 4z" />
                 </svg>
                 <span className="truncate">Màu Sắc</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('ai_magic');
+                  if (activeTool === 'select' || activeTool === 'color') setActiveTool('brush');
+                }}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'ai_magic'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="AI Magic Inpaint & Prompt (Phím B)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                <span className="truncate">Magic AI</span>
               </button>
               <button
                 onClick={() => setActiveTab('layers')}
@@ -2102,7 +2674,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </button>
             </div>
 
-            {/* Row 2: Breakthrough Zero-API Optical & Retouch Suite (4 Equal Columns) */}
+            {/* Row 3: Breakthrough Zero-API Optical & Retouch Suite (4 Equal Columns) */}
             <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => setActiveTab('beauty_retouch')}
@@ -2163,7 +2735,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </button>
             </div>
 
-            {/* Row 3: Neural Character & Environment Suite (3 Equal Columns) */}
+            {/* Row 4: Neural Character & Environment Suite (3 Equal Columns) */}
             <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={() => setActiveTab('wardrobe')}
@@ -2882,6 +3454,52 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* TAB: PHOTOSHOP CURVES & LEVELS ENGINE (100% Zero-API) */}
+            {activeTab === 'curves' && (
+              <PhotoshopCurvesPanel
+                settings={curvesSettings}
+                histogram={histogram}
+                onChange={setCurvesSettings}
+                onApplyToCanvas={handleApplyCurves}
+                onReset={handleResetCurves}
+              />
+            )}
+
+            {/* TAB: 8-CHANNEL SELECTIVE HSL MIXER (100% Zero-API) */}
+            {activeTab === 'hsl' && (
+              <PhotoshopHslPanel
+                settings={hslSettings}
+                onChange={setHslSettings}
+                onApplyToCanvas={handleApplyHsl}
+                onReset={handleResetHsl}
+              />
+            )}
+
+            {/* TAB: LIQUIFY & MESH WARP ENGINE (100% Zero-API) */}
+            {activeTab === 'liquify' && (
+              <PhotoshopLiquifyPanel
+                settings={liquifySettings}
+                onChange={setLiquifySettings}
+                onReconstructAll={handleReconstructAllLiquify}
+              />
+            )}
+
+            {/* TAB: RETOUCH BRUSHES (DODGE, BURN, CLONE STAMP) (100% Zero-API) */}
+            {activeTab === 'retouch_brushes' && (
+              <PhotoshopRetouchBrushesPanel
+                brushType={retouchBrushType}
+                onSelectBrushType={(t) => {
+                  setRetouchBrushType(t);
+                  setActiveTool(t);
+                }}
+                dodgeBurnSettings={dodgeBurnSettings}
+                onChangeDodgeBurn={setDodgeBurnSettings}
+                cloneStampSettings={cloneStampSettings}
+                onChangeCloneStamp={setCloneStampSettings}
+                onClearCloneSource={handleClearCloneSource}
+              />
             )}
 
             {/* TAB: HIGH-END BEAUTY RETOUCH & FREQUENCY SEPARATION (0 API) */}
