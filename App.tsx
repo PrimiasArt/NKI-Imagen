@@ -526,12 +526,16 @@ const FunctionalButtonGroup = ({
       )}
       {onRelight && (
         <ActionButton onClick={onRelight} title="Virtual 3D Gaffer (Hắt sáng & Relighting)" colorClass="text-amber-400">
-          <span className="text-[10px]">💡</span>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
         </ActionButton>
       )}
       {onSpatial3D && (
         <ActionButton onClick={onSpatial3D} title="Apple Vision Pro Spatial 3D Converter" colorClass="text-cyan-400">
-          <span className="text-[10px]">🥽</span>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
         </ActionButton>
       )}
       <ActionButton onClick={onVeoStart} title="Veo Start" colorClass="text-rose-400">
@@ -793,7 +797,16 @@ const ModelSelector: React.FC<{ value: string; onChange: (value: string) => void
             {/* Toast Feedback Notification when reloading */}
             {toastMessage && (
                 <div className="absolute left-0 bottom-full mb-2 z-50 px-3 py-1.5 rounded-xl bg-zinc-950/90 dark:bg-zinc-900/95 border border-primary-500/40 text-white text-[10px] font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 pointer-events-none flex items-center gap-1.5 whitespace-nowrap backdrop-blur-lg">
-                    <span>{isReloading ? '🔄' : '✨'}</span>
+                    {isReloading ? (
+                        <svg className="w-3 h-3 text-primary-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    ) : (
+                        <svg className="w-3 h-3 text-primary-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
+                        </svg>
+                    )}
                     <span>{toastMessage}</span>
                 </div>
             )}
@@ -843,16 +856,23 @@ const PresetSelector: React.FC<{
                     <button 
                         type="button"
                         onClick={() => { onChange(''); setIsOpen(false); }} 
-                        className={`w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors mb-2 ${!value ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'hover:bg-white/5 text-white/50'}`}
+                        className={`w-full text-left px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors mb-2 flex items-center gap-1.5 ${!value ? 'bg-primary-500/20 text-primary-400 border border-primary-500/30' : 'hover:bg-white/5 text-white/50'}`}
                     >
-                        ⚙️ Manual Configuration (No Preset)
+                        <svg className="w-3 h-3 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <circle cx="12" cy="12" r="3" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        </svg>
+                        <span>Manual Configuration (No Preset)</span>
                     </button>
 
                     {/* Personal Presets Section */}
                     <div className="mb-3">
                         <div className="flex items-center justify-between px-2 py-1 mb-1 border-b border-white/5">
-                            <span className="text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] flex items-center gap-1">
-                                ⭐ Personal Presets ({personalPresets.length})
+                            <span className="text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                                <svg className="w-3 h-3 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                </svg>
+                                <span>Personal Presets ({personalPresets.length})</span>
                             </span>
                             {onOpenManagerModal && (
                                 <button
@@ -907,8 +927,12 @@ const PresetSelector: React.FC<{
                     {/* Built-in Neural Presets */}
                     <div className="mb-2">
                         <div className="px-2 py-1 mb-1 border-b border-white/5">
-                            <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">
-                                🌐 Neural Style Matrix
+                            <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                                <svg className="w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                                </svg>
+                                <span>Neural Style Matrix</span>
                             </span>
                         </div>
                         <div className="space-y-1">
@@ -936,7 +960,9 @@ const PresetSelector: React.FC<{
                                 onClick={() => { setIsOpen(false); onOpenSaveModal(); }}
                                 className="w-full py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-[9px] font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
                             >
-                                <span>⭐</span>
+                                <svg className="w-3 h-3 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                </svg>
                                 <span>Save Current JSON as Preset</span>
                             </button>
                         )}
@@ -944,9 +970,11 @@ const PresetSelector: React.FC<{
                             <button
                                 type="button"
                                 onClick={() => { setIsOpen(false); onOpenManagerModal(); }}
-                                className="w-full py-1.5 px-3 rounded-xl hover:bg-white/5 text-white/50 hover:text-white text-[9px] font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
+                                className="w-full py-1.5 px-3 rounded-xl hover:bg-white/5 text-white/50 hover:text-white text-[9px] font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5"
                             >
-                                <span>📚</span>
+                                <svg className="w-3 h-3 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
                                 <span>Manage Presets Library</span>
                             </button>
                         )}
@@ -996,8 +1024,11 @@ const FaceReferenceInput: React.FC<{
                 <div className="flex items-center gap-2 max-w-[55%] truncate">
                     <span className="text-xs font-bold uppercase tracking-widest text-white/50">{label}</span>
                     {personaName && (
-                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold truncate">
-                            👑 {personaName}
+                        <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold truncate flex items-center gap-1">
+                            <svg className="w-2.5 h-2.5 text-amber-300" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5m14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
+                            </svg>
+                            <span>{personaName}</span>
                         </span>
                     )}
                 </div>
@@ -1008,10 +1039,12 @@ const FaceReferenceInput: React.FC<{
                             <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); onOpenVault(); }}
-                                className="text-[10px] text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-2 py-1 rounded-lg font-bold transition-all flex items-center gap-1"
+                                className="text-[10px] text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/30 px-2 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5"
                                 title="Đổi hoặc chọn nhân vật mẫu khác từ Kho Data"
                             >
-                                <span>📁</span>
+                                <svg className="w-3 h-3 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
                                 <span className="hidden sm:inline">Kho Mẫu</span>
                             </button>
                         )}
@@ -1025,15 +1058,19 @@ const FaceReferenceInput: React.FC<{
                             <button
                                 type="button"
                                 onClick={onOpenVault}
-                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 flex items-center gap-1 shadow-sm active:scale-95"
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 flex items-center gap-1.5 shadow-sm active:scale-95"
                                 title="Chọn người mẫu có sẵn từ Kho Data Nhân Vật"
                             >
-                                <span>📁</span>
+                                <svg className="w-3 h-3 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
                                 <span>Kho Mẫu</span>
                             </button>
                         )}
-                        <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 border border-white/10 text-white/80 flex items-center gap-1 active:scale-95">
-                            <span>📤</span>
+                        <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white/10 hover:bg-white/20 border border-white/10 text-white/80 flex items-center gap-1.5 active:scale-95">
+                            <svg className="w-3 h-3 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
                             <span>Tải Lên</span>
                             <input type="file" accept="image/*" className="hidden" onChange={onUpload} />
                         </label>
@@ -1054,12 +1091,15 @@ const FaceReferenceInput: React.FC<{
                                 className="text-white/70 truncate hover:text-white cursor-pointer select-none font-medium"
                                 title="Nhấp để xem chi tiết nhận diện Google Vision"
                             >
-                                {biometricProfile.gender === 'Female' ? '👩 Nữ' : (biometricProfile.gender === 'Male' ? '👨 Nam' : '🧑')} • {biometricProfile.estimatedAge} • {biometricProfile.faceShape}
+                                {biometricProfile.gender === 'Female' ? 'Nữ' : (biometricProfile.gender === 'Male' ? 'Nam' : 'Biometric')} • {biometricProfile.estimatedAge} • {biometricProfile.faceShape}
                             </span>
                         </div>
                     ) : (
                         <div className="flex items-center gap-1.5 text-white/40">
-                            <span>🔍 Chưa quét Biometric</span>
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            <span>Chưa quét Biometric</span>
                         </div>
                     )}
 
@@ -1068,7 +1108,7 @@ const FaceReferenceInput: React.FC<{
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onScanBiometrics(); }}
                             disabled={isScanningBiometrics}
-                            className="px-2 py-0.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-200 font-bold transition flex items-center gap-1 text-[9px] flex-shrink-0 disabled:opacity-50"
+                            className="px-2 py-0.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-purple-200 font-bold transition flex items-center gap-1.5 text-[9px] flex-shrink-0 disabled:opacity-50"
                             title="Chạy Google Vision để phân tích đặc điểm khuôn mặt, cấu trúc xương và màu mắt cho model này"
                         >
                             {isScanningBiometrics ? (
@@ -1078,7 +1118,9 @@ const FaceReferenceInput: React.FC<{
                                 </>
                             ) : (
                                 <>
-                                    <span>⚡</span>
+                                    <svg className="w-2.5 h-2.5 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
                                     <span>{biometricProfile ? 'Quét Lại' : 'Quét Vision'}</span>
                                 </>
                             )}
@@ -1101,15 +1143,15 @@ const FaceReferenceInput: React.FC<{
 
 const getDualSlotLabel = (pairing: DualCharacterPairing, slotIndex: 1 | 2): string => {
     if (pairing === 'ff') {
-        return slotIndex === 1 ? '👩 Nhân Vật Nữ 1 (Slot 1)' : '👩 Nhân Vật Nữ 2 (Slot 2)';
+        return slotIndex === 1 ? 'Nhân Vật Nữ 1 (Slot 1)' : 'Nhân Vật Nữ 2 (Slot 2)';
     }
     if (pairing === 'mm') {
-        return slotIndex === 1 ? '👨 Nhân Vật Nam 1 (Slot 1)' : '👨 Nhân Vật Nam 2 (Slot 2)';
+        return slotIndex === 1 ? 'Nhân Vật Nam 1 (Slot 1)' : 'Nhân Vật Nam 2 (Slot 2)';
     }
     if (pairing === 'mf') {
-        return slotIndex === 1 ? '👨/👩 Nhân Vật 1 (Slot 1)' : '👩/👨 Nhân Vật 2 (Slot 2)';
+        return slotIndex === 1 ? 'Nhân Vật 1 (Slot 1)' : 'Nhân Vật 2 (Slot 2)';
     }
-    return slotIndex === 1 ? '🎭 Nhân Vật 1 (Slot 1)' : '🎭 Nhân Vật 2 (Slot 2)';
+    return slotIndex === 1 ? 'Nhân Vật 1 (Slot 1)' : 'Nhân Vật 2 (Slot 2)';
 };
 
 const DualCharacterControls: React.FC<{
@@ -1140,10 +1182,10 @@ const DualCharacterControls: React.FC<{
 
             <div className="grid grid-cols-4 gap-1">
                 {[
-                    { id: 'auto', label: '⚡ Tự Động', desc: 'Google Vision tự nhận diện giới tính từng ảnh' },
-                    { id: 'ff', label: '👩+👩 2 Nữ', desc: 'Cặp đôi hoặc 2 bạn nữ - Chống ép nam' },
-                    { id: 'mf', label: '👨+👩 Nam-Nữ', desc: 'Cặp đôi nam nữ' },
-                    { id: 'mm', label: '👨+👨 2 Nam', desc: 'Cặp đôi hoặc 2 bạn nam - Chống ép nữ' },
+                    { id: 'auto', label: 'Tự Động', desc: 'Google Vision tự nhận diện giới tính từng ảnh' },
+                    { id: 'ff', label: '2 Nữ (F+F)', desc: 'Cặp đôi hoặc 2 bạn nữ - Chống ép nam' },
+                    { id: 'mf', label: 'Nam - Nữ (M+F)', desc: 'Cặp đôi nam nữ' },
+                    { id: 'mm', label: '2 Nam (M+M)', desc: 'Cặp đôi hoặc 2 bạn nam - Chống ép nữ' },
                 ].map((item) => (
                     <button
                         key={item.id}
@@ -1169,7 +1211,10 @@ const DualCharacterControls: React.FC<{
                         onChange={(e) => onToggleAntiBleed(e.target.checked)}
                         className="w-3.5 h-3.5 rounded bg-white/10 border-white/20 text-purple-500 focus:ring-purple-500/40"
                     />
-                    <span className="font-semibold text-white/80">🛡️ Anti-Bleed Lock</span>
+                    <svg className="w-3.5 h-3.5 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span className="font-semibold text-white/80">Anti-Bleed Lock</span>
                 </label>
                 <span className="text-[9px] text-white/40">Cách ly độc lập 2 khuôn mặt</span>
             </div>
@@ -1464,8 +1509,11 @@ const GalleryListItem: React.FC<{
                             </span>
                         )}
                         {matchedCol && (
-                            <span className="bg-primary-500/10 text-primary-300 border border-primary-500/20 px-2 py-0.5 rounded font-bold">
-                                📁 {matchedCol.name}
+                            <span className="bg-primary-500/10 text-primary-300 border border-primary-500/20 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                <svg className="w-2.5 h-2.5 text-primary-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                                <span>{matchedCol.name}</span>
                             </span>
                         )}
                         <span>•</span>
@@ -1480,7 +1528,9 @@ const GalleryListItem: React.FC<{
             <div className="flex items-center gap-1.5 self-end md:self-center flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
                 {onInpainting && (
                     <ActionButton onClick={onInpainting} title="Cọ Ma Thuật Inpainting (Sửa bàn tay, chi tiết)" colorClass="text-pink-400">
-                        <span className="text-[10px]">🪄</span>
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 4l5 5L8 21H3v-5L15 4zM18.5 2.5a2.121 2.121 0 013 3L20 7l-5-5 1.5-1.5z" />
+                        </svg>
                     </ActionButton>
                 )}
                 {onStudio && (
@@ -1599,9 +1649,12 @@ const ErrorModal: React.FC<{
                       onClick={() => {
                         window.location.href = window.location.href.replace('127.0.0.1', 'localhost');
                       }}
-                      className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-black font-black rounded-2xl transition-all tracking-wider uppercase text-xs shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center gap-1.5"
+                      className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-black font-black rounded-2xl transition-all tracking-wider uppercase text-xs shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center gap-2"
                     >
-                      <span>👉 Chuyển sang http://localhost:3000 (Sửa lỗi Drive)</span>
+                      <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                      <span>Chuyển sang http://localhost:3000 (Sửa lỗi Drive)</span>
                     </button>
                   )}
                   {(isAccessDenied403 || isDriveError) && onDisableDrive && (
@@ -2409,8 +2462,11 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                                         className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-400 bg-black/40 border-white/20 accent-emerald-500 cursor-pointer"
                                     />
                                     <div className="flex flex-col">
-                                        <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1 leading-tight">
-                                            <span>🛡️</span> Khử Dấu AI (Bypass Detector)
+                                        <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 leading-tight">
+                                            <svg className="w-3.5 h-3.5 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                            </svg>
+                                            <span>Khử Dấu AI (Bypass Detector)</span>
                                         </span>
                                         <span className="text-[9px] text-white/40 leading-tight">
                                             Bơm hạt cảm biến Film Grain & Cấy EXIF máy ảnh thật
@@ -2632,7 +2688,7 @@ const App: React.FC = () => {
           success: true,
           message: 'Google Drive connected successfully!'
         });
-        showCleanToast('⚡ Đã kết nối Google Drive thành công!');
+        showCleanToast('Đã kết nối Google Drive thành công!');
       }
     } catch (err: any) {
       if (err?.code === 'auth/popup-closed-by-user') {
@@ -2653,6 +2709,74 @@ const App: React.FC = () => {
   }, [googleUser]);
 
   const [activeTab, setActiveTab] = useState<AppMode>(AppMode.IMG_TO_JSON);
+
+  const renderSubnavIcon = (mode: AppMode) => {
+    switch (mode) {
+      case AppMode.IMG_TO_JSON:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        );
+      case AppMode.JSON_CONVERTER:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        );
+      case AppMode.JSON_TO_IMG:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        );
+      case AppMode.POSE_VARIANTS:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        );
+      case AppMode.COMPOSE_IMAGE:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        );
+      case AppMode.REFERENCE_CREATION:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+          </svg>
+        );
+      case AppMode.UPSCALE_IMAGE:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        );
+      case AppMode.AI_STUDIO:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4 5 5 0 015-5h2a5 5 0 015 5 4 4 0 01-4 4H7zM7 21h10a4 4 0 004-4 7 7 0 00-7-7h-1" />
+          </svg>
+        );
+      case AppMode.SCENARIO_EDITOR:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+          </svg>
+        );
+      case AppMode.VEO3_PROMPT_CREATOR:
+        return (
+          <svg className="w-3.5 h-3.5 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
   const [studioInitialImage, setStudioInitialImage] = useState<string | null>(null);
 
   const handleOpenStudio = (src?: string) => {
@@ -3202,7 +3326,7 @@ const App: React.FC = () => {
       const effectiveName = nameHint || slotPersonaNames[slot];
       const profile = await analyzeBiometricFaceCore(targetImage, effectiveName);
       setSlotBiometricProfiles(prev => ({ ...prev, [slot]: profile }));
-      showCleanToast(`✨ Đã phân tích Biometric cho ${effectiveName || 'model'}: ${profile.gender === 'Female' ? 'Nữ' : 'Nam'}, ~${profile.estimatedAge} tuổi, mặt ${profile.faceShape}`);
+      showCleanToast(`Đã phân tích Biometric cho ${effectiveName || 'model'}: ${profile.gender === 'Female' ? 'Nữ' : 'Nam'}, ~${profile.estimatedAge} tuổi, mặt ${profile.faceShape}`);
     } catch (err: any) {
       console.warn('[Biometric Vision Scan] Error:', err);
     } finally {
@@ -3292,7 +3416,7 @@ const App: React.FC = () => {
       const imported = decodePromptFromShareHash(window.location.hash);
       if (imported) {
         updateJsonInput(JSON.stringify(imported, null, 2));
-        showCleanToast('✨ Đã tự động nạp Preset từ liên kết chia sẻ!');
+        showCleanToast('Đã tự động nạp Preset từ liên kết chia sẻ!');
         window.history.replaceState(null, '', window.location.pathname);
       }
     }
@@ -6123,7 +6247,9 @@ const App: React.FC = () => {
                   }`}
                   title="Photo Studio 2026: Chỉnh màu nâng cao & Canva AI"
                 >
-                  <span className="text-[11px]">🎨</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4 5 5 0 015-5h2a5 5 0 015 5 4 4 0 01-4 4H7zM7 21h10a4 4 0 004-4 7 7 0 00-7-7h-1" />
+                  </svg>
                   <span>{t('nav.studio')}</span>
                 </button>
                 <button onClick={() => setIsDarkMode(!isDarkMode)} className={`w-8 h-8 flex items-center justify-center rounded-lg glass-card transition-all ${isDarkMode ? 'text-amber-400' : 'text-slate-600 shadow-inner'}`} title="Chuyển chế độ sáng/tối">
@@ -6152,7 +6278,9 @@ const App: React.FC = () => {
                     className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-[8.5px] font-black tracking-widest uppercase transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse"
                     title="Phiên Google Drive cần nối lại - Bấm 1-Click để nối lại ngay tức thì!"
                   >
-                    <span className="text-[10px]">⚡</span>
+                    <svg className="h-2.5 w-2.5 text-amber-300" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                     <span>1-Click Nối Drive</span>
                   </button>
                 ) : (
@@ -6184,7 +6312,9 @@ const App: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <span className="text-[9px]">☁️</span>
+                        <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+                        </svg>
                         <span>Sync Vault</span>
                       </>
                     )}
@@ -6199,7 +6329,9 @@ const App: React.FC = () => {
                   }`}
                   title="Xem hàng đợi tạo ảnh và làm mát"
                 >
-                  <span className="text-[9px]">⚡</span>
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
                   Queue
                 </button>
                 <button
@@ -6211,7 +6343,9 @@ const App: React.FC = () => {
                   }`}
                   title={hasApiKey ? "Cấu hình Google Gemini API Key (Đang hoạt động)" : "Chưa có API Key - Nhấp để cài đặt"}
                 >
-                  <span className="text-[9px]">🔑</span>
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
                   <span>{hasApiKey ? 'Gemini API' : 'Nhập Key'}</span>
                 </button>
                 {/* Apple visionOS Quick Language Switcher Dropdown */}
@@ -6232,7 +6366,9 @@ const App: React.FC = () => {
                     <div className="absolute right-0 mt-2 w-52 bg-slate-900/95 backdrop-blur-3xl border border-white/20 rounded-2xl p-2 shadow-[0_25px_60px_rgba(0,0,0,0.7),inset_0_1px_1px_rgba(255,255,255,0.25)] z-50 animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1">
                       <div className="px-2 py-1 text-[8.5px] font-black tracking-widest uppercase text-white/40 border-b border-white/10 flex items-center justify-between">
                         <span>{t('settings.tab.language')}</span>
-                        <span className="text-xs">🌐</span>
+                        <svg className="w-3 h-3 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                        </svg>
                       </div>
                       {SUPPORTED_LANGUAGES.map((langItem) => {
                         const isActive = lang === langItem.code;
@@ -6285,6 +6421,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
+
       {/* Consolidated Top Sub-Bar: Sub-Navigation Dock + Realtime Rate Limit */}
       <div className="flex-none w-full border-b border-white/5 bg-black/25 backdrop-blur-xl px-4 lg:px-6 py-2 z-30">
         <div className="max-w-[1720px] mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -6293,14 +6430,14 @@ const App: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <div className="bg-white/[0.03] p-1 rounded-2xl inline-flex border border-white/10 gap-1 backdrop-blur-xl shadow-inner">
                 {[ 
-                  { id: AppMode.IMG_TO_JSON, label: t('subnav.analysis'), icon: '🔍' }, 
-                  { id: AppMode.JSON_CONVERTER, label: t('subnav.converter'), icon: '⚡' }, 
-                  { id: AppMode.JSON_TO_IMG, label: t('subnav.generator'), icon: '🎨' }, 
-                  { id: AppMode.POSE_VARIANTS, label: t('subnav.pose'), icon: '🏃' }, 
-                  { id: AppMode.COMPOSE_IMAGE, label: t('subnav.compose'), icon: '🧩' },
-                  { id: AppMode.REFERENCE_CREATION, label: t('subnav.reference'), icon: '🎭' },
-                  { id: AppMode.UPSCALE_IMAGE, label: t('subnav.upscale'), icon: '✨' },
-                  { id: AppMode.AI_STUDIO, label: t('subnav.studio'), icon: '🖌️' }
+                  { id: AppMode.IMG_TO_JSON, label: t('subnav.analysis') }, 
+                  { id: AppMode.JSON_CONVERTER, label: t('subnav.converter') }, 
+                  { id: AppMode.JSON_TO_IMG, label: t('subnav.generator') }, 
+                  { id: AppMode.POSE_VARIANTS, label: t('subnav.pose') }, 
+                  { id: AppMode.COMPOSE_IMAGE, label: t('subnav.compose') },
+                  { id: AppMode.REFERENCE_CREATION, label: t('subnav.reference') },
+                  { id: AppMode.UPSCALE_IMAGE, label: t('subnav.upscale') },
+                  { id: AppMode.AI_STUDIO, label: t('subnav.studio') }
                 ].map(sub => (
                   <button 
                     key={sub.id} 
@@ -6311,7 +6448,7 @@ const App: React.FC = () => {
                         : 'text-white/40 hover:text-white/90 hover:bg-white/5'
                     }`}
                   >
-                    <span className="text-[11px]">{sub.icon}</span>
+                    <span>{renderSubnavIcon(sub.id)}</span>
                     <span>{sub.label}</span>
                   </button>
                 ))}
@@ -6324,7 +6461,9 @@ const App: React.FC = () => {
                   className="px-3.5 py-1.5 rounded-xl text-[10px] font-black tracking-wider uppercase transition-all flex items-center gap-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 active:scale-95 shadow-[0_0_12px_rgba(244,63,94,0.15)] animate-in fade-in"
                   title={t('prompt.cleanTooltip')}
                 >
-                  <span className="text-[11px]">🧹</span>
+                  <svg className="w-3 h-3 text-rose-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                   <span>{t('prompt.clean')}</span>
                 </button>
               )}
@@ -6335,8 +6474,8 @@ const App: React.FC = () => {
           {(activeTab === AppMode.SCENARIO_EDITOR || activeTab === AppMode.VEO3_PROMPT_CREATOR) && (
             <div className="bg-white/[0.03] p-1 rounded-2xl inline-flex border border-white/10 gap-1 backdrop-blur-xl shadow-inner">
               {[ 
-                { id: AppMode.SCENARIO_EDITOR, label: t('subnav.scripting'), icon: '🎬' }, 
-                { id: AppMode.VEO3_PROMPT_CREATOR, label: t('subnav.veo3'), icon: '🎥' } 
+                { id: AppMode.SCENARIO_EDITOR, label: t('subnav.scripting') }, 
+                { id: AppMode.VEO3_PROMPT_CREATOR, label: t('subnav.veo3') } 
               ].map(sub => (
                 <button 
                   key={sub.id} 
@@ -6347,7 +6486,7 @@ const App: React.FC = () => {
                       : 'text-white/40 hover:text-white/90 hover:bg-white/5'
                   }`}
                 >
-                  <span className="text-[11px]">{sub.icon}</span>
+                  <span>{renderSubnavIcon(sub.id)}</span>
                   <span>{sub.label}</span>
                 </button>
               ))}
@@ -6382,7 +6521,9 @@ const App: React.FC = () => {
       {cloudVaultSyncStatus && (
         <div className="fixed top-16 right-6 z-[9999] animate-in slide-in-from-top-3 duration-300">
           <div className="glass-card px-4 py-3 rounded-2xl border border-primary-500/40 bg-slate-950/90 backdrop-blur-xl flex items-center gap-3 text-xs font-bold text-white shadow-2xl shadow-primary-950/80">
-            <span className="text-lg">☁️</span>
+            <svg className="w-4 h-4 text-primary-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+            </svg>
             <span className="text-primary-200">{cloudVaultSyncStatus}</span>
           </div>
         </div>
@@ -6392,7 +6533,9 @@ const App: React.FC = () => {
       {cleanToast && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-top-3 fade-in duration-200">
           <div className="glass-card px-5 py-2.5 rounded-2xl border border-rose-500/40 bg-slate-950/95 backdrop-blur-2xl flex items-center gap-2.5 text-xs font-bold text-white shadow-2xl shadow-rose-950/60 ring-1 ring-white/10">
-            <span className="text-base">🧹</span>
+            <svg className="w-4 h-4 text-rose-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
             <span className="text-rose-200 tracking-wide">{cleanToast}</span>
           </div>
         </div>
@@ -6502,7 +6645,9 @@ const App: React.FC = () => {
                                   className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 shadow-sm"
                                   title={t('prompt.cleanTooltip')}
                                 >
-                                  <span>🧹</span>
+                                  <svg className="w-3 h-3 text-rose-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
                                   <span>{t('prompt.clean')}</span>
                                 </button>
                               )}
@@ -6534,7 +6679,9 @@ const App: React.FC = () => {
                               JSON.stringify(jsonResult, null, 2)
                             ) : (
                               <div className="h-full flex flex-col items-center justify-center py-20 text-center space-y-3 opacity-30 select-none">
-                                <span className="text-2xl">⚡</span>
+                                <svg className="w-8 h-8 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                                </svg>
                                 <span className="text-xs font-mono tracking-wider uppercase block">Awaiting Analysis Output...</span>
                                 <span className="text-[11px] max-w-xs block font-sans">Tải ảnh lên ở cột bên trái và bấm Analyze để trích xuất prompt chi tiết.</span>
                               </div>
@@ -6586,7 +6733,9 @@ const App: React.FC = () => {
                                         className="px-3 py-1 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 active:scale-95 shadow-sm"
                                         title={t('prompt.cleanTooltip')}
                                     >
-                                        <span>🧹</span>
+                                        <svg className="w-3 h-3 text-rose-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
                                         <span>{t('prompt.clean')}</span>
                                     </button>
                                 )}
@@ -7986,7 +8135,7 @@ const App: React.FC = () => {
                             <CameraTrajectoryVisualizer
                                 onSelectTrajectory={(traj, formula) => {
                                     setVeoUserPrompt(prev => prev ? `${prev}. Camera path: ${formula}` : `Camera path: ${formula}`);
-                                    showCleanToast(`🎥 Đã gán quỹ đạo: ${traj.name}`);
+                                    showCleanToast(`Đã gán quỹ đạo: ${traj.name}`);
                                 }}
                             />
                         </div>
@@ -8127,33 +8276,39 @@ const App: React.FC = () => {
 
                                     {/* Source Filter */}
                                     <div className="flex items-center gap-1.5 bg-white/5 rounded-xl border border-white/10 px-3 py-1.5">
+                                        <svg className="w-3.5 h-3.5 text-white/40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                        </svg>
                                         <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Nguồn:</span>
                                         <select 
                                             value={promptFilterSource} 
                                             onChange={(e) => setPromptFilterSource(e.target.value as any)} 
                                             className="bg-transparent text-xs font-black outline-none text-white cursor-pointer"
                                         >
-                                            <option value="all" className="bg-slate-900 text-white">🗂️ Tất cả nguồn</option>
-                                            <option value="ANALYZE_IMAGE" className="bg-slate-900 text-white">👁️ Phân tích ảnh</option>
-                                            <option value="TEXT_TO_JSON" className="bg-slate-900 text-white">📝 Convert từ Text</option>
-                                            <option value="JSON_TO_IMG" className="bg-slate-900 text-white">🎨 Tạo ảnh từ JSON</option>
-                                            <option value="POSE" className="bg-slate-900 text-white">🏃 Biến thể tư thế</option>
-                                            <option value="COMPOSE" className="bg-slate-900 text-white">🧩 Ghép ảnh AI</option>
-                                            <option value="REFINE" className="bg-slate-900 text-white">✨ Tinh chỉnh prompt</option>
-                                            <option value="REFERENCE" className="bg-slate-900 text-white">👗 Trang phục nhân vật</option>
+                                            <option value="all" className="bg-slate-900 text-white">Tất cả nguồn</option>
+                                            <option value="ANALYZE_IMAGE" className="bg-slate-900 text-white">Phân tích ảnh</option>
+                                            <option value="TEXT_TO_JSON" className="bg-slate-900 text-white">Convert từ Text</option>
+                                            <option value="JSON_TO_IMG" className="bg-slate-900 text-white">Tạo ảnh từ JSON</option>
+                                            <option value="POSE" className="bg-slate-900 text-white">Biến thể tư thế</option>
+                                            <option value="COMPOSE" className="bg-slate-900 text-white">Ghép ảnh AI</option>
+                                            <option value="REFINE" className="bg-slate-900 text-white">Tinh chỉnh prompt</option>
+                                            <option value="REFERENCE" className="bg-slate-900 text-white">Trang phục nhân vật</option>
                                         </select>
                                     </div>
 
                                     {/* Sort Order */}
                                     <div className="flex items-center gap-1.5 bg-white/5 rounded-xl border border-white/10 px-3 py-1.5">
+                                        <svg className="w-3.5 h-3.5 text-white/40 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                        </svg>
                                         <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Thứ tự:</span>
                                         <select 
                                             value={promptSort} 
                                             onChange={(e) => setPromptSort(e.target.value as any)} 
                                             className="bg-transparent text-xs font-black outline-none text-white cursor-pointer"
                                         >
-                                            <option value="newest" className="bg-slate-900 text-white">⏱️ Mới nhất trước</option>
-                                            <option value="oldest" className="bg-slate-900 text-white">⏳ Cũ nhất trước</option>
+                                            <option value="newest" className="bg-slate-900 text-white">Mới nhất trước</option>
+                                            <option value="oldest" className="bg-slate-900 text-white">Cũ nhất trước</option>
                                         </select>
                                     </div>
 
@@ -8190,13 +8345,13 @@ const App: React.FC = () => {
                                         const isExpanded = expandedPromptId === item.id;
                                         const isCopied = copiedPromptId === item.id;
                                         const sourceBadge = 
-                                            item.source === 'ANALYZE_IMAGE' ? { label: '👁️ Phân tích ảnh', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' } :
-                                            item.source === 'TEXT_TO_JSON' ? { label: '📝 Convert Text', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' } :
-                                            item.source === 'JSON_TO_IMG' ? { label: '🎨 Tạo ảnh JSON', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' } :
-                                            item.source === 'POSE' ? { label: '🏃 Biến thể tư thế', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' } :
-                                            item.source === 'COMPOSE' ? { label: '🧩 Ghép ảnh', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' } :
-                                            item.source === 'REFINE' ? { label: '✨ Tinh chỉnh', color: 'bg-pink-500/20 text-pink-300 border-pink-500/30' } :
-                                            { label: '👗 Trang phục', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' };
+                                            item.source === 'ANALYZE_IMAGE' ? { label: 'Phân tích ảnh', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' } :
+                                            item.source === 'TEXT_TO_JSON' ? { label: 'Convert Text', color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' } :
+                                            item.source === 'JSON_TO_IMG' ? { label: 'Tạo ảnh JSON', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' } :
+                                            item.source === 'POSE' ? { label: 'Biến thể tư thế', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' } :
+                                            item.source === 'COMPOSE' ? { label: 'Ghép ảnh AI', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' } :
+                                            item.source === 'REFINE' ? { label: 'Tinh chỉnh', color: 'bg-pink-500/20 text-pink-300 border-pink-500/30' } :
+                                            { label: 'Trang phục', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' };
 
                                         return (
                                             <div 
@@ -8546,57 +8701,70 @@ const App: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-2.5 flex-1">
                             {/* Sort Order */}
                             <div className="flex items-center gap-1.5 bg-white/5 rounded-xl border border-white/10 px-3 py-1.5">
+                                <svg className="w-3.5 h-3.5 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                                </svg>
                                 <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Thứ tự:</span>
                                 <select 
                                     value={gallerySort} 
                                     onChange={(e) => setGallerySort(e.target.value as any)} 
                                     className="bg-transparent text-xs font-black outline-none text-white cursor-pointer"
                                 >
-                                    <option value="newest" className="bg-slate-900 text-white">⏱️ Mới nhất trước</option>
-                                    <option value="oldest" className="bg-slate-900 text-white">⏳ Cũ nhất trước</option>
+                                    <option value="newest" className="bg-slate-900 text-white">Mới nhất trước</option>
+                                    <option value="oldest" className="bg-slate-900 text-white">Cũ nhất trước</option>
                                 </select>
                             </div>
 
                             {/* Time Filter */}
                             <div className="flex items-center gap-1.5 bg-white/5 rounded-xl border border-white/10 px-3 py-1.5">
+                                <svg className="w-3.5 h-3.5 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
                                 <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Thời gian:</span>
                                 <select 
                                     value={galleryTimeRange} 
                                     onChange={(e) => setGalleryTimeRange(e.target.value as any)} 
                                     className="bg-transparent text-xs font-black outline-none text-white cursor-pointer"
                                 >
-                                    <option value="all" className="bg-slate-900 text-white">🌐 Tất cả thời gian</option>
-                                    <option value="today" className="bg-slate-900 text-white">⚡ Hôm nay (24h)</option>
-                                    <option value="7days" className="bg-slate-900 text-white">📅 7 ngày qua</option>
-                                    <option value="30days" className="bg-slate-900 text-white">🗓️ 30 ngày qua</option>
+                                    <option value="all" className="bg-slate-900 text-white">Tất cả thời gian</option>
+                                    <option value="today" className="bg-slate-900 text-white">Hôm nay (24h)</option>
+                                    <option value="7days" className="bg-slate-900 text-white">7 ngày qua</option>
+                                    <option value="30days" className="bg-slate-900 text-white">30 ngày qua</option>
                                 </select>
                             </div>
 
                             {/* Classification */}
                             <div className="flex items-center gap-1.5 bg-white/5 rounded-xl border border-white/10 px-3 py-1.5">
+                                <svg className="w-3.5 h-3.5 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                                </svg>
                                 <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Phân loại:</span>
                                 <select 
                                     value={galleryFilter} 
                                     onChange={(e) => setGalleryFilter(e.target.value as any)} 
                                     className="bg-transparent text-xs font-black outline-none text-white cursor-pointer"
                                 >
-                                    <option value="all" className="bg-slate-900 text-white">🗂️ Tất cả thể loại</option>
-                                    <option value="JSON_TO_IMG" className="bg-slate-900 text-white">🎨 Tạo ảnh JSON</option>
-                                    <option value="POSE" className="bg-slate-900 text-white">🏃 Biến thể tư thế</option>
-                                    <option value="COMPOSE" className="bg-slate-900 text-white">🧩 Ghép ảnh AI</option>
-                                    <option value="UPSCALE" className="bg-slate-900 text-white">🔍 Nâng cấp 2K/4K</option>
-                                    <option value="DRIVE_SYNCED" className="bg-slate-900 text-white">☁️ Đã lưu Google Drive</option>
+                                    <option value="all" className="bg-slate-900 text-white">Tất cả thể loại</option>
+                                    <option value="JSON_TO_IMG" className="bg-slate-900 text-white">Tạo ảnh JSON</option>
+                                    <option value="POSE" className="bg-slate-900 text-white">Biến thể tư thế</option>
+                                    <option value="COMPOSE" className="bg-slate-900 text-white">Ghép ảnh AI</option>
+                                    <option value="UPSCALE" className="bg-slate-900 text-white">Nâng cấp 2K/4K</option>
+                                    <option value="DRIVE_SYNCED" className="bg-slate-900 text-white">Đã lưu Google Drive</option>
                                 </select>
                             </div>
 
                             {/* Bundles */}
                             <div className="flex items-center gap-1 bg-white/5 rounded-xl border border-white/10 p-1">
+                                <svg className="w-3.5 h-3.5 text-white/40 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
                                 <select 
                                     value={activeCollectionId} 
                                     onChange={(e) => setActiveCollectionId(e.target.value)} 
-                                    className="bg-transparent border-none px-2.5 py-1 text-xs font-black outline-none text-white cursor-pointer"
+                                    className="bg-transparent border-none px-2 py-1 text-xs font-black outline-none text-white cursor-pointer"
                                 >
-                                    <option value="all" className="bg-slate-900 text-white">📁 Tất cả Album</option>
+                                    <option value="all" className="bg-slate-900 text-white">Tất cả Album</option>
                                     {collections.map(c => <option key={c.id} value={c.id} className="bg-slate-900 text-white">{c.name}</option>)}
                                 </select>
                                 <button 
@@ -8652,7 +8820,9 @@ const App: React.FC = () => {
                                     className="px-3 py-1.5 text-xs font-black bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 rounded-xl transition-all flex items-center gap-1.5 shadow-lg animate-pulse"
                                     title="Phát hiện ảnh trùng lặp do đồng bộ nhiều lần, nhấp để dọn dẹp và gộp lại"
                                 >
-                                    <span>🧹</span>
+                                    <svg className="w-3.5 h-3.5 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
                                     <span>Dọn {duplicateCount} ảnh trùng lặp</span>
                                 </button>
                             ) : galleryItems.length > 1 ? (
@@ -8661,7 +8831,9 @@ const App: React.FC = () => {
                                     className="px-2.5 py-1 text-[11px] font-bold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-colors flex items-center gap-1"
                                     title="Kiểm tra và dọn dẹp ảnh trùng lặp"
                                 >
-                                    <span>🧹</span>
+                                    <svg className="w-3 h-3 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
                                     <span>Dọn trùng</span>
                                 </button>
                             ) : null}
@@ -8721,7 +8893,10 @@ const App: React.FC = () => {
                                         className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95 shadow-md"
                                         title="Gom các ảnh đã chọn vào Album / Bộ sưu tập"
                                     >
-                                        <span>📁</span> Gom vào Album
+                                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                        </svg>
+                                        <span>Gom vào Album</span>
                                     </button>
 
                                     {/* Tải Khử Dấu AI */}
@@ -8738,7 +8913,10 @@ const App: React.FC = () => {
                                             </>
                                         ) : (
                                             <>
-                                                <span>🛡️</span> Tải Khử Dấu AI
+                                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                                </svg>
+                                                <span>Tải Khử Dấu AI</span>
                                             </>
                                         )}
                                     </button>
@@ -8757,7 +8935,10 @@ const App: React.FC = () => {
                                             </>
                                         ) : (
                                             <>
-                                                <span>📦</span> Xuất ZIP
+                                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                                </svg>
+                                                <span>Xuất ZIP</span>
                                             </>
                                         )}
                                     </button>
@@ -8777,7 +8958,10 @@ const App: React.FC = () => {
                                                 </>
                                             ) : (
                                                 <>
-                                                    <span>☁️</span> Drive
+                                                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+                                                    </svg>
+                                                    <span>Drive</span>
                                                 </>
                                             )}
                                         </button>
@@ -8789,7 +8973,10 @@ const App: React.FC = () => {
                                             onClick={() => setIsComparing(true)} 
                                             className="px-3 py-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
                                         >
-                                            <span>⚖️</span> So sánh
+                                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                            </svg>
+                                            <span>So sánh</span>
                                         </button>
                                     )}
 
@@ -8799,7 +8986,10 @@ const App: React.FC = () => {
                                         className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
                                         title="Xóa vĩnh viễn các ảnh đã chọn"
                                     >
-                                        <span>🗑️</span> Xóa ({gallerySelection.size})
+                                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        <span>Xóa ({gallerySelection.size})</span>
                                     </button>
 
                                     {/* Bỏ chọn */}
@@ -9055,7 +9245,10 @@ const App: React.FC = () => {
               className="px-3.5 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/40 text-indigo-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-md backdrop-blur-md"
               title={t('gallery.moveToCollection', 'Gom vào Album')}
             >
-              <span>📁</span> {t('gallery.moveToCollection', 'Gom vào Album')}
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <span>{t('gallery.moveToCollection', 'Gom vào Album')}</span>
             </button>
 
             <button
@@ -9071,7 +9264,10 @@ const App: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>🛡️</span> {t('studio.downloadAntiAi', 'Tải Khử Dấu AI')}
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>{t('studio.downloadAntiAi', 'Tải Khử Dấu AI')}</span>
                 </>
               )}
             </button>
@@ -9089,7 +9285,10 @@ const App: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>📦</span> ZIP
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                  </svg>
+                  <span>ZIP</span>
                 </>
               )}
             </button>
@@ -9108,7 +9307,10 @@ const App: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <span>☁️</span> Drive
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+                    </svg>
+                    <span>Drive</span>
                   </>
                 )}
               </button>
@@ -9119,7 +9321,10 @@ const App: React.FC = () => {
                 onClick={() => setIsComparing(true)}
                 className="px-3 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 backdrop-blur-md"
               >
-                <span>⚖️</span> {t('studio.compareOriginal', 'So sánh')}
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <span>{t('studio.compareOriginal', 'So sánh')}</span>
               </button>
             )}
 
@@ -9128,7 +9333,10 @@ const App: React.FC = () => {
               className="px-3 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 backdrop-blur-md"
               title={t('common.delete', 'Xóa')}
             >
-              <span>🗑️</span> {t('common.delete', 'Xóa')} ({gallerySelection.size})
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>{t('common.delete', 'Xóa')} ({gallerySelection.size})</span>
             </button>
 
             <button
@@ -9165,7 +9373,7 @@ const App: React.FC = () => {
             const merged = injectPersonaIntoPrompt(current, persona);
             updateJsonInput(JSON.stringify(merged, null, 2));
           } catch {}
-          showCleanToast(`🔒 Đã khóa nhân vật: ${persona.name}`);
+          showCleanToast(`Đã khóa nhân vật: ${persona.name}`);
         }}
       />
 
@@ -9179,7 +9387,7 @@ const App: React.FC = () => {
         })()}
         onApplyPrompt={(winningPrompt) => {
           updateJsonInput(JSON.stringify(winningPrompt, null, 2));
-          showCleanToast('✨ Đã áp dụng prompt chiến thắng vào Generator!');
+          showCleanToast('Đã áp dụng prompt chiến thắng vào Generator!');
         }}
       />
 
@@ -9194,7 +9402,7 @@ const App: React.FC = () => {
         currentPreviewImage={generatedImages[0]}
         onRestoreSnapshot={(restored) => {
           updateJsonInput(JSON.stringify(restored, null, 2));
-          showCleanToast('↶ Đã khôi phục bản snapshot thành công!');
+          showCleanToast('Đã khôi phục bản snapshot thành công!');
         }}
       />
 
@@ -9209,7 +9417,7 @@ const App: React.FC = () => {
         galleryImages={generatedImages}
         onApplyPrompt={(relitPrompt) => {
           updateJsonInput(JSON.stringify(relitPrompt, null, 2));
-          showCleanToast('💡 Đã cập nhật công thức ánh sáng 3D vào Studio!');
+          showCleanToast('Đã cập nhật công thức ánh sáng 3D vào Studio!');
         }}
       />
 
@@ -9223,7 +9431,7 @@ const App: React.FC = () => {
         })()}
         onApplyPromptDelta={(updated) => {
           updateJsonInput(JSON.stringify(updated, null, 2));
-          showCleanToast('🎙️ Giọng nói AI đã điều chỉnh prompt thành công!');
+          showCleanToast('Giọng nói AI đã điều chỉnh prompt thành công!');
         }}
       />
 
@@ -9249,7 +9457,7 @@ const App: React.FC = () => {
         })()}
         onApplyDna={(mergedJson) => {
           updateJsonInput(JSON.stringify(mergedJson, null, 2));
-          showCleanToast('🧬 Đã nạp ma trận DNA thẩm mỹ vào Studio!');
+          showCleanToast('Đã nạp ma trận DNA thẩm mỹ vào Studio!');
         }}
       />
 
@@ -9270,7 +9478,7 @@ const App: React.FC = () => {
           } catch {
             updateJsonInput(selectedText);
           }
-          showCleanToast('🌌 Đã tải nhánh Đa Vũ Trụ vào Studio!');
+          showCleanToast('Đã tải nhánh Đa Vũ Trụ vào Studio!');
         }}
       />
 
@@ -9284,7 +9492,7 @@ const App: React.FC = () => {
           setVeoUserPrompt(veoPrompt);
           setActiveTab(AppMode.VEO3_PROMPT_CREATOR);
           window.scrollTo({ top: 0, behavior: 'smooth' });
-          showCleanToast('🎬 Đã chuyển chỉ thị khẩu hình sang Veo 3 Studio!');
+          showCleanToast('Đã chuyển chỉ thị khẩu hình sang Veo 3 Studio!');
         }}
       />
 
@@ -9299,7 +9507,7 @@ const App: React.FC = () => {
         onSelectAsBiometricCore={(imageUrl, persona) => {
           const target = vaultTargetSlot || 'composeRef1';
           applySlotImage(target, imageUrl, persona.name, undefined, persona);
-          showCleanToast(`👑 Đã chọn ${persona.name} làm Biometric Core!`);
+          showCleanToast(`Đã chọn ${persona.name} làm Biometric Core!`);
         }}
       />
 
@@ -9312,7 +9520,7 @@ const App: React.FC = () => {
           if (!uploadChoiceModalData) return;
           applySlotImage(uploadChoiceModalData.targetSlot, uploadChoiceModalData.base64);
           setUploadChoiceModalData(null);
-          showCleanToast('🎯 Đã gán ảnh làm Biometric Core (chỉ dùng lần này)!');
+          showCleanToast('Đã gán ảnh làm Biometric Core (chỉ dùng lần này)!');
         }}
         onAddNewCharacter={() => {
           if (!uploadChoiceModalData) return;
@@ -9330,7 +9538,7 @@ const App: React.FC = () => {
           const targetPersona = personas.find(p => p.id === personaId);
           applySlotImage(uploadChoiceModalData.targetSlot, uploadChoiceModalData.base64, targetPersona?.name, undefined, targetPersona);
           setUploadChoiceModalData(null);
-          showCleanToast(`🖼️ Đã thêm ảnh vào hồ sơ của ${targetPersona?.name || 'người mẫu'}!`);
+          showCleanToast(`Đã thêm ảnh vào hồ sơ của ${targetPersona?.name || 'người mẫu'}!`);
         }}
       />
 
