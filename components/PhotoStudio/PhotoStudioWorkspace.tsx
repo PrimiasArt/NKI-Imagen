@@ -38,6 +38,8 @@ import { PhotoshopCurvesPanel } from './PhotoshopCurvesPanel';
 import { PhotoshopHslPanel } from './PhotoshopHslPanel';
 import { PhotoshopLiquifyPanel } from './PhotoshopLiquifyPanel';
 import { PhotoshopRetouchBrushesPanel } from './PhotoshopRetouchBrushesPanel';
+import { PhotoStudioFloatingGuide } from './PhotoStudioFloatingGuide';
+import { PhotoStudioInstructionContent } from './PhotoStudioInstructionContent';
 import {
   StudioLayer,
   StudioBlendMode,
@@ -92,6 +94,7 @@ type StudioTool =
   | 'dodge_burn'
   | 'clone_stamp';
 type RightSidebarTab =
+  | 'instructions'
   | 'ai_magic'
   | 'beauty_retouch'
   | 'optical_bokeh'
@@ -321,6 +324,9 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   const [cloneStampSettings, setCloneStampSettings] = useState<CloneStampSettings>(DEFAULT_CLONE_STAMP_SETTINGS);
   const [cloneSourceSnapshot, setCloneSourceSnapshot] = useState<ImageData | null>(null);
   const cloneStrokeStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Floating Instruction Guide State
+  const [isFloatingGuideOpen, setIsFloatingGuideOpen] = useState<boolean>(false);
 
   // Canvas Viewport Pan & Zoom
   const [zoom, setZoom] = useState<number>(1);
@@ -1542,6 +1548,9 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
         setRetouchBrushType('clone_stamp');
       } else if (e.key === ' ') { // Space for quick pan
         setActiveTool('hand');
+      } else if (e.key === 'F1' || (e.shiftKey && e.key === '?')) {
+        e.preventDefault();
+        setIsFloatingGuideOpen(prev => !prev);
       }
     };
 
@@ -1684,8 +1693,24 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           )}
         </div>
 
-        {/* Right Action Buttons: Save to Gallery & Export */}
+        {/* Right Action Buttons: Guide, Save to Gallery & Export */}
         <div className="flex items-center gap-2">
+          {/* Quick Guide Trigger Button */}
+          <button
+            onClick={() => setIsFloatingGuideOpen(prev => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 active:scale-95 ${
+              isFloatingGuideOpen
+                ? 'bg-white text-black border-white shadow-sm font-bold'
+                : 'bg-white/[0.08] hover:bg-white/[0.15] text-white border-white/10'
+            }`}
+            title="Bật/Tắt Bảng Hướng Dẫn Kéo Thả (Phím F1 hoặc ?)"
+          >
+            <svg className="w-3.5 h-3.5 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            <span className="hidden sm:inline">Hướng Dẫn</span>
+          </button>
+
           <button
             onClick={handleSaveToGallery}
             className="px-3.5 py-1.5 bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-semibold rounded-xl transition-all border border-white/10 active:scale-95 flex items-center gap-1.5"
@@ -2735,8 +2760,8 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </button>
             </div>
 
-            {/* Row 4: Neural Character & Environment Suite (3 Equal Columns) */}
-            <div className="grid grid-cols-3 gap-1">
+            {/* Row 4: Neural Character, Atmosphere & Guide (4 Equal Columns) */}
+            <div className="grid grid-cols-4 gap-1">
               <button
                 onClick={() => setActiveTab('wardrobe')}
                 className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
@@ -2778,6 +2803,20 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
                 </svg>
                 <span className="truncate">Khí Quyển</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('instructions')}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'instructions'
+                    ? 'bg-amber-400 text-black border-amber-400 shadow-sm font-bold'
+                    : 'text-amber-300/80 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 hover:border-amber-500/40'
+                }`}
+                title="Mục hướng dẫn chi tiết & bảng phím tắt (Phím F1 hoặc ?)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <span className="truncate">Hướng Dẫn</span>
               </button>
             </div>
           </div>
@@ -3456,6 +3495,41 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </div>
             )}
 
+            {/* TAB: COMPREHENSIVE INSTRUCTION & WORKFLOW GUIDE */}
+            {activeTab === 'instructions' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-white/[0.04] border border-white/10 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <div>
+                      <span className="text-xs font-bold text-white block">Bảng Nổi Ghim Màn Hình</span>
+                      <span className="text-[10px] text-zinc-400">Vừa kéo thả xem hướng dẫn vừa vẽ ảnh</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsFloatingGuideOpen(true);
+                      setActiveTab('curves');
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-black text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 flex-shrink-0"
+                    title="Tách thành cửa sổ nổi kéo thả để vừa nhìn hướng dẫn vừa thao tác ảnh"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    <span>Bật Bảng Nổi</span>
+                  </button>
+                </div>
+
+                <PhotoStudioInstructionContent
+                  onActivateTool={(t) => setActiveTool(t as StudioTool)}
+                  onActivateTab={(t) => setActiveTab(t as RightSidebarTab)}
+                />
+              </div>
+            )}
+
             {/* TAB: PHOTOSHOP CURVES & LEVELS ENGINE (100% Zero-API) */}
             {activeTab === 'curves' && (
               <PhotoshopCurvesPanel
@@ -3679,6 +3753,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           </div>
         </aside>
       </div>
+
+      {/* Draggable Floating Instruction Guide Window */}
+      <PhotoStudioFloatingGuide
+        isOpen={isFloatingGuideOpen}
+        onClose={() => setIsFloatingGuideOpen(false)}
+        onDockToSidebar={() => {
+          setIsFloatingGuideOpen(false);
+          setActiveTab('instructions');
+        }}
+        onActivateTool={(t) => setActiveTool(t as StudioTool)}
+        onActivateTab={(t) => setActiveTab(t as RightSidebarTab)}
+      />
     </div>
   );
 };
