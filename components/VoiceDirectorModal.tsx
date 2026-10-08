@@ -108,26 +108,35 @@ export const VoiceDirectorModal: React.FC<VoiceDirectorModalProps> = ({
         {/* Header */}
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-xl shadow-inner">
-              🎙️
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white shadow-sm">
+              <svg className="w-5 h-5 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
             </div>
             <div>
-              <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                 <span>AI Voice Director (Chỉ Đạo Bằng Giọng Nói)</span>
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                <span className="text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-white/[0.06] text-zinc-300 border border-white/10">
                   Multimodal Speech
                 </span>
               </h3>
-              <p className="text-xs text-white/50 mt-0.5">
+              <p className="text-xs text-zinc-400 mt-0.5">
                 Nói yêu cầu chỉnh sửa bằng giọng nói tự nhiên, AI sẽ tự định vị và cập nhật đúng trường JSON.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center transition-all"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all border border-white/10"
+            title="Đóng"
           >
-            ✕
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -142,20 +151,20 @@ export const VoiceDirectorModal: React.FC<VoiceDirectorModalProps> = ({
               <button
                 type="button"
                 onClick={() => setLanguage('vi-VN')}
-                className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                  language === 'vi-VN' ? 'bg-rose-500 text-white shadow-md' : 'text-white/50 hover:text-white'
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  language === 'vi-VN' ? 'bg-white text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                🇻🇳 Tiếng Việt
+                Tiếng Việt
               </button>
               <button
                 type="button"
                 onClick={() => setLanguage('en-US')}
-                className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                  language === 'en-US' ? 'bg-rose-500 text-white shadow-md' : 'text-white/50 hover:text-white'
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  language === 'en-US' ? 'bg-white text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                🇺🇸 English
+                English
               </button>
             </div>
           </div>
@@ -165,19 +174,30 @@ export const VoiceDirectorModal: React.FC<VoiceDirectorModalProps> = ({
             <button
               type="button"
               onClick={toggleListening}
-              className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl transition-all shadow-2xl relative ${
+              className={`w-20 h-20 rounded-full flex items-center justify-center transition-all shadow-xl relative ${
                 isListening
-                  ? 'bg-rose-600 text-white shadow-[0_0_40px_rgba(244,63,94,0.6)] scale-105 animate-pulse'
-                  : 'bg-white/10 hover:bg-rose-500/20 text-white border border-white/20 hover:border-rose-500/50'
+                  ? 'bg-white text-black shadow-[0_0_30px_rgba(255,255,255,0.4)] scale-105'
+                  : 'bg-white/[0.06] hover:bg-white/[0.12] text-white border border-white/15'
               }`}
             >
-              <span>{isListening ? '🛑' : '🎙️'}</span>
+              {isListening ? (
+                <svg className="w-7 h-7 text-black" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg className="w-7 h-7 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              )}
               {isListening && (
-                <span className="absolute inset-0 rounded-full border-2 border-rose-400 animate-ping opacity-75" />
+                <span className="absolute inset-0 rounded-full border-2 border-white animate-ping opacity-60" />
               )}
             </button>
 
-            <span className="text-xs font-bold text-white/80">
+            <span className="text-xs font-medium text-zinc-400">
               {isListening ? 'Đang lắng nghe chỉ đạo... Bấm để dừng.' : 'Bấm mic để nói câu lệnh chỉ đạo'}
             </span>
           </div>
@@ -192,7 +212,7 @@ export const VoiceDirectorModal: React.FC<VoiceDirectorModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setTranscript('')}
-                  className="text-[10px] text-white/40 hover:text-white"
+                  className="text-[10px] text-zinc-400 hover:text-white"
                 >
                   Xóa
                 </button>
@@ -212,24 +232,36 @@ export const VoiceDirectorModal: React.FC<VoiceDirectorModalProps> = ({
             type="button"
             onClick={handleExecuteVoice}
             disabled={isProcessing || !transcript.trim()}
-            className="w-full py-3.5 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl active:scale-[0.98] transition-all disabled:opacity-30 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-white text-black hover:bg-zinc-200 font-bold text-xs uppercase tracking-wider rounded-2xl shadow-md active:scale-[0.98] transition-all disabled:opacity-30 flex items-center justify-center gap-2"
           >
-            <span>{isProcessing ? '⏳' : '⚡'}</span>
+            {isProcessing ? (
+              <svg className="w-4 h-4 animate-spin text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            )}
             <span>{isProcessing ? 'Đang phân tích và điều chỉnh JSON...' : 'Thực Thi Chỉ Đạo Voice (AI Update)'}</span>
           </button>
 
           {/* Result Feedback Display */}
           {result && (
-            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-3 animate-in fade-in slide-in-from-bottom-2">
+            <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2 animate-in fade-in slide-in-from-bottom-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black uppercase text-rose-300 tracking-wider flex items-center gap-1.5">
-                  <span>✓</span> {result.explanation}
+                <span className="text-xs font-semibold uppercase text-zinc-200 tracking-wider flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span>{result.explanation}</span>
                 </span>
-                <span className="text-[10px] font-mono bg-rose-500/20 text-rose-200 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-mono bg-white/[0.06] text-zinc-300 px-2 py-0.5 rounded-full border border-white/10">
                   Đã đổi: {result.changedFields.join(', ')}
                 </span>
               </div>
-              <p className="text-xs text-white/80 leading-relaxed font-sans">
+              <p className="text-xs text-zinc-400 leading-relaxed font-sans">
                 Đã tự động tiêm các thông số mới vào Generator. Bạn có thể bấm "Tạo Ảnh" ngay lập tức!
               </p>
             </div>
@@ -241,7 +273,7 @@ export const VoiceDirectorModal: React.FC<VoiceDirectorModalProps> = ({
           <span>* Voice Director chỉ cập nhật những trường cần thiết và giữ nguyên 100% bối cảnh còn lại.</span>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all"
+            className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-medium transition-all"
           >
             Đóng
           </button>

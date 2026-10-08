@@ -136,26 +136,40 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
         {/* Header */}
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-xl shadow-inner">
-              💡
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white shadow-sm">
+              <svg className="w-5 h-5 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              </svg>
             </div>
             <div>
-              <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
                 <span>Virtual 3D Gaffer & Generative Relighting</span>
-                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                <span className="text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-white/[0.06] text-zinc-300 border border-white/10">
                   Hollywood 3D Studio
                 </span>
               </h3>
-              <p className="text-xs text-white/50 mt-0.5">
+              <p className="text-xs text-zinc-400 mt-0.5">
                 Đánh đèn 3D tương tác đa hướng (Key, Fill, Rim) và tính toán lại ánh sáng quang học chân thực trên ảnh.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white flex items-center justify-center transition-all"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all border border-white/10"
+            title="Đóng"
           >
-            ✕
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -179,10 +193,10 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                     }}
                     className="p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/10 text-left transition-all group"
                   >
-                    <span className="text-xs font-bold text-white block group-hover:text-amber-300">
+                    <span className="text-xs font-semibold text-white block group-hover:text-zinc-200">
                       {preset.name}
                     </span>
-                    <span className="text-[10px] text-white/40 line-clamp-1 mt-0.5">
+                    <span className="text-[10px] text-zinc-400 line-clamp-1 mt-0.5">
                       {preset.description}
                     </span>
                   </button>
@@ -211,10 +225,10 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                   key={l.id}
                   type="button"
                   onClick={() => setSelectedLightId(l.id)}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all border flex items-center justify-center gap-1.5 ${
                     selectedLightId === l.id
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-md'
-                      : 'bg-white/5 text-white/50 border-white/10 hover:text-white'
+                      ? 'bg-white text-black border-white shadow-sm'
+                      : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
                   }`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.colorHex }} />
@@ -226,7 +240,7 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
             {/* Active Light Sliders */}
             <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-black text-amber-300 uppercase tracking-wider text-[11px]">
+                <span className="font-semibold text-white uppercase tracking-wider text-[11px]">
                   Chỉnh {activeLight.name}
                 </span>
                 <input
@@ -240,7 +254,7 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-white/60">Góc Quay (Azimuth):</span>
+                  <span className="text-zinc-400">Góc Quay (Azimuth):</span>
                   <span className="font-mono text-white font-bold">{activeLight.azimuthDeg}°</span>
                 </div>
                 <input
@@ -249,13 +263,13 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                   max="360"
                   value={activeLight.azimuthDeg}
                   onChange={(e) => handleUpdateActiveLight({ azimuthDeg: Number(e.target.value) })}
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-full accent-white cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-white/60">Độ Cao (Elevation):</span>
+                  <span className="text-zinc-400">Độ Cao (Elevation):</span>
                   <span className="font-mono text-white font-bold">{activeLight.elevationDeg}°</span>
                 </div>
                 <input
@@ -264,13 +278,13 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                   max="85"
                   value={activeLight.elevationDeg}
                   onChange={(e) => handleUpdateActiveLight({ elevationDeg: Number(e.target.value) })}
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-full accent-white cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-white/60">Cường Độ (Intensity):</span>
+                  <span className="text-zinc-400">Cường Độ (Intensity):</span>
                   <span className="font-mono text-white font-bold">{activeLight.intensityPct}%</span>
                 </div>
                 <input
@@ -279,7 +293,7 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                   max="100"
                   value={activeLight.intensityPct}
                   onChange={(e) => handleUpdateActiveLight({ intensityPct: Number(e.target.value) })}
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-full accent-white cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
               </div>
             </div>
@@ -290,10 +304,14 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
             <div className="space-y-4">
               {/* Formula Bar */}
               <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-1.5">
-                <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider block">
-                  Công Thức Đánh Đèn Quang Học Thời Gian Thực:
+                <span className="text-[10px] font-semibold uppercase text-zinc-300 tracking-wider flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <polyline points="16 18 22 12 16 6" />
+                    <polyline points="8 6 2 12 8 18" />
+                  </svg>
+                  <span>Công Thức Đánh Đèn Quang Học Thời Gian Thực:</span>
                 </span>
-                <p className="font-mono text-xs text-white/80 leading-relaxed bg-black/30 p-3 rounded-xl border border-white/5">
+                <p className="font-mono text-xs text-zinc-300 leading-relaxed bg-black/30 p-3 rounded-xl border border-white/5">
                   {generateRelightingFormula(lights)}
                 </p>
               </div>
@@ -301,23 +319,23 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
               {/* Image Preview Comparison */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-black uppercase text-white/40 block">Ảnh Gốc Hiện Tại</span>
+                  <span className="text-[10px] font-semibold uppercase text-zinc-400 block">Ảnh Gốc Hiện Tại</span>
                   <div className="aspect-square rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center">
                     {baseImageSrc ? (
                       <img src={baseImageSrc} alt="Base" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-xs text-white/20">Chưa có ảnh gốc</span>
+                      <span className="text-xs text-zinc-500">Chưa có ảnh gốc</span>
                     )}
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-black uppercase text-amber-300 block">Biến Thể Đánh Đèn Mới</span>
-                  <div className="aspect-square rounded-2xl overflow-hidden bg-black/40 border border-amber-500/30 flex items-center justify-center relative">
+                  <span className="text-[10px] font-semibold uppercase text-zinc-300 block">Biến Thể Đánh Đèn Mới</span>
+                  <div className="aspect-square rounded-2xl overflow-hidden bg-black/40 border border-white/15 flex items-center justify-center relative">
                     {relitImage ? (
                       <img src={relitImage} alt="Relit variant" className="w-full h-full object-cover" />
                     ) : (
-                      <div className="text-center p-4 text-white/30 text-xs">
+                      <div className="text-center p-4 text-zinc-400 text-xs">
                         {isGenerating ? (
                           <span className="animate-pulse">Đang tính toán photon & render...</span>
                         ) : (
@@ -336,9 +354,18 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                 type="button"
                 onClick={handleGenerateRelit}
                 disabled={isGenerating}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black text-xs font-black uppercase tracking-wider shadow-lg active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-bold uppercase tracking-wider shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2 transition-all"
               >
-                <span>{isGenerating ? '⏳' : '⚡'}</span>
+                {isGenerating ? (
+                  <svg className="w-3.5 h-3.5 animate-spin text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                )}
                 <span>{isGenerating ? 'Đang Tính Toán Đèn...' : 'Render Biến Thể Đánh Đèn 3D'}</span>
               </button>
 
@@ -349,9 +376,12 @@ export const VirtualGafferRelightingModal: React.FC<VirtualGafferRelightingModal
                   onApplyRelitPrompt(updated);
                   onClose();
                 }}
-                className="px-5 py-2.5 rounded-xl bg-primary-500 hover:bg-primary-400 text-black text-xs font-black uppercase tracking-wider shadow-lg active:scale-95"
+                className="px-5 py-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white border border-white/10 text-xs font-semibold uppercase tracking-wider shadow-sm active:scale-95 transition-all flex items-center gap-1.5"
               >
-                Áp Dụng Công Thức Vào Studio ✓
+                <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>Áp Dụng Công Thức Vào Studio</span>
               </button>
             </div>
           </div>

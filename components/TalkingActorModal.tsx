@@ -74,19 +74,23 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/40">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-rose-500/20 to-orange-500/30 border border-rose-400/30 flex items-center justify-center text-rose-300 text-xl shadow-inner">
-              🗣️
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white shadow-sm">
+              <svg className="w-5 h-5 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white tracking-wide">
+                <h2 className="text-base font-bold text-white tracking-wide">
                   One-Click Talking Character & Emotional Lip-Sync
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.06] text-zinc-300 border border-white/10">
                   Veo 3 Speech Physics
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-zinc-400">
                 Biến ảnh chân dung thành nhân vật nói chuyện biểu cảm, đồng bộ khẩu hình và ánh mắt theo Veo 3
               </p>
             </div>
@@ -94,9 +98,13 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
 
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all text-sm"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all"
+            title="Đóng"
           >
-            ✕
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -112,9 +120,12 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
                 {portraitSrc ? (
                   <img src={portraitSrc} alt="Portrait" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl text-slate-500">👤</span>
+                  <svg className="w-7 h-7 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
                 )}
-                <label className="absolute inset-0 bg-black/40 hover:bg-black/60 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-[10px] text-white">
+                <label className="absolute inset-0 bg-black/50 hover:bg-black/70 opacity-0 hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-[10px] text-white">
                   Đổi ảnh
                   <input
                     type="file"
@@ -141,7 +152,7 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
                   value={actorName}
                   onChange={(e) => setActorName(e.target.value)}
                   placeholder="Ví dụ: Nữ cơ trưởng Elena, Samurai Kage..."
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-rose-400"
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-white/30"
                 />
               </div>
             </div>
@@ -190,14 +201,14 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
                   <button
                     key={emo.id}
                     onClick={() => setEmotion(emo.id as any)}
-                    className={`p-2 rounded-xl text-left border transition-all flex flex-col gap-1 ${
+                    className={`p-2.5 rounded-xl text-left border transition-all flex flex-col gap-1 ${
                       emotion === emo.id
-                        ? 'bg-rose-500/20 border-rose-400 text-white shadow-md shadow-rose-500/10'
-                        : 'bg-white/5 border-white/5 hover:bg-white/10 text-slate-400'
+                        ? 'bg-white text-black font-semibold shadow-sm border-white'
+                        : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08] text-zinc-300'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 text-xs font-semibold">
-                      <span>{emo.icon}</span>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className={`w-1.5 h-1.5 rounded-full ${emotion === emo.id ? 'bg-black' : 'bg-zinc-500'}`} />
                       <span className="truncate">{emo.label}</span>
                     </div>
                   </button>
@@ -242,9 +253,12 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
             {/* Generate Action Button */}
             <button
               onClick={handleGenerateDirectives}
-              className="py-3 px-6 rounded-2xl bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-500 hover:to-orange-400 text-white font-bold text-xs shadow-xl shadow-rose-500/20 border border-rose-400/30 flex items-center justify-center gap-2 transition-all"
+              className="py-3 px-6 rounded-2xl bg-white text-black hover:bg-zinc-200 font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
-              <span>🎬</span>
+              <svg className="w-4 h-4 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="23 7 16 12 23 17 23 7" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
               <span>Tổng Hợp Chỉ Thị Khẩu Hình & Chuyển Động Veo 3</span>
             </button>
 
@@ -262,7 +276,7 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
                     <button
                       key={i}
                       onClick={() => setPortraitSrc(src)}
-                      className="aspect-square rounded-xl overflow-hidden border border-white/10 hover:border-rose-400 transition-all"
+                      className="aspect-square rounded-xl overflow-hidden border border-white/10 hover:border-white/40 transition-all"
                     >
                       <img src={src} alt="Pick" className="w-full h-full object-cover" />
                     </button>
@@ -272,40 +286,58 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
             )}
 
             {output ? (
-              <div className="p-4 rounded-3xl bg-slate-950/80 border border-rose-500/30 flex flex-col gap-4 animate-fadeIn">
+              <div className="p-4 rounded-3xl bg-slate-950/80 border border-white/15 flex flex-col gap-4 animate-fadeIn">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
-                    <span>⚡</span> Veo 3 Motion Directive Ready
+                  <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                    <span>Veo 3 Motion Directive Ready</span>
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/30">
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-white/[0.06] text-zinc-300 border border-white/10 font-mono">
                     ~{output.estimatedDurationSeconds}s video
                   </span>
                 </div>
 
                 {/* Video Prompt Result */}
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-semibold text-slate-400">
+                  <span className="text-[11px] font-semibold text-zinc-400">
                     Veo 3 Visual Prompt (Cinematic Speech):
                   </span>
-                  <div className="p-3 rounded-2xl bg-black/40 border border-white/10 text-xs font-mono text-rose-200/90 leading-relaxed max-h-48 overflow-y-auto select-all">
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/10 text-xs font-mono text-zinc-300 leading-relaxed max-h-48 overflow-y-auto select-all">
                     {output.veoVideoPrompt}
                   </div>
                 </div>
 
                 {/* Cadence Specs */}
-                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-[11px] text-slate-300 flex flex-col gap-1">
-                  <span className="font-semibold text-slate-400">🎙️ Chỉ đạo âm thanh & khẩu hình:</span>
-                  <p className="text-slate-300">{output.audioVoiceoverDirection}</p>
-                  <p className="text-[10px] text-rose-300 font-mono mt-1">{output.phonemeCadenceSummary}</p>
+                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] text-zinc-300 flex flex-col gap-1">
+                  <span className="font-semibold text-zinc-400 flex items-center gap-1.5">
+                    <svg className="w-3 h-3 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    </svg>
+                    <span>Chỉ đạo âm thanh & khẩu hình:</span>
+                  </span>
+                  <p className="text-zinc-300">{output.audioVoiceoverDirection}</p>
+                  <p className="text-[10px] text-zinc-400 font-mono mt-1">{output.phonemeCadenceSummary}</p>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="flex flex-col gap-2 pt-2">
                   <button
                     onClick={handleCopyPrompt}
-                    className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs text-white font-medium flex items-center justify-center gap-1.5 transition-all"
+                    className="w-full py-2.5 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs text-white font-medium flex items-center justify-center gap-1.5 transition-all"
                   >
-                    <span>{copied ? '✓' : '📋'}</span>
+                    {copied ? (
+                      <svg className="w-3.5 h-3.5 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    )}
                     <span>{copied ? 'Đã sao chép prompt' : 'Sao chép Prompt Veo 3'}</span>
                   </button>
 
@@ -315,9 +347,12 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
                         onSendToVeo(output.veoVideoPrompt);
                         onClose();
                       }}
-                      className="w-full py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs text-white font-bold shadow-lg shadow-rose-500/20 flex items-center justify-center gap-1.5 transition-all"
+                      className="w-full py-2.5 px-3 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold shadow-sm flex items-center justify-center gap-1.5 transition-all"
                     >
-                      <span>🚀</span>
+                      <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <line x1="7" y1="17" x2="17" y2="7" />
+                        <polyline points="7 7 17 7 17 17" />
+                      </svg>
                       <span>Chuyển sang Tab Veo Studio</span>
                     </button>
                   )}
@@ -325,9 +360,15 @@ export const TalkingActorModal: React.FC<TalkingActorModalProps> = ({
               </div>
             ) : (
               <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-6 rounded-3xl bg-slate-950/40 border border-dashed border-white/10 text-slate-500">
-                <span className="text-4xl mb-3">🗣️</span>
-                <p className="text-xs text-slate-400 font-medium">Chưa có chỉ thị chuyển động</p>
-                <p className="text-[11px] text-slate-600 mt-1 max-w-[240px]">
+                <div className="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mb-2.5 text-zinc-400">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                </div>
+                <p className="text-xs text-zinc-300 font-medium">Chưa có chỉ thị chuyển động</p>
+                <p className="text-[11px] text-zinc-500 mt-1 max-w-[240px]">
                   Nhập lời thoại và bấm nút tổng hợp để tạo prompt khẩu hình chuyên sâu cho Veo 3
                 </p>
               </div>

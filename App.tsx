@@ -2286,69 +2286,81 @@ const InspectorModal: React.FC<InspectorModalProps> = ({
                             {onUpscaleStudio && (
                                 <button 
                                     onClick={() => onUpscaleStudio({ ...item, src: displaySrc })} 
-                                    className="py-3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group"
                                     title="Mở ảnh trong Upscale Studio 4K để tinh chỉnh chi tiết & chọn preset"
                                 >
-                                    <span className="text-sm">✨</span>
+                                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                    </svg>
                                     <span>Upscale 4K</span>
                                 </button>
                             )}
                             {onInpainting && (
                                 <button 
                                     onClick={() => onInpainting({ ...item, src: displaySrc })} 
-                                    className="py-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group"
                                     title="Cọ Ma Thuật AI Inpainting: Sửa bàn tay 5 ngón, đổi trang phục, chỉnh sửa cục bộ"
                                 >
-                                    <span className="text-sm">🪄</span>
+                                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
                                     <span>Cọ Sửa AI</span>
                                 </button>
                             )}
                             {onVirtualTryOn && (
                                 <button 
                                     onClick={() => onVirtualTryOn({ ...item, src: displaySrc })} 
-                                    className="py-3 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group"
                                     title="Virtual Try-On 2.0: Thử trang phục từ ảnh sản phẩm lên người mẫu"
                                 >
-                                    <span className="text-sm">👗</span>
+                                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
                                     <span>Thử Đồ 2.0</span>
                                 </button>
                             )}
                             {onCharacterTurnaround && (
                                 <button 
                                     onClick={() => onCharacterTurnaround({ ...item, src: displaySrc })} 
-                                    className="py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group"
                                     title="Character Sheet 360: Xuất bộ xoay 8 hướng chuẩn Game & VFX"
                                 >
-                                    <span className="text-sm">🔄</span>
+                                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
                                     <span>Xoay 360°</span>
                                 </button>
                             )}
                             {onBiometricMorph && (
                                 <button 
                                     onClick={() => onBiometricMorph({ ...item, src: displaySrc })} 
-                                    className="py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group"
                                     title="Biometric Morph: Thanh trượt tuổi 18-70 & cảm xúc khuôn mặt"
                                 >
-                                    <span className="text-sm">⏳</span>
+                                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
                                     <span>Tuổi & Cảm Xúc</span>
                                 </button>
                             )}
                             {onStudio && (
                                 <button 
                                     onClick={() => onStudio({ ...item, src: displaySrc })} 
-                                    className="py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]"
+                                    className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group"
                                     title="Mở ảnh trong Photo Studio 2026 để chỉnh màu nâng cao & AI Inpaint"
                                 >
-                                    <span className="text-sm">🎨</span>
+                                    <svg className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.8 0 1.5.3 2.1.8l6.3-6.3a2 2 0 112.8 2.8l-6.3 6.3c.5.6.8 1.3.8 2.1a4 4 0 01-4 4z" />
+                                    </svg>
                                     <span>Studio AI</span>
                                 </button>
                             )}
-                            <button onClick={() => onRemix(item)} className="py-3 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            <button onClick={() => onRemix(item)} className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 <span>Remix</span>
                             </button>
-                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-3 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex flex-col items-center justify-center gap-1 text-[11px]">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                            <button onClick={() => onCompose({ ...item, src: displaySrc })} className="py-3 bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white font-medium rounded-2xl border border-white/10 hover:border-white/20 shadow-sm transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 text-[11px] group">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-70 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v16m8-8H4" /></svg>
                                 <span>Compose</span>
                             </button>
                         </div>
@@ -6555,13 +6567,15 @@ const App: React.FC = () => {
                                                 <button 
                                                     type="button"
                                                     onClick={() => setIsSavePresetModalOpen(true)} 
-                                                    className="text-[9px] text-amber-400 hover:text-amber-300 font-bold uppercase tracking-widest flex items-center gap-0.5 transition-colors"
+                                                    className="text-[9px] text-zinc-400 hover:text-white font-medium uppercase tracking-widest flex items-center gap-1 transition-colors"
                                                     title="Save current prompt structure as a Personal Preset"
                                                 >
-                                                    <span>⭐</span>
+                                                    <svg className="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                                    </svg>
                                                     <span>Save</span>
                                                 </button>
-                                                {selectedPreset && <button type="button" onClick={() => handleApplyPreset('')} className="text-[9px] text-red-400 font-bold hover:underline uppercase tracking-widest">Clear</button>}
+                                                {selectedPreset && <button type="button" onClick={() => handleApplyPreset('')} className="text-[9px] text-zinc-400 font-medium hover:text-white uppercase tracking-widest">Clear</button>}
                                             </div>
                                         </div>
                                         <PresetSelector 
@@ -6586,7 +6600,7 @@ const App: React.FC = () => {
                                         })()}
                                         onEnrichSuccess={(enriched) => {
                                             updateJsonInput(JSON.stringify(enriched, null, 2));
-                                            showCleanToast('✨ Đã nâng cấp các chiều điện ảnh thành công!');
+                                            showCleanToast('Đã nâng cấp các chiều điện ảnh thành công!');
                                         }}
                                     />
 
@@ -6595,10 +6609,13 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => { setVaultTargetSlot('refFace1'); setIsCharacterVaultOpen(true); }}
-                                            className="text-[9px] text-amber-300 hover:text-amber-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2.5 py-1 rounded-lg border border-amber-500/30 active:scale-95 shadow-sm"
+                                            className="text-[9px] text-zinc-300 hover:text-white font-medium uppercase tracking-widest flex items-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-lg border border-white/10 active:scale-95 shadow-sm"
                                             title="Mở Kho Data Nhân Vật Mẫu (Quản lý hồ sơ, vóc dáng, album ảnh và Biometric Core)"
                                         >
-                                            <span>👑</span>
+                                            <svg className="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                                <circle cx="12" cy="7" r="4" />
+                                            </svg>
                                             <span>Kho Mẫu</span>
                                         </button>
 
@@ -6606,14 +6623,17 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsConsistencyModalOpen(true)}
-                                            className={`text-[9px] font-bold uppercase tracking-widest flex items-center gap-1 transition-all px-2.5 py-1 rounded-lg border active:scale-95 shadow-sm ${
+                                            className={`text-[9px] font-medium uppercase tracking-widest flex items-center gap-1.5 transition-all px-2.5 py-1.5 rounded-lg border active:scale-95 shadow-sm ${
                                                 isConsistencyLockActive && activePersona
-                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]'
-                                                    : 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border-white/10'
+                                                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                                                    : 'bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white border-white/10'
                                             }`}
                                             title="Khóa nhất quán nhân vật và phong cách xuyên suốt nhiều bức ảnh"
                                         >
-                                            <span>🔒</span>
+                                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                            </svg>
                                             <span>{isConsistencyLockActive && activePersona ? activePersona.name : 'Khóa Nhân Vật'}</span>
                                         </button>
 
@@ -6621,10 +6641,13 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsABModalOpen(true)}
-                                            className="text-[9px] text-indigo-300 hover:text-indigo-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-indigo-500/15 hover:bg-indigo-500/25 px-2.5 py-1 rounded-lg border border-indigo-500/30 active:scale-95 shadow-sm"
+                                            className="text-[9px] text-zinc-300 hover:text-white font-medium uppercase tracking-widest flex items-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-lg border border-white/10 active:scale-95 shadow-sm"
                                             title="Thử nghiệm so sánh song song 2 biến thể prompt (A/B Test)"
                                         >
-                                            <span>⚖️</span>
+                                            <svg className="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                <rect x="2" y="3" width="9" height="18" rx="2" />
+                                                <rect x="13" y="3" width="9" height="18" rx="2" />
+                                            </svg>
                                             <span>A/B Test</span>
                                         </button>
 
@@ -6632,10 +6655,13 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsSnapshotModalOpen(true)}
-                                            className="text-[9px] text-teal-300 hover:text-teal-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-teal-500/15 hover:bg-teal-500/25 px-2.5 py-1 rounded-lg border border-teal-500/30 active:scale-95 shadow-sm"
+                                            className="text-[9px] text-zinc-300 hover:text-white font-medium uppercase tracking-widest flex items-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-lg border border-white/10 active:scale-95 shadow-sm"
                                             title="Lịch sử phiên bản Snapshots & Chia sẻ link Preset"
                                         >
-                                            <span>⏳</span>
+                                            <svg className="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                <circle cx="12" cy="12" r="10" />
+                                                <polyline points="12 6 12 12 16 14" />
+                                            </svg>
                                             <span>Snapshots</span>
                                         </button>
 
@@ -6643,10 +6669,13 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleCleanGeneratorPrompt('blank')}
-                                            className="text-[9px] text-rose-300 hover:text-rose-200 font-bold uppercase tracking-widest flex items-center gap-1 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2.5 py-1 rounded-lg border border-rose-500/30 active:scale-95 shadow-sm"
+                                            className="text-[9px] text-zinc-300 hover:text-white font-medium uppercase tracking-widest flex items-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-lg border border-white/10 active:scale-95 shadow-sm"
                                             title={t('prompt.cleanTooltip')}
                                         >
-                                            <span>🧹</span>
+                                            <svg className="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                <polyline points="3 6 5 6 21 6" />
+                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                            </svg>
                                             <span>{t('prompt.clean')}</span>
                                         </button>
 
@@ -6662,10 +6691,12 @@ const App: React.FC = () => {
                                                     updateJsonInput(sanitizePromptAntiAi(jsonInput));
                                                 }
                                             }}
-                                            className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-widest flex items-center gap-1 transition-colors bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/20"
+                                            className="text-[9px] text-zinc-300 hover:text-white font-medium uppercase tracking-widest flex items-center gap-1.5 transition-colors bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-lg border border-white/10 active:scale-95 shadow-sm"
                                             title="Tự động khử các từ khóa bẫy AI (photorealistic, 8k, octane...) và đệm chi tiết máy ảnh thật"
                                         >
-                                            <span>🛡️</span>
+                                            <svg className="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                            </svg>
                                             <span>Khử Bẫy AI</span>
                                         </button>
                                     </div>
@@ -6693,10 +6724,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsRelightingOpen(true)}
-                                            className="w-full text-[10px] text-amber-300 hover:text-amber-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2 py-1.5 rounded-xl border border-amber-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Virtual 3D Gaffer & Relighting: Hắt sáng 3D trực quan và tái tạo ánh sáng điện ảnh"
                                         >
-                                            <span>💡</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                            </svg>
                                             <span className="truncate">3D Relight</span>
                                         </button>
 
@@ -6704,10 +6737,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsVoiceDirectorOpen(true)}
-                                            className="w-full text-[10px] text-sky-300 hover:text-sky-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-sky-500/15 hover:bg-sky-500/25 px-2 py-1.5 rounded-xl border border-sky-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="AI Voice Director: Chỉ đạo đạo diễn prompt bằng giọng nói tự nhiên Tiếng Việt/English"
                                         >
-                                            <span>🎙️</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                            </svg>
                                             <span className="truncate">Voice Director</span>
                                         </button>
 
@@ -6715,10 +6750,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsSpatial3DOpen(true)}
-                                            className="w-full text-[10px] text-cyan-300 hover:text-cyan-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-cyan-500/15 hover:bg-cyan-500/25 px-2 py-1.5 rounded-xl border border-cyan-400/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Apple Vision Pro Spatial 3D Converter: Tạo hiệu ứng nghiêng Parallax, Stereo SBS & Kính 3D"
                                         >
-                                            <span>🥽</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                            </svg>
                                             <span className="truncate">Spatial 3D</span>
                                         </button>
 
@@ -6726,10 +6763,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsDnaBlenderOpen(true)}
-                                            className="w-full text-[10px] text-purple-300 hover:text-purple-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-purple-500/15 hover:bg-purple-500/25 px-2 py-1.5 rounded-xl border border-purple-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Neural Aesthetic DNA Blender: Lai tạo 4 nhánh gen Màu sắc, Quang học, Chất liệu & Trường phái"
                                         >
-                                            <span>🧬</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                            </svg>
                                             <span className="truncate">DNA Blender</span>
                                         </button>
 
@@ -6737,10 +6776,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsNodeGraphOpen(true)}
-                                            className="w-full text-[10px] text-emerald-300 hover:text-emerald-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-emerald-500/15 hover:bg-emerald-500/25 px-2 py-1.5 rounded-xl border border-emerald-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Infinite Multiverse Node Graph: Sơ đồ canvas phân nhánh đa vũ trụ sáng tạo"
                                         >
-                                            <span>🌌</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                            </svg>
                                             <span className="truncate">Node Graph</span>
                                         </button>
 
@@ -6748,10 +6789,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => setIsTalkingActorOpen(true)}
-                                            className="w-full text-[10px] text-rose-300 hover:text-rose-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2 py-1.5 rounded-xl border border-rose-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="One-Click Talking Character & Emotional Lip-Sync: Chuyển đổi chân dung thành video nói chuyện Veo 3"
                                         >
-                                            <span>🗣️</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
                                             <span className="truncate">Talking Actor</span>
                                         </button>
 
@@ -6759,10 +6802,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleOpenInpainting()}
-                                            className="w-full text-[10px] text-pink-300 hover:text-pink-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-pink-500/15 hover:bg-pink-500/25 px-2 py-1.5 rounded-xl border border-pink-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Local Inpainting & Magic Brush: Tô mask sửa cục bộ bàn tay 5 ngón, đổi trang phục, xóa vật thể thừa"
                                         >
-                                            <span>🪄</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                            </svg>
                                             <span className="truncate">Cọ Sửa AI</span>
                                         </button>
 
@@ -6770,10 +6815,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleOpenVirtualTryOn()}
-                                            className="w-full text-[10px] text-rose-300 hover:text-rose-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-rose-500/15 hover:bg-rose-500/25 px-2 py-1.5 rounded-xl border border-rose-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Virtual Try-On 2.0: Thử đồ trực tiếp từ ảnh sản phẩm flat-lay lên người mẫu"
                                         >
-                                            <span>👗</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
                                             <span className="truncate">Thử Đồ 2.0</span>
                                         </button>
 
@@ -6781,10 +6828,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleOpenCharacterTurnaround()}
-                                            className="w-full text-[10px] text-indigo-300 hover:text-indigo-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-indigo-500/15 hover:bg-indigo-500/25 px-2 py-1.5 rounded-xl border border-indigo-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Character Turnaround 360°: Tạo bộ xoay 8 hướng chuẩn VFX/Game/Anime từ 1 nhân vật duy nhất"
                                         >
-                                            <span>🔄</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
                                             <span className="truncate">Xoay 360°</span>
                                         </button>
 
@@ -6792,10 +6841,12 @@ const App: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => handleOpenBiometricMorph()}
-                                            className="w-full text-[10px] text-amber-300 hover:text-amber-200 font-semibold flex items-center justify-center gap-1.5 transition-all bg-amber-500/15 hover:bg-amber-500/25 px-2 py-1.5 rounded-xl border border-amber-500/30 active:scale-95 shadow-sm"
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
                                             title="Biometric Morph Studio: Thanh trượt tuổi tác 18-70 và 6 biểu cảm cảm xúc vi mô"
                                         >
-                                            <span>⏳</span>
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
                                             <span className="truncate">Tuổi & Cảm Xúc</span>
                                         </button>
                                     </div>

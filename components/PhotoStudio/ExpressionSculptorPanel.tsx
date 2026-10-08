@@ -76,18 +76,23 @@ export const ExpressionSculptorPanel: React.FC<ExpressionSculptorPanelProps> = (
       
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🗿</span>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-zinc-300">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <circle cx="12" cy="8" r="4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+            </svg>
+          </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-xs font-black text-white tracking-wide uppercase">
+              <h3 className="text-xs font-bold text-white tracking-wide uppercase">
                 Neural Expression & Face Sculptor
               </h3>
-              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono font-bold">
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/[0.08] text-zinc-300 border border-white/10 font-mono font-bold">
                 PRO 4.3
               </span>
             </div>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-zinc-400">
               Điêu khắc 3D biểu cảm, xoay đầu, độ tuổi & ánh mắt bảo toàn vân da thật
             </p>
           </div>
@@ -96,16 +101,19 @@ export const ExpressionSculptorPanel: React.FC<ExpressionSculptorPanelProps> = (
 
       {/* Model Selection Row */}
       <div className="p-2 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 text-[11px] text-slate-300 font-semibold">
-          <span>⚡ Mô hình AI:</span>
+        <div className="flex items-center gap-1.5 text-[11px] text-zinc-300 font-medium">
+          <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Mô hình AI:</span>
         </div>
         <select
           value={selectedModel}
           onChange={(e) => setSelectedModel(e.target.value)}
-          className="bg-slate-950 text-white text-[11px] font-medium py-1 px-2.5 rounded-xl border border-white/15 focus:outline-none focus:border-purple-400 max-w-[200px] truncate"
+          className="bg-zinc-950 text-white text-[11px] font-medium py-1 px-2.5 rounded-xl border border-white/15 focus:outline-none focus:border-white/30 max-w-[200px] truncate"
         >
           {AVAILABLE_STUDIO_MODELS.map(m => (
-            <option key={m.id} value={m.id}>
+            <option key={m.id} value={m.id} className="bg-zinc-900 text-white">
               {m.label}
             </option>
           ))}
@@ -113,53 +121,62 @@ export const ExpressionSculptorPanel: React.FC<ExpressionSculptorPanelProps> = (
       </div>
 
       {/* Sub-Tab Navigation */}
-      <div className="grid grid-cols-4 gap-1 p-1 bg-black/40 rounded-2xl border border-white/10 text-[10px] font-bold">
+      <div className="grid grid-cols-4 gap-1 p-1 bg-black/40 rounded-2xl border border-white/10 text-[10px] font-medium">
         <button
           type="button"
           onClick={() => setActiveTab('presets')}
-          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1 ${
+          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'presets'
-              ? 'bg-purple-500/30 text-white border border-purple-400/40 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-white text-black font-semibold shadow-sm'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
-          <span>✨</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+          </svg>
           <span>Presets</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('expression')}
-          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1 ${
+          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'expression'
-              ? 'bg-purple-500/30 text-white border border-purple-400/40 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-white text-black font-semibold shadow-sm'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
-          <span>😊</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <circle cx="12" cy="12" r="9" />
+            <path strokeLinecap="round" d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 005 0" />
+          </svg>
           <span>Cười & Mắt</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('pose_age')}
-          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1 ${
+          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'pose_age'
-              ? 'bg-purple-500/30 text-white border border-purple-400/40 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-white text-black font-semibold shadow-sm'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
-          <span>📐</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
           <span>3D & Tuổi</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('anatomy')}
-          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1 ${
+          className={`py-1.5 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'anatomy'
-              ? 'bg-purple-500/30 text-white border border-purple-400/40 shadow-sm'
-              : 'text-slate-400 hover:text-white'
+              ? 'bg-white text-black font-semibold shadow-sm'
+              : 'text-zinc-400 hover:text-white'
           }`}
         >
-          <span>💎</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
           <span>Hàm & Tóc</span>
         </button>
       </div>
@@ -176,22 +193,25 @@ export const ExpressionSculptorPanel: React.FC<ExpressionSculptorPanelProps> = (
                 key={preset.id}
                 type="button"
                 onClick={() => applyPreset(preset.params)}
-                className="p-2.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-purple-400/40 flex items-center justify-between transition-all group text-left"
+                className="p-2.5 rounded-2xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/20 flex items-center justify-between transition-all group text-left"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-xl p-1.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform">
-                    {preset.icon}
-                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-zinc-300 group-hover:text-white transition-colors">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <circle cx="12" cy="8" r="4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+                    </svg>
+                  </div>
                   <div>
-                    <div className="text-xs font-bold text-white group-hover:text-purple-300 transition-colors">
+                    <div className="text-xs font-semibold text-white transition-colors">
                       {preset.name}
                     </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
+                    <div className="text-[10px] text-zinc-400 font-mono">
                       Cười: {preset.params.smileIntensity ?? 0}% | Retouch: {preset.params.skinRetouchLevel ?? 50}%
                     </div>
                   </div>
                 </div>
-                <span className="text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs text-zinc-400 group-hover:text-white opacity-0 group-hover:opacity-100 transition-all">
                   Áp dụng →
                 </span>
               </button>
@@ -528,16 +548,19 @@ export const ExpressionSculptorPanel: React.FC<ExpressionSculptorPanelProps> = (
         type="button"
         onClick={handleSculpt}
         disabled={isSculpting || !baseImageSrc}
-        className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-xs text-white font-black shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-98"
+        className="w-full py-2.5 px-4 rounded-2xl bg-white hover:bg-zinc-200 text-black text-xs font-semibold shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-40 active:scale-[0.99]"
       >
         {isSculpting ? (
           <>
-            <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-black border-t-transparent animate-spin" />
             <span>Đang điêu khắc vi biểu cảm & giải phẫu 3D...</span>
           </>
         ) : (
           <>
-            <span>🗿</span>
+            <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <circle cx="12" cy="8" r="4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+            </svg>
             <span>Thực Thi Điêu Khắc Chân Dung (Sculpt)</span>
           </>
         )}

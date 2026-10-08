@@ -153,19 +153,22 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
         {/* Top Header */}
         <div className="p-4 sm:p-5 border-b border-white/10 flex items-center justify-between flex-none bg-white/[0.02]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center shadow-lg shadow-pink-500/25">
-              <span className="text-xl">👗</span>
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white shadow-sm">
+              <svg className="w-5 h-5 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3c0 .7.3 1.4.7 1.9L2 14v2h20v-2l-7.7-7.1A3 3 0 0 0 12 2z" />
+                <path d="M2 18h20" />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
                   Virtual Try-On 2.0 Studio
                 </h2>
-                <span className="bg-pink-500/20 text-pink-300 border border-pink-500/40 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                <span className="bg-white/[0.06] text-zinc-300 border border-white/10 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full">
                   Neural Fitting
                 </span>
               </div>
-              <p className="text-xs text-white/50 hidden sm:block">
+              <p className="text-xs text-zinc-400 hidden sm:block">
                 Thử đồ từ ảnh Flat-lay / Sản phẩm lên Người Mẫu với mô phỏng nếp gấp vải & khóa 100% diện mạo khuôn mặt
               </p>
             </div>
@@ -174,9 +177,13 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center transition-all border border-white/10"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white flex items-center justify-center transition-all border border-white/10"
+            title="Đóng"
           >
-            ✕
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -187,12 +194,15 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
             {/* 1. Model Source Card */}
             <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <span>👤</span>
+                <label className="text-xs font-semibold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
                   <span>1. Người Mẫu (Model)</span>
                 </label>
                 {availablePersonas.length > 0 && (
-                  <span className="text-[10px] text-primary-300">
+                  <span className="text-[10px] text-zinc-400">
                     {availablePersonas.length} người mẫu trong Kho
                   </span>
                 )}
@@ -211,7 +221,7 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                         onClick={() => handleSelectPersona(p)}
                         className={`flex-none w-12 h-12 rounded-xl overflow-hidden border-2 transition-all relative ${
                           isSelected
-                            ? 'border-pink-400 ring-2 ring-pink-500/40 scale-95 shadow-lg'
+                            ? 'border-white ring-2 ring-white/30 scale-95 shadow-lg'
                             : 'border-white/10 opacity-70 hover:opacity-100 hover:border-white/30'
                         }`}
                         title={p.name}
@@ -219,7 +229,12 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                         {avatar ? (
                           <img src={avatar} className="w-full h-full object-cover" alt={p.name} />
                         ) : (
-                          <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs">👤</div>
+                          <div className="w-full h-full bg-slate-800 flex items-center justify-center text-xs text-zinc-400">
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          </div>
                         )}
                       </button>
                     );
@@ -234,17 +249,25 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                   <button
                     type="button"
                     onClick={() => { setModelImage(null); setResult(null); }}
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white/80 hover:text-red-400 hover:bg-black/90 transition-all border border-white/10"
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white/80 hover:text-white hover:bg-black/90 transition-all border border-white/10"
                     title="Đổi người mẫu khác"
                   >
-                    ✕
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                   </button>
                 </div>
               ) : (
-                <label className="border-2 border-dashed border-white/15 hover:border-pink-400/50 bg-white/5 hover:bg-pink-500/5 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
-                  <span className="text-xl mb-1">📸</span>
-                  <span className="text-xs font-bold text-white">Tải ảnh người mẫu lên</span>
-                  <span className="text-[10px] text-white/40 mt-0.5">Toàn thân hoặc nửa thân trên</span>
+                <label className="border-2 border-dashed border-white/15 hover:border-white/40 bg-white/[0.02] hover:bg-white/[0.05] rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center mb-1.5 text-zinc-300">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </div>
+                  <span className="text-xs font-semibold text-white">Tải ảnh người mẫu lên</span>
+                  <span className="text-[10px] text-zinc-500 mt-0.5">Toàn thân hoặc nửa thân trên</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -264,12 +287,15 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
 
             {/* 2. Garment Source Card */}
             <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
-              <label className="text-xs font-black text-white uppercase tracking-wider flex items-center justify-between">
+              <label className="text-xs font-semibold text-white uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <span>👗</span>
+                  <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3c0 .7.3 1.4.7 1.9L2 14v2h20v-2l-7.7-7.1A3 3 0 0 0 12 2z" />
+                    <path d="M2 18h20" />
+                  </svg>
                   <span>2. Trang Phục Cần Thử (Garment)</span>
                 </span>
-                <span className="text-[10px] text-amber-300">Flat-lay / Product</span>
+                <span className="text-[10px] text-zinc-400 font-mono">Flat-lay / Product</span>
               </label>
 
               {/* Quick Presets */}
@@ -279,11 +305,16 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                     key={p.id}
                     type="button"
                     onClick={() => handleApplyPreset(p)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-pink-400/40 text-left transition-all group flex flex-col items-center text-center"
+                    className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/10 hover:border-white/20 text-left transition-all group flex flex-col items-center text-center"
                     title={p.description}
                   >
-                    <span className="text-lg">{p.icon}</span>
-                    <span className="text-[10px] font-bold text-white/80 group-hover:text-pink-300 truncate w-full mt-0.5">
+                    <div className="w-6 h-6 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 mb-1">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path d="M12 2a3 3 0 0 0-3 3c0 .7.3 1.4.7 1.9L2 14v2h20v-2l-7.7-7.1A3 3 0 0 0 12 2z" />
+                        <path d="M2 18h20" />
+                      </svg>
+                    </div>
+                    <span className="text-[10px] font-medium text-zinc-300 group-hover:text-white truncate w-full">
                       {p.name}
                     </span>
                   </button>
@@ -297,17 +328,26 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                   <button
                     type="button"
                     onClick={() => { setGarmentImage(null); }}
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white/80 hover:text-red-400 hover:bg-black/90 transition-all border border-white/10"
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white/80 hover:text-white hover:bg-black/90 transition-all border border-white/10"
                     title="Đổi trang phục"
                   >
-                    ✕
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                   </button>
                 </div>
               ) : (
-                <label className="border-2 border-dashed border-white/15 hover:border-pink-400/50 bg-white/5 hover:bg-pink-500/5 rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
-                  <span className="text-lg mb-1">🛍️</span>
-                  <span className="text-xs font-bold text-white">Tải ảnh sản phẩm trang phục</span>
-                  <span className="text-[10px] text-white/40 mt-0.5">Ảnh trải sàn, ma-nơ-canh hoặc sản phẩm</span>
+                <label className="border-2 border-dashed border-white/15 hover:border-white/40 bg-white/[0.02] hover:bg-white/[0.05] rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center mb-1 text-zinc-300">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                      <line x1="3" y1="6" x2="21" y2="6" />
+                      <path d="M16 10a4 4 0 0 1-8 0" />
+                    </svg>
+                  </div>
+                  <span className="text-xs font-semibold text-white">Tải ảnh sản phẩm trang phục</span>
+                  <span className="text-[10px] text-zinc-500 mt-0.5">Ảnh trải sàn, ma-nơ-canh hoặc sản phẩm</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -343,10 +383,10 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                       key={c.id}
                       type="button"
                       onClick={() => setCategory(c.id as GarmentCategory)}
-                      className={`py-1.5 px-2 rounded-lg text-[10px] font-bold transition-all ${
+                      className={`py-1.5 px-2 rounded-lg text-[10px] font-semibold transition-all ${
                         category === c.id
-                          ? 'bg-pink-600 text-white shadow-md shadow-pink-500/25'
-                          : 'bg-white/5 hover:bg-white/10 text-white/60'
+                          ? 'bg-white text-black font-semibold shadow-sm'
+                          : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white'
                       }`}
                     >
                       {c.label}
@@ -406,9 +446,11 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
               type="button"
               onClick={handleExecuteTryOn}
               disabled={isProcessing || !modelImage}
-              className="w-full py-3.5 bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600 hover:from-pink-500 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-pink-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full py-3 bg-white text-black hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed font-bold rounded-2xl text-xs uppercase tracking-wider shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
-              <span>✨</span>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg>
               <span>Bắt Đầu Thử Trang Phục (Virtual Try-On)</span>
             </button>
           </div>
@@ -418,8 +460,12 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
             {isProcessing ? (
               <div className="flex flex-col items-center justify-center space-y-4">
                 <LoadingSpinner message={progressMsg} />
-                <div className="p-3 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-300 text-xs text-center max-w-sm">
-                  <span>🔒 Khóa 100% diện mạo khuôn mặt & vóc dáng người mẫu</span>
+                <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 text-zinc-300 text-xs text-center max-w-sm flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <span>Khóa 100% diện mạo khuôn mặt & vóc dáng người mẫu</span>
                 </div>
               </div>
             ) : result ? (
@@ -430,8 +476,8 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setViewMode('split')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        viewMode === 'split' ? 'bg-pink-600 text-white shadow-md' : 'text-white/60 hover:text-white'
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        viewMode === 'split' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       Kéo So Sánh
@@ -439,8 +485,8 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setViewMode('result')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        viewMode === 'result' ? 'bg-pink-600 text-white shadow-md' : 'text-white/60 hover:text-white'
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        viewMode === 'result' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       Sau Khi Thử
@@ -448,16 +494,19 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setViewMode('original')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                        viewMode === 'original' ? 'bg-pink-600 text-white shadow-md' : 'text-white/60 hover:text-white'
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        viewMode === 'original' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       Ảnh Gốc
                     </button>
                   </div>
 
-                  <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                    ⚡ {result.modelUsed} ({Math.round(result.durationMs / 1000)}s)
+                  <span className="text-[10px] text-zinc-300 font-medium bg-white/[0.06] px-2.5 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
+                    <svg className="w-3 h-3 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                    <span>{result.modelUsed} ({Math.round(result.durationMs / 1000)}s)</span>
                   </span>
                 </div>
 
@@ -501,19 +550,22 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
 
                       {/* Split Divider Bar */}
                       <div
-                        className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)] pointer-events-none flex items-center justify-center"
+                        className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(255,255,255,0.7)] pointer-events-none flex items-center justify-center"
                         style={{ left: `${splitPos}%` }}
                       >
-                        <div className="w-7 h-7 rounded-full bg-white text-slate-900 flex items-center justify-center font-bold text-xs shadow-xl border-2 border-slate-900">
-                          ⇄
+                        <div className="w-6 h-6 rounded-full bg-white text-black flex items-center justify-center font-bold text-xs shadow-lg border border-black/20">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <polyline points="8 7 3 12 8 17" />
+                            <polyline points="16 7 21 12 16 17" />
+                          </svg>
                         </div>
                       </div>
 
                       {/* Badges */}
-                      <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-black text-pink-300 border border-pink-500/30 pointer-events-none">
+                      <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-semibold text-zinc-200 border border-white/10 pointer-events-none">
                         Mới Thử Đồ
                       </div>
-                      <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-black text-white/60 border border-white/10 pointer-events-none">
+                      <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-semibold text-zinc-400 border border-white/10 pointer-events-none">
                         Gốc
                       </div>
                     </>
@@ -538,9 +590,13 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                         );
                       }
                     }}
-                    className="py-2.5 px-3 bg-white/10 hover:bg-white/15 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 border border-white/10"
+                    className="py-2.5 px-3 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-200 font-medium rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 border border-white/10"
                   >
-                    <span>💾</span>
+                    <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
                     <span>Lưu Thư Viện</span>
                   </button>
 
@@ -548,9 +604,14 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenInUpscale(result.resultImage)}
-                      className="py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-md shadow-indigo-500/20"
+                      className="py-2.5 px-3 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-200 font-medium rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 border border-white/10"
                     >
-                      <span>✨</span>
+                      <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 3 21 3 21 9" />
+                        <polyline points="9 21 3 21 3 15" />
+                        <line x1="21" y1="3" x2="14" y2="10" />
+                        <line x1="3" y1="21" x2="10" y2="14" />
+                      </svg>
                       <span>Upscale 5.5K</span>
                     </button>
                   )}
@@ -559,9 +620,14 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                     <button
                       type="button"
                       onClick={() => onOpenInInpainting(result.resultImage)}
-                      className="py-2.5 px-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-md shadow-pink-500/20"
+                      className="py-2.5 px-3 bg-white/[0.06] hover:bg-white/[0.12] text-zinc-200 font-medium rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 border border-white/10"
                     >
-                      <span>🪄</span>
+                      <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                        <path d="M2 2l7.586 7.586" />
+                        <circle cx="11" cy="11" r="2" />
+                      </svg>
                       <span>Cọ Sửa AI</span>
                     </button>
                   )}
@@ -569,21 +635,28 @@ export const VirtualTryOnModal: React.FC<VirtualTryOnModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onDownload && onDownload(result.resultImage, `Virtual_TryOn_${garmentName}`)}
-                    className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-md shadow-emerald-500/20"
+                    className="py-2.5 px-3 bg-white text-black hover:bg-zinc-200 font-semibold rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
                   >
-                    <span>⬇️</span>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
                     <span>Tải Về</span>
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center text-center space-y-3 opacity-40 select-none py-16">
-                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-                  <span className="text-3xl">👗</span>
+              <div className="flex flex-col items-center justify-center text-center space-y-3 opacity-60 select-none py-16">
+                <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-zinc-400">
+                  <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3c0 .7.3 1.4.7 1.9L2 14v2h20v-2l-7.7-7.1A3 3 0 0 0 12 2z" />
+                    <path d="M2 18h20" />
+                  </svg>
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white uppercase tracking-wider">Phòng Thử Đồ AI Sẵn Sàng</h4>
-                  <p className="text-xs text-white/50 max-w-sm mt-1">
+                  <h4 className="text-xs font-semibold text-white uppercase tracking-wider">Phòng Thử Đồ AI Sẵn Sàng</h4>
+                  <p className="text-xs text-zinc-400 max-w-sm mt-1">
                     Chọn người mẫu ở cột bên trái, tải ảnh trang phục hoặc chọn preset thời trang để bắt đầu thử đồ.
                   </p>
                 </div>

@@ -31,6 +31,9 @@ import { GoboProjectorPanel } from './GoboProjectorPanel';
 import { VirtualWardrobePanel } from './VirtualWardrobePanel';
 import { ExpressionSculptorPanel } from './ExpressionSculptorPanel';
 import { AtmosphereWeatherPanel } from './AtmosphereWeatherPanel';
+import { BeautyRetouchPanel } from './BeautyRetouchPanel';
+import { OpticalBokehPanel } from './OpticalBokehPanel';
+import { StudioLighting3DPanel } from './StudioLighting3DPanel';
 import {
   StudioLayer,
   StudioBlendMode,
@@ -50,6 +53,9 @@ export interface PhotoStudioWorkspaceProps {
 type StudioTool = 'select' | 'brush' | 'eraser' | 'crop' | 'color' | 'hand';
 type RightSidebarTab =
   | 'ai_magic'
+  | 'beauty_retouch'
+  | 'optical_bokeh'
+  | 'studio_lighting'
   | 'color_grading'
   | 'layers'
   | 'gobo'
@@ -286,6 +292,10 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   const [antiAiActive, setAntiAiActive] = useState<boolean>(() => loadAntiAiSettings().enabled);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Optical Bokeh Focus Point Picker State (v4.3)
+  const [isPickingFocus, setIsPickingFocus] = useState<boolean>(false);
+  const [focalPoint, setFocalPoint] = useState<{ x: number; y: number }>({ x: 0.5, y: 0.35 });
+
   // Crop Box State
   const [cropAspectRatio, setCropAspectRatio] = useState<'free' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4'>('free');
   const [cropBox, setCropBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -392,7 +402,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
       }
       setHasMask(true);
       setIsMaskVisible(true);
-      showToast('✨ Đã tự động bóc tách vùng chọn (SAM 2)!');
+      showToast('Đã tự động bóc tách vùng chọn (SAM 2)');
     };
     maskImg.src = maskDataUrl;
   }, []);
@@ -417,7 +427,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     }
     ctx.putImageData(imgData, 0, 0);
     setHasMask(true);
-    showToast('🔄 Đã đảo ngược vùng chọn mask!');
+    showToast('Đã đảo ngược vùng chọn mask');
   }, []);
 
   // Layer Operations
@@ -492,7 +502,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     };
     setLayers((prev) => [...prev, newLayer]);
     setActiveLayerId(newLayer.id);
-    showToast('🔦 Đã tạo Layer Gobo Chiếu Sáng!');
+    showToast('Đã tạo Layer Gobo Chiếu Sáng');
   }, []);
 
   // Apply Atmosphere Layer
@@ -508,7 +518,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     };
     setLayers((prev) => [...prev, newLayer]);
     setActiveLayerId(newLayer.id);
-    showToast('🌧️ Đã tạo Layer Khí Quyển Môi Trường!');
+    showToast('Đã tạo Layer Khí Quyển');
   }, []);
 
   // Breakthrough AI output integration helper
@@ -518,7 +528,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     setLayers((prev) => [...prev, newLayer]);
     setActiveLayerId(newLayer.id);
     clearMask();
-    showToast(`✨ ${actionName} hoàn tất!`);
+    showToast(`${actionName} hoàn tất`);
+  }, [pushHistory, clearMask]);
+
+  // Zero-API Client-side Canvas output integration helper
+  const handleApplyCanvasResult = useCallback((newCanvas: HTMLCanvasElement, actionName: string) => {
+    const dataUrl = newCanvas.toDataURL('image/png');
+    pushHistory(dataUrl);
+    const newLayer = createAiLayer(dataUrl, actionName, 'ai_patch');
+    setLayers((prev) => [...prev, newLayer]);
+    setActiveLayerId(newLayer.id);
+    clearMask();
+    showToast(`${actionName} hoàn tất (0 API)`);
   }, [pushHistory, clearMask]);
 
   // Initialize/Load image onto canvas
@@ -677,6 +698,19 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     }
 
     if (e.button === 0) { // Left Click
+      // 0. Focus picker click for Optical Bokeh
+      if (isPickingFocus) {
+        const coords = clientToCanvasCoords(e.clientX, e.clientY);
+        if (coords.x >= 0 && coords.x <= imageSize.width && coords.y >= 0 && coords.y <= imageSize.height) {
+          const normX = Math.max(0, Math.min(1, coords.x / imageSize.width));
+          const normY = Math.max(0, Math.min(1, coords.y / imageSize.height));
+          setFocalPoint({ x: normX, y: normY });
+          setIsPickingFocus(false);
+          showToast(`Đã chọn điểm nét tại (${Math.round(normX * 100)}%, ${Math.round(normY * 100)}%)`);
+          return;
+        }
+      }
+
       if (activeTool === 'brush' || activeTool === 'eraser') {
         const coords = clientToCanvasCoords(e.clientX, e.clientY);
         // Only draw if inside or immediately along canvas boundaries
@@ -870,7 +904,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     setActivePresetId(newPreset.id);
     setIsSavingPresetModalOpen(false);
     setNewPresetName('');
-    showToast(`Đã lưu preset "${newPreset.name}" vào thư viện! 💾`);
+    showToast(`Đã lưu preset "${newPreset.name}" vào thư viện!`);
   };
 
   const handleDeleteCustomPreset = (id: string, name: string, e: React.MouseEvent) => {
@@ -1150,7 +1184,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     try {
       await saveGalleryItemDB(newItem);
       if (onSaveToGallery) onSaveToGallery(newItem);
-      showToast('Đã lưu tác phẩm vào Gallery thành công! 🖼️');
+      showToast('Đã lưu tác phẩm vào Gallery thành công!');
     } catch (e) {
       console.error('Failed to save studio item to gallery:', e);
       showToast('Lỗi lưu vào Gallery.');
@@ -1271,9 +1305,13 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           <div className="w-px h-5 bg-white/10"></div>
 
           <div className="flex items-center gap-2">
-            <span className="text-base font-black tracking-tight text-white flex items-center gap-1.5">
-              <span>🎨</span> NKI Photo Studio
-              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-primary-500/20 text-primary-400 border border-primary-500/30">
+            <span className="text-base font-bold tracking-tight text-white flex items-center gap-2">
+              <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <circle cx="12" cy="12" r="9" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83M16.62 12l-5.74 9.94" />
+              </svg>
+              <span>NKI Photo Studio</span>
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-white/[0.08] text-zinc-300 border border-white/10 font-bold">
                 2026 AI Pro
               </span>
             </span>
@@ -1344,14 +1382,17 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             onMouseDown={() => setIsComparingOriginal(true)}
             onMouseUp={() => setIsComparingOriginal(false)}
             onMouseLeave={() => setIsComparingOriginal(false)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
               isComparingOriginal
-                ? 'bg-amber-500 text-black border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                : 'bg-white/5 text-white/70 border-white/10 hover:text-white hover:bg-white/10'
+                ? 'bg-white text-black border-white shadow-sm'
+                : 'bg-white/5 text-zinc-300 border-white/10 hover:text-white hover:bg-white/10'
             }`}
             title="Nhấn giữ để xem ảnh gốc trước khi chỉnh sửa"
           >
-            <span>👁️</span>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
             <span className="hidden md:inline">Giữ xem ảnh gốc</span>
           </button>
 
@@ -1362,10 +1403,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 clearMask();
                 showToast('Đã xóa vùng chọn (Deselect)');
               }}
-              className="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-in fade-in duration-150"
+              className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-red-500/20 text-zinc-300 hover:text-red-300 border border-white/10 hover:border-red-500/30 text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95 animate-in fade-in duration-150"
               title="Xóa bỏ nét cọ vùng chọn (Phím tắt: Esc hoặc Ctrl+D)"
             >
-              <span className="text-red-400 font-black">✕</span>
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
               <span>Hủy Mask (Esc)</span>
             </button>
           )}
@@ -1375,10 +1418,14 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleSaveToGallery}
-            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+            className="px-3.5 py-1.5 bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs font-semibold rounded-xl transition-all border border-white/10 active:scale-95 flex items-center gap-1.5"
             title="Lưu vào kho ảnh Gallery"
           >
-            <span>🖼️</span>
+            <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <polyline points="21 15 16 10 5 21" />
+            </svg>
             <span className="hidden sm:inline">Lưu Gallery</span>
           </button>
 
@@ -1412,10 +1459,15 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               </button>
               <button
                 onClick={() => handleDownload('anti_ai')}
-                className="w-full text-left px-3 py-2 text-xs rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-between mt-1 border border-emerald-500/20"
+                className="w-full text-left px-3 py-2 text-xs rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 font-medium flex items-center justify-between mt-1 border border-white/10"
               >
-                <span>🛡️ Tải Khử Dấu AI</span>
-                <span className="text-[9px] bg-emerald-500/20 px-1.5 py-0.5 rounded text-emerald-300">EXIF</span>
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>Tải Khử Dấu AI</span>
+                </span>
+                <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-zinc-300 font-mono">EXIF</span>
               </button>
             </div>
           </div>
@@ -1555,11 +1607,20 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center transition-all border ${
                   isMaskVisible 
                     ? 'bg-white/5 hover:bg-white/10 text-white/70 border-white/10' 
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-white/15 text-white border-white/30'
                 }`}
                 title={isMaskVisible ? "Tạm ẩn nét cọ để xem ảnh sạch" : "Hiện lại nét cọ"}
               >
-                <span className="text-xs">{isMaskVisible ? '👁️' : '🙈'}</span>
+                {isMaskVisible ? (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                )}
                 <span className="text-[7px] font-bold uppercase mt-0.5">{isMaskVisible ? 'Ẩn' : 'Hiện'}</span>
               </button>
             </>
@@ -1582,17 +1643,20 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
           {/* Empty State: Upload / Select Image */}
           {!currentImageSrc && (
             <div className="z-30 max-w-xl w-full p-8 mx-4 bg-slate-900/90 border-2 border-dashed border-white/20 rounded-3xl backdrop-blur-xl flex flex-col items-center text-center shadow-2xl animate-in fade-in zoom-in-95 duration-300">
-              <div className="w-20 h-20 rounded-3xl bg-primary-500/10 border border-primary-500/20 flex items-center justify-center text-3xl mb-4 shadow-[0_0_30px_rgba(var(--primary-500-rgb),0.2)]">
-                🎨
+              <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <circle cx="12" cy="12" r="9" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.31 8l5.74 9.94M9.69 8h11.48M7.38 12l5.74-9.94M9.69 16L3.95 6.06M14.31 16H2.83M16.62 12l-5.74 9.94" />
+                </svg>
               </div>
-              <h2 className="text-xl font-black text-white mb-2 uppercase tracking-wide">
+              <h2 className="text-xl font-bold text-white mb-2 uppercase tracking-wide">
                 NKI AI Photo Studio Pro 2026
               </h2>
               <p className="text-xs text-white/60 mb-6 leading-relaxed max-w-md">
                 Chỉnh màu nâng cao 60 FPS (0 API token) & Retouch AI thông minh (Generative Fill, Magic Eraser, Magic Expand)
               </p>
               
-              <label className="cursor-pointer px-6 py-3.5 bg-primary-500 hover:bg-primary-400 text-black text-xs font-black uppercase tracking-widest rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 mb-6">
+              <label className="cursor-pointer px-6 py-3.5 bg-white hover:bg-zinc-200 text-black text-xs font-semibold uppercase tracking-wider rounded-2xl shadow-xl transition-all active:scale-95 flex items-center gap-2 mb-6">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0L8 8m4-4v12" />
                 </svg>
@@ -1640,22 +1704,26 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               <div className="flex items-center bg-white/10 rounded-xl p-0.5 border border-white/10">
                 <button
                   onClick={() => setActiveTool('brush')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                    activeTool === 'brush' ? 'bg-primary-500 text-black shadow-md' : 'text-white/60 hover:text-white'
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTool === 'brush' ? 'bg-white text-black shadow-sm' : 'text-white/60 hover:text-white'
                   }`}
                   title="Cọ Quét Vùng Chọn (Phím B)"
                 >
-                  <span>🖌️</span>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
                   <span>Cọ (B)</span>
                 </button>
                 <button
                   onClick={() => setActiveTool('eraser')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                    activeTool === 'eraser' ? 'bg-primary-500 text-black shadow-md' : 'text-white/60 hover:text-white'
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTool === 'eraser' ? 'bg-white text-black shadow-sm' : 'text-white/60 hover:text-white'
                   }`}
                   title="Tẩy Nét Cọ (Phím E)"
                 >
-                  <span>🧹</span>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                   <span>Tẩy (E)</span>
                 </button>
               </div>
@@ -1671,7 +1739,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   max="250"
                   value={brushSize}
                   onChange={(e) => setBrushSize(Number(e.target.value))}
-                  className="w-20 sm:w-24 accent-primary-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-20 sm:w-24 accent-white cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
                 <EditableNumberInput
                   value={brushSize}
@@ -1679,7 +1747,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   max={300}
                   step={2}
                   unit="px"
-                  colorClass="text-primary-400"
+                  colorClass="text-zinc-200"
                   widthClass="w-12"
                   onChange={(v) => setBrushSize(v)}
                 />
@@ -1697,7 +1765,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   step="0.05"
                   value={brushHardness}
                   onChange={(e) => setBrushHardness(Number(e.target.value))}
-                  className="w-16 accent-primary-500 cursor-pointer h-1.5 bg-white/20 rounded-lg"
+                  className="w-16 accent-white cursor-pointer h-1.5 bg-white/20 rounded-lg"
                 />
                 <EditableNumberInput
                   value={Math.round(brushHardness * 100)}
@@ -1718,14 +1786,23 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 <>
                   <button
                     onClick={() => setIsMaskVisible(!isMaskVisible)}
-                    className={`px-2 py-1 rounded-xl text-[11px] font-semibold flex items-center gap-1 border transition-all ${
+                    className={`px-2 py-1 rounded-xl text-[11px] font-semibold flex items-center gap-1.5 border transition-all ${
                       isMaskVisible 
                         ? 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10' 
-                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        : 'bg-white/15 text-white border-white/30'
                     }`}
                     title={isMaskVisible ? "Tạm ẩn nét cọ để xem ảnh sạch" : "Hiện lại nét cọ"}
                   >
-                    <span>{isMaskVisible ? '👁️' : '🙈'}</span>
+                    {isMaskVisible ? (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                      </svg>
+                    )}
                     <span>{isMaskVisible ? 'Ẩn' : 'Hiện'}</span>
                   </button>
 
@@ -1734,10 +1811,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                       clearMask();
                       showToast('Đã xóa bỏ vùng chọn (Deselect)');
                     }}
-                    className="px-2.5 py-1 rounded-xl bg-red-500/30 hover:bg-red-500 text-red-200 hover:text-white border border-red-500/50 text-xs font-bold flex items-center gap-1 transition-all active:scale-95 shadow-md"
+                    className="px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-red-500/20 text-zinc-300 hover:text-red-300 border border-white/10 hover:border-red-500/30 text-xs font-medium flex items-center gap-1 transition-all active:scale-95 shadow-md"
                     title="Xóa bỏ nét cọ vùng chọn (Esc hoặc Ctrl+D)"
                   >
-                    <span>✕</span>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                     <span>Hủy Vùng Chọn (Esc)</span>
                   </button>
                 </>
@@ -1759,21 +1838,30 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             <div 
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
-              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-red-500/40 px-3.5 py-1.5 rounded-2xl backdrop-blur-2xl flex items-center gap-2.5 shadow-[0_12px_40px_rgba(239,68,68,0.25),inset_0_1px_1px_rgba(255,255,255,0.2)] animate-in fade-in slide-in-from-top-3 duration-200 studio-overlay-interactive"
+              className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 border border-white/15 px-3.5 py-1.5 rounded-2xl backdrop-blur-2xl flex items-center gap-2.5 shadow-2xl animate-in fade-in slide-in-from-top-3 duration-200 studio-overlay-interactive"
             >
-              <div className="flex items-center gap-1.5 text-xs text-red-400 font-bold">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                <span>Vùng Chọn (Mask) Đang Có</span>
+              <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-semibold">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                <span>Vùng Chọn (Mask)</span>
               </div>
               <div className="w-px h-4 bg-white/15"></div>
               <button
                 onClick={() => setIsMaskVisible(!isMaskVisible)}
                 className={`px-2 py-1 rounded-xl text-[11px] font-semibold flex items-center gap-1 border transition-all ${
-                  isMaskVisible ? 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10' : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  isMaskVisible ? 'bg-white/5 hover:bg-white/10 text-white/80 border-white/10' : 'bg-white/15 text-white border-white/30'
                 }`}
                 title={isMaskVisible ? "Tạm ẩn nét cọ để xem ảnh sạch" : "Hiện lại nét cọ"}
               >
-                <span>{isMaskVisible ? '👁️' : '🙈'}</span>
+                {isMaskVisible ? (
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                  </svg>
+                )}
                 <span>{isMaskVisible ? 'Ẩn' : 'Hiện'}</span>
               </button>
               <button
@@ -1781,10 +1869,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   clearMask();
                   showToast('Đã xóa bỏ vùng chọn (Deselect)');
                 }}
-                className="px-2.5 py-1 rounded-xl bg-red-500 hover:bg-red-400 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1 transition-all shadow-md active:scale-95"
+                className="px-2.5 py-1 rounded-xl bg-white/[0.08] hover:bg-red-500/20 text-zinc-300 hover:text-red-300 border border-white/10 font-medium text-xs flex items-center gap-1 transition-all active:scale-95"
                 title="Xóa bỏ hoàn toàn nét cọ (Esc hoặc Ctrl+D)"
               >
-                <span>✕</span>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
                 <span>Xóa Vùng Chọn (Esc)</span>
               </button>
               <button
@@ -1824,6 +1914,31 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
               }`}
               style={{ width: imageSize.width, height: imageSize.height }}
             />
+
+            {/* Optical Bokeh Focus Target Crosshair */}
+            {(activeTab === 'optical_bokeh' || isPickingFocus) && (
+              <div
+                className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2 transition-all duration-75 z-10"
+                style={{
+                  left: focalPoint.x * imageSize.width,
+                  top: focalPoint.y * imageSize.height
+                }}
+              >
+                <div className="relative flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full border-2 border-cyan-400 animate-ping opacity-30 absolute" />
+                  <div className="w-8 h-8 rounded-full border-2 border-cyan-400 flex items-center justify-center bg-cyan-400/10 backdrop-blur-[1px] shadow-[0_0_12px_rgba(34,211,238,0.6)]">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm" />
+                  </div>
+                  <div className="absolute -top-3 w-0.5 h-2 bg-cyan-400 shadow-sm" />
+                  <div className="absolute -bottom-3 w-0.5 h-2 bg-cyan-400 shadow-sm" />
+                  <div className="absolute -left-3 h-0.5 w-2 bg-cyan-400 shadow-sm" />
+                  <div className="absolute -right-3 h-0.5 w-2 bg-cyan-400 shadow-sm" />
+                  <span className="absolute -top-6 left-4 text-[9px] font-mono font-black text-cyan-300 bg-black/80 px-1.5 py-0.5 rounded whitespace-nowrap border border-cyan-500/40 shadow-lg">
+                    FOCUS: {(focalPoint.x * 100).toFixed(0)}%, {(focalPoint.y * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Crop Overlay when Crop tool is active */}
             {activeTool === 'crop' && cropBox && (
@@ -1919,8 +2034,8 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
         {/* Right Inspector & Controls Sidebar */}
         <aside className="w-80 md:w-96 flex-none bg-slate-900/90 border-l border-white/10 flex flex-col z-20 backdrop-blur-md">
-          {/* Sidebar Tabs - VisionOS Acrylic Header (Balanced 4x2 Grid: Zero Cutoffs) */}
-          <div className="flex flex-col border-b border-white/10 p-2 bg-black/30 gap-1">
+          {/* Sidebar Tabs - VisionOS Acrylic Header (3 Balanced Rows: Minimalist Pro Styling) */}
+          <div className="flex flex-col border-b border-white/10 p-2 bg-black/40 gap-1.5">
             {/* Row 1: Core Edit Suite (4 Equal Columns) */}
             <div className="grid grid-cols-4 gap-1">
               <button
@@ -1928,14 +2043,16 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   setActiveTab('ai_magic');
                   if (activeTool === 'select' || activeTool === 'color') setActiveTool('brush');
                 }}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'ai_magic'
-                    ? 'bg-primary-500 text-black shadow-lg font-bold'
-                    : 'text-white/60 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="AI Magic Inpaint & Prompt (Phím B)"
               >
-                <span>✨</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
                 <span className="truncate">Magic</span>
               </button>
               <button
@@ -1943,90 +2060,151 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   setActiveTab('color_grading');
                   if (activeTool === 'brush' || activeTool === 'eraser') setActiveTool('select');
                 }}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'color_grading'
-                    ? 'bg-amber-400 text-black shadow-lg font-bold'
-                    : 'text-white/60 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Chỉnh màu quang học & LUTs (Phím G)"
               >
-                <span>🎨</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21a4 4 0 01-4-4 4 4 0 014-4c.8 0 1.5.3 2.1.8l6.3-6.3a2 2 0 112.8 2.8l-6.3 6.3c.5.6.8 1.3.8 2.1a4 4 0 01-4 4z" />
+                </svg>
                 <span className="truncate">Màu Sắc</span>
               </button>
               <button
                 onClick={() => setActiveTab('layers')}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'layers'
-                    ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20 font-bold'
-                    : 'text-white/60 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Quản lý Layer & Blend Modes"
               >
-                <span>🥞</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
                 <span className="truncate">Layers ({layers.length})</span>
               </button>
               <button
                 onClick={() => setActiveTab('transform')}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-bold tracking-tight transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'transform'
-                    ? 'bg-indigo-500 text-white shadow-lg font-bold'
-                    : 'text-white/60 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Cắt khung hình & Biến đổi hình học (Phím C)"
               >
-                <span>🔄</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
                 <span className="truncate">Biến Đổi</span>
               </button>
             </div>
 
-            {/* Row 2: Neural Studio Breakthrough Suite (4 Equal Columns) */}
+            {/* Row 2: Breakthrough Zero-API Optical & Retouch Suite (4 Equal Columns) */}
             <div className="grid grid-cols-4 gap-1">
               <button
+                onClick={() => setActiveTab('beauty_retouch')}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'beauty_retouch'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="Tách tần số & làm mịn da giữ 100% vân da thật (0 API)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="truncate">Mịn Da</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('optical_bokeh')}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'optical_bokeh'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="Xóa phông khẩu độ quang học f/1.2 - f/16 & Chọn điểm nét (0 API)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="truncate">Khẩu Độ</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('studio_lighting')}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
+                  activeTab === 'studio_lighting'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
+                }`}
+                title="Phòng đèn studio 3D ảo trực quan (0 API Preview)"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                <span className="truncate">Đèn 3D</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('gobo')}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'gobo'
-                    ? 'bg-amber-500/25 border border-amber-400/50 text-amber-300 font-bold'
-                    : 'text-white/50 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Hắt bóng râm Gobo 3D & Spotlight quang học"
               >
-                <span>🔦</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
                 <span className="truncate">Gobo 3D</span>
               </button>
+            </div>
+
+            {/* Row 3: Neural Character & Environment Suite (3 Equal Columns) */}
+            <div className="grid grid-cols-3 gap-1">
               <button
                 onClick={() => setActiveTab('wardrobe')}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'wardrobe'
-                    ? 'bg-rose-500/25 border border-rose-400/50 text-rose-300 font-bold'
-                    : 'text-white/50 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Thay trang phục ảo Virtual Wardrobe"
               >
-                <span>👗</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
                 <span className="truncate">Wardrobe</span>
               </button>
               <button
                 onClick={() => setActiveTab('expression')}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'expression'
-                    ? 'bg-purple-500/25 border border-purple-400/50 text-purple-300 font-bold'
-                    : 'text-white/50 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Điêu khắc vi biểu cảm, tuổi tác & hướng nhìn 3D"
               >
-                <span>🗿</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
                 <span className="truncate">Sculptor</span>
               </button>
               <button
                 onClick={() => setActiveTab('atmosphere')}
-                className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition-all flex items-center justify-center gap-1 truncate ${
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-medium tracking-tight transition-all flex items-center justify-center gap-1.5 truncate border ${
                   activeTab === 'atmosphere'
-                    ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300 font-bold'
-                    : 'text-white/50 hover:text-white bg-white/5'
+                    ? 'bg-white text-black border-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border-white/5 hover:border-white/10'
                 }`}
                 title="Hiệu ứng thời tiết và khí quyển thể tích (Mưa, Tuyết, Fog)"
               >
-                <span>🌧️</span>
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
                 <span className="truncate">Khí Quyển</span>
               </button>
             </div>
@@ -2037,7 +2215,9 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             {/* AI Error Alert */}
             {aiError && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-2.5 text-xs text-red-300">
-                <span className="text-red-400 text-base">⚠️</span>
+                <svg className="w-4 h-4 text-red-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
                 <div className="flex-1">
                   <p className="font-bold">Không thể thực hiện:</p>
                   <p className="text-[11px] text-red-200/80 mt-0.5">{aiError}</p>
@@ -2050,10 +2230,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             {activeTab === 'ai_magic' && (
               <div className="space-y-4">
                 {/* Zero API Badge Info */}
-                <div className="p-3 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-2">
-                  <span className="text-lg">⚡</span>
-                  <p className="text-[11px] text-white/60 leading-tight">
-                    <strong className="text-primary-400">0 API Token:</strong> Chỉnh màu, xoay lật, crop chạy trực tiếp trên máy. Chỉ tốn API khi gọi các công cụ AI dưới đây.
+                <div className="p-3 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center gap-2.5">
+                  <svg className="w-4 h-4 text-zinc-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <p className="text-[11px] text-zinc-400 leading-tight">
+                    <strong className="text-zinc-200">0 API Token:</strong> Chỉnh màu, xoay lật, crop chạy trực tiếp trên máy. Chỉ tốn API khi gọi các công cụ AI dưới đây.
                   </p>
                 </div>
 
@@ -2066,16 +2248,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     }}
                     className={`p-3 rounded-2xl border text-left transition-all ${
                       activeAiAction === 'inpaint'
-                        ? 'bg-primary-500/15 border-primary-500 text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.2)]'
-                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        ? 'bg-white/[0.08] border-white/40 text-white shadow-sm'
+                        : 'bg-white/[0.03] border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-base">✨</span>
-                      <span className="text-[8px] font-mono font-bold bg-primary-500/20 text-primary-300 px-1.5 py-0.5 rounded">Inpaint</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
+                      <span className="text-[8px] font-mono font-semibold bg-white/10 text-zinc-300 px-1.5 py-0.5 rounded">Inpaint</span>
                     </div>
-                    <div className="text-xs font-bold leading-tight">Generative Fill</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">Vẽ thêm / Đổi đồ vật</div>
+                    <div className="text-xs font-semibold leading-tight">Generative Fill</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">Vẽ thêm / Đổi đồ vật</div>
                   </button>
 
                   <button
@@ -2085,48 +2269,55 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     }}
                     className={`p-3 rounded-2xl border text-left transition-all ${
                       activeAiAction === 'eraser'
-                        ? 'bg-rose-500/15 border-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.2)]'
-                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        ? 'bg-white/[0.08] border-white/40 text-white shadow-sm'
+                        : 'bg-white/[0.03] border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-base">🧹</span>
-                      <span className="text-[8px] font-mono font-bold bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded">Remove</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span className="text-[8px] font-mono font-semibold bg-white/10 text-zinc-300 px-1.5 py-0.5 rounded">Remove</span>
                     </div>
-                    <div className="text-xs font-bold leading-tight">Magic Eraser</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">Xóa người & vật thể</div>
+                    <div className="text-xs font-semibold leading-tight">Magic Eraser</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">Xóa người & vật thể</div>
                   </button>
 
                   <button
                     onClick={() => setActiveAiAction('expand')}
                     className={`p-3 rounded-2xl border text-left transition-all ${
                       activeAiAction === 'expand'
-                        ? 'bg-cyan-500/15 border-cyan-500 text-white shadow-[0_0_12px_rgba(6,182,212,0.2)]'
-                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        ? 'bg-white/[0.08] border-white/40 text-white shadow-sm'
+                        : 'bg-white/[0.03] border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-base">📐</span>
-                      <span className="text-[8px] font-mono font-bold bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">Outpaint</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                      </svg>
+                      <span className="text-[8px] font-mono font-semibold bg-white/10 text-zinc-300 px-1.5 py-0.5 rounded">Outpaint</span>
                     </div>
-                    <div className="text-xs font-bold leading-tight">Magic Expand</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">Mở rộng khung cảnh</div>
+                    <div className="text-xs font-semibold leading-tight">Magic Expand</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">Mở rộng khung cảnh</div>
                   </button>
 
                   <button
                     onClick={() => setActiveAiAction('bg_replace')}
                     className={`p-3 rounded-2xl border text-left transition-all ${
                       activeAiAction === 'bg_replace'
-                        ? 'bg-indigo-500/15 border-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.2)]'
-                        : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                        ? 'bg-white/[0.08] border-white/40 text-white shadow-sm'
+                        : 'bg-white/[0.03] border-white/5 text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06]'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-base">🌅</span>
-                      <span className="text-[8px] font-mono font-bold bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">Backdrop</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l5-6 4 5 3-3.5L21 17H3z" />
+                        <circle cx="7" cy="7" r="1.5" />
+                      </svg>
+                      <span className="text-[8px] font-mono font-semibold bg-white/10 text-zinc-300 px-1.5 py-0.5 rounded">Backdrop</span>
                     </div>
-                    <div className="text-xs font-bold leading-tight">Đổi Nền Mới</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">Tách nền & ghép cảnh</div>
+                    <div className="text-xs font-semibold leading-tight">Đổi Nền Mới</div>
+                    <div className="text-[10px] text-zinc-400 mt-0.5">Tách nền & ghép cảnh</div>
                   </button>
                 </div>
 
@@ -2134,11 +2325,14 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 {activeAiAction === 'inpaint' && (
                   <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>✨</span> Mô tả Generative Fill:
+                      <label className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                        </svg>
+                        <span>Mô tả Generative Fill:</span>
                       </label>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        hasMask ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        hasMask ? 'bg-white/10 text-white border border-white/20' : 'bg-white/5 text-zinc-400 border border-white/5'
                       }`}>
                         {hasMask ? '✓ Đã chọn vùng' : 'Chưa quét cọ'}
                       </span>
@@ -2149,7 +2343,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                       onChange={(e) => setInpaintPrompt(e.target.value)}
                       placeholder="VD: Thêm kính râm phi công mạ vàng, thay đổi thành áo sơ mi lụa trắng, thêm hình xăm cá chép..."
                       rows={3}
-                      className="w-full bg-black/40 border border-white/15 rounded-xl p-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-primary-500 transition-all custom-scrollbar"
+                      className="w-full bg-black/40 border border-white/15 rounded-xl p-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-all custom-scrollbar"
                     />
 
                     <div className="flex items-center justify-between text-[11px] text-white/50">
@@ -2160,7 +2354,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                             clearMask();
                             showToast('Đã xóa nét cọ');
                           }} 
-                          className="text-red-400 hover:text-red-300 font-bold hover:underline"
+                          className="text-zinc-400 hover:text-red-300 font-medium hover:underline"
                         >
                           ✕ Hủy cọ (Esc)
                         </button>
@@ -2170,9 +2364,11 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     <button
                       onClick={handleExecuteGenerativeFill}
                       disabled={isAiLoading || !hasMask || !inpaintPrompt.trim()}
-                      className="w-full py-3 bg-primary-500 hover:bg-primary-400 disabled:opacity-50 text-black text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black text-xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <span>✨</span>
+                      <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                      </svg>
                       <span>Tạo Với AI (Generative Fill)</span>
                     </button>
                   </div>
@@ -2181,11 +2377,14 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 {activeAiAction === 'eraser' && (
                   <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>🧹</span> Xóa Vật Thể (Content-Aware):
+                      <label className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Xóa Vật Thể (Content-Aware):</span>
                       </label>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        hasMask ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        hasMask ? 'bg-white/10 text-white border border-white/20' : 'bg-white/5 text-zinc-400 border border-white/5'
                       }`}>
                         {hasMask ? '✓ Đã chọn vật thể' : 'Chưa quét cọ'}
                       </span>
@@ -2203,7 +2402,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                             clearMask();
                             showToast('Đã xóa nét cọ');
                           }} 
-                          className="text-red-400 hover:text-red-300 font-bold hover:underline"
+                          className="text-zinc-400 hover:text-red-300 font-medium hover:underline"
                         >
                           ✕ Hủy cọ (Esc)
                         </button>
@@ -2213,9 +2412,11 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     <button
                       onClick={handleExecuteMagicEraser}
                       disabled={isAiLoading || !hasMask}
-                      className="w-full py-3 bg-rose-500 hover:bg-rose-400 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black text-xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <span>🧹</span>
+                      <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                       <span>Xóa Vật Thể Ngay</span>
                     </button>
                   </div>
@@ -2223,7 +2424,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
                 {activeAiAction === 'expand' && (
                   <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
-                    <label className="text-xs font-bold text-white block">
+                    <label className="text-xs font-semibold text-white block">
                       Tỉ lệ mở rộng khung cảnh mục tiêu:
                     </label>
 
@@ -2232,9 +2433,9 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                         <button
                           key={ratio}
                           onClick={() => setExpandRatio(ratio)}
-                          className={`py-2 rounded-xl text-xs font-bold font-mono transition-all border ${
+                          className={`py-2 rounded-xl text-xs font-semibold font-mono transition-all border ${
                             expandRatio === ratio
-                              ? 'bg-cyan-500 text-black border-cyan-400 font-black shadow-md'
+                              ? 'bg-white text-black border-white shadow-sm'
                               : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
                           }`}
                         >
@@ -2252,16 +2453,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                         value={expandPrompt}
                         onChange={(e) => setExpandPrompt(e.target.value)}
                         placeholder="VD: Cánh đồng hoa dã quỳ trải dài hai bên..."
-                        className="w-full bg-black/40 border border-white/15 rounded-xl p-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-cyan-500"
+                        className="w-full bg-black/40 border border-white/15 rounded-xl p-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30"
                       />
                     </div>
 
                     <button
                       onClick={handleExecuteMagicExpand}
                       disabled={isAiLoading}
-                      className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black text-xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <span>📐</span>
+                      <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                      </svg>
                       <span>Mở Rộng Khung Hình (Magic Expand)</span>
                     </button>
                   </div>
@@ -2269,7 +2472,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
                 {activeAiAction === 'bg_replace' && (
                   <div className="space-y-3 bg-white/5 p-4 rounded-2xl border border-white/10">
-                    <label className="text-xs font-bold text-white block">
+                    <label className="text-xs font-semibold text-white block">
                       Mô tả bối cảnh / phông nền mới:
                     </label>
 
@@ -2278,15 +2481,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                       onChange={(e) => setBgPrompt(e.target.value)}
                       placeholder="VD: Đường phố Tokyo rực rỡ ánh đèn neon về đêm trong cơn mưa phùn..."
                       rows={3}
-                      className="w-full bg-black/40 border border-white/15 rounded-xl p-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-indigo-500 transition-all custom-scrollbar"
+                      className="w-full bg-black/40 border border-white/15 rounded-xl p-3 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition-all custom-scrollbar"
                     />
 
                     <button
                       onClick={handleExecuteBgReplace}
                       disabled={isAiLoading || !bgPrompt.trim()}
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black text-xs font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                     >
-                      <span>🌅</span>
+                      <svg className="w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 17l5-6 4 5 3-3.5L21 17H3z" />
+                        <circle cx="7" cy="7" r="1.5" />
+                      </svg>
                       <span>Thay Nền Mới Bằng AI</span>
                     </button>
                   </div>
@@ -2319,24 +2525,28 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm">🎨</span>
-                      <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                      <svg className="w-3.5 h-3.5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">
                         Thư Viện Presets
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => setIsSavingPresetModalOpen(true)}
-                        className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-black rounded-lg transition-all shadow-md active:scale-95 flex items-center gap-1"
+                        className="px-2.5 py-1 bg-white hover:bg-zinc-200 text-black text-[11px] font-semibold rounded-lg transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
                         title="Lưu các thông số màu hiện tại thành preset mới vào thư viện"
                       >
-                        <span>💾</span>
+                        <svg className="w-3 h-3 text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
                         <span>Lưu Preset</span>
                       </button>
                       {activePresetId && (
                         <button
                           onClick={resetColorAdjustments}
-                          className="text-[10px] text-white/50 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors"
+                          className="text-[10px] text-zinc-400 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors"
                         >
                           Đặt lại
                         </button>
@@ -2346,12 +2556,12 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
                   {/* Inline Modal / Dialog for Saving New Preset */}
                   {isSavingPresetModalOpen && (
-                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 animate-in fade-in duration-150">
+                    <div className="p-3 bg-zinc-900 border border-white/20 rounded-2xl space-y-2 animate-in fade-in duration-150">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-300">Đặt tên cho Preset mới:</span>
+                        <span className="text-xs font-semibold text-white">Đặt tên cho Preset mới:</span>
                         <button
                           onClick={() => setIsSavingPresetModalOpen(false)}
-                          className="text-white/50 hover:text-white text-xs font-bold"
+                          className="text-zinc-400 hover:text-white text-xs font-bold"
                         >
                           ✕
                         </button>
@@ -2366,7 +2576,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                           if (e.key === 'Escape') setIsSavingPresetModalOpen(false);
                         }}
                         placeholder="VD: Tone Da Hàn Quốc, Moody Teal, Hoàng Hôn..."
-                        className="w-full bg-black/60 border border-white/20 rounded-xl p-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-amber-400"
+                        className="w-full bg-black/60 border border-white/20 rounded-xl p-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-white/40"
                       />
                       <div className="flex justify-end gap-2 pt-1">
                         <button
@@ -2377,7 +2587,7 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                         </button>
                         <button
                           onClick={handleSaveCurrentAsPreset}
-                          className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black text-xs font-black rounded-lg transition-all shadow-md active:scale-95"
+                          className="px-3 py-1 bg-white hover:bg-zinc-200 text-black text-xs font-semibold rounded-lg transition-all shadow-sm active:scale-95"
                         >
                           Lưu Lại
                         </button>
@@ -2386,11 +2596,11 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   )}
 
                   {/* Filter Tabs: Tất Cả | Của Tôi (N) | Điện Ảnh (8) */}
-                  <div className="flex bg-black/40 p-1 rounded-xl border border-white/10 gap-1 text-[11px] font-bold">
+                  <div className="flex bg-black/40 p-1 rounded-xl border border-white/10 gap-1 text-[11px] font-medium">
                     <button
                       onClick={() => setPresetFilter('all')}
                       className={`flex-1 py-1 rounded-lg transition-all ${
-                        presetFilter === 'all' ? 'bg-amber-400 text-black shadow-sm' : 'text-white/60 hover:text-white'
+                        presetFilter === 'all' ? 'bg-white text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
                       Tất Cả
@@ -2398,37 +2608,37 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                     <button
                       onClick={() => setPresetFilter('custom')}
                       className={`flex-1 py-1 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                        presetFilter === 'custom' ? 'bg-amber-400 text-black shadow-sm' : 'text-white/60 hover:text-white'
+                        presetFilter === 'custom' ? 'bg-white text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
-                      <span>⭐ Của Tôi</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">{customPresets.length}</span>
+                      <span>Của Tôi</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/10 font-mono">{customPresets.length}</span>
                     </button>
                     <button
                       onClick={() => setPresetFilter('cinematic')}
                       className={`flex-1 py-1 rounded-lg transition-all ${
-                        presetFilter === 'cinematic' ? 'bg-amber-400 text-black shadow-sm' : 'text-white/60 hover:text-white'
+                        presetFilter === 'cinematic' ? 'bg-white text-black font-semibold shadow-sm' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
-                      🎬 LUT Mẫu ({CINEMATIC_COLOR_PRESETS.length})
+                      LUT Mẫu ({CINEMATIC_COLOR_PRESETS.length})
                     </button>
                   </div>
 
                   {/* Custom Presets Grid */}
                   {(presetFilter === 'all' || presetFilter === 'custom') && customPresets.length > 0 && (
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] text-white/50 px-1 font-bold">
-                        <span>⭐ Preset Của Tôi:</span>
+                      <div className="flex items-center justify-between text-[11px] text-zinc-400 px-1 font-semibold">
+                        <span>Preset Của Tôi:</span>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={handleExportPresets}
-                            className="hover:text-amber-300 transition-colors"
+                            className="hover:text-white transition-colors"
                             title="Xuất danh sách preset ra file JSON để sao lưu"
                           >
                             Xuất JSON
                           </button>
                           <span>•</span>
-                          <label className="hover:text-amber-300 transition-colors cursor-pointer" title="Nhập preset từ file JSON">
+                          <label className="hover:text-white transition-colors cursor-pointer" title="Nhập preset từ file JSON">
                             Nhập JSON
                             <input
                               type="file"
@@ -2448,22 +2658,24 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                               onClick={() => applyCustomPreset(preset)}
                               className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer group relative ${
                                 isActive
-                                  ? 'bg-amber-400/20 border-amber-400 text-white shadow-md'
-                                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                                  ? 'bg-white/[0.08] border-white/40 text-white shadow-sm'
+                                  : 'bg-white/[0.03] border-white/5 text-zinc-300 hover:bg-white/[0.06]'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-1">
-                                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
+                                <span className="w-2 h-2 rounded-full bg-white shadow-sm" />
                                 <button
                                   onClick={(e) => handleDeleteCustomPreset(preset.id, preset.name, e)}
-                                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-opacity text-[11px]"
+                                  className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 text-zinc-400 transition-all text-[11px]"
                                   title="Xóa preset này"
                                 >
-                                  🗑️
+                                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
                                 </button>
                               </div>
-                              <div className="text-xs font-bold leading-tight truncate">{preset.name}</div>
-                              <div className="text-[9px] text-white/40 mt-0.5">Tùy chỉnh</div>
+                              <div className="text-xs font-semibold leading-tight truncate">{preset.name}</div>
+                              <div className="text-[9px] text-zinc-400 mt-0.5">Tùy chỉnh</div>
                             </div>
                           );
                         })}
@@ -2473,10 +2685,14 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
 
                   {presetFilter === 'custom' && customPresets.length === 0 && (
                     <div className="p-4 bg-white/5 border border-dashed border-white/15 rounded-2xl text-center space-y-2">
-                      <span className="text-2xl block">💡</span>
+                      <div className="w-8 h-8 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center mx-auto text-zinc-300">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                      </div>
                       <p className="text-xs text-white/70 font-medium">Chưa có preset tự lưu nào</p>
                       <p className="text-[11px] text-white/40 leading-relaxed">
-                        Chỉnh các thanh trượt bên dưới theo ý thích rồi nhấn <strong className="text-amber-400">"Lưu Preset"</strong> để tái sử dụng cho các bức ảnh khác!
+                        Chỉnh các thanh trượt bên dưới theo ý thích rồi nhấn <strong className="text-white">"Lưu Preset"</strong> để tái sử dụng cho các bức ảnh khác!
                       </p>
                     </div>
                   )}
@@ -2485,8 +2701,11 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   {(presetFilter === 'all' || presetFilter === 'cinematic') && (
                     <div className="space-y-1.5">
                       {presetFilter === 'all' && (
-                        <div className="text-[11px] text-white/50 px-1 font-bold">
-                          🎬 Presets Điện Ảnh Mẫu:
+                        <div className="text-[11px] text-zinc-400 px-1 font-semibold flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                          </svg>
+                          <span>Presets Điện Ảnh Mẫu:</span>
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-2">
@@ -2498,18 +2717,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                               onClick={() => applyPresetLut(preset)}
                               className={`p-2.5 rounded-xl border text-left transition-all ${
                                 isActive
-                                  ? 'bg-amber-400/20 border-amber-400 text-white shadow-md'
-                                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                                  ? 'bg-white/[0.08] border-white/40 text-white shadow-sm'
+                                  : 'bg-white/[0.03] border-white/5 text-zinc-300 hover:bg-white/[0.06]'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-1">
                                 <span
-                                  className="w-2.5 h-2.5 rounded-full"
+                                  className="w-2 h-2 rounded-full"
                                   style={{ backgroundColor: preset.badgeColor }}
                                 />
-                                <span className="text-[8px] font-mono text-white/40">{preset.category}</span>
+                                <span className="text-[8px] font-mono text-zinc-400">{preset.category}</span>
                               </div>
-                              <div className="text-xs font-bold leading-tight truncate">{preset.name}</div>
+                              <div className="text-xs font-semibold leading-tight truncate">{preset.name}</div>
                             </button>
                           );
                         })}
@@ -2663,6 +2882,36 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* TAB: HIGH-END BEAUTY RETOUCH & FREQUENCY SEPARATION (0 API) */}
+            {activeTab === 'beauty_retouch' && (
+              <BeautyRetouchPanel
+                canvasRef={mainCanvasRef}
+                onApplyRetouchResult={(c) => handleApplyCanvasResult(c, 'Mịn Da Tách Tần Số')}
+              />
+            )}
+
+            {/* TAB: OPTICAL DEPTH & APERTURE SIMULATOR (0 API) */}
+            {activeTab === 'optical_bokeh' && (
+              <OpticalBokehPanel
+                canvasRef={mainCanvasRef}
+                onApplyBokehResult={(c) => handleApplyCanvasResult(c, 'Khẩu Độ Xóa Phông')}
+                isPickingFocus={isPickingFocus}
+                onTogglePickFocus={setIsPickingFocus}
+                focalPoint={focalPoint}
+                onFocalPointChange={setFocalPoint}
+              />
+            )}
+
+            {/* TAB: 3D VIRTUAL STUDIO GAFFER & RELIGHTING (0 API PREVIEW) */}
+            {activeTab === 'studio_lighting' && (
+              <StudioLighting3DPanel
+                canvasRef={mainCanvasRef}
+                onApplyLightingResult={(c) => handleApplyCanvasResult(c, 'Đèn Studio 3D')}
+                baseImageSrc={currentImageSrc}
+                onApplyAiImage={(img) => handleApplyStudioAiPatch(img, 'Chiếu Sáng AI Điện Ảnh')}
+              />
             )}
 
             {/* TAB: MULTI-LAYER NEURAL COMPOSITE */}

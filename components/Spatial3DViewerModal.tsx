@@ -107,19 +107,24 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
         {/* Top Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/40">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/30 border border-cyan-400/30 flex items-center justify-center text-cyan-300 text-xl shadow-inner">
-              🥽
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-white shadow-sm">
+              <svg className="w-5 h-5 text-zinc-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="7" width="20" height="10" rx="3" />
+                <circle cx="8" cy="12" r="2.5" />
+                <circle cx="16" cy="12" r="2.5" />
+                <path d="M10.5 12h3" />
+              </svg>
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white tracking-wide">
+                <h2 className="text-base font-bold text-white tracking-wide">
                   Apple Vision Pro Spatial 3D Converter
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/[0.06] text-zinc-300 border border-white/10">
                   Stereoscopic Depth
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-zinc-400">
                 Chuyển đổi hình ảnh 2D sang hiệu ứng chiều sâu 3D tương tác, SBS VR & Kính Đỏ-Lam
               </p>
             </div>
@@ -127,9 +132,13 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
 
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all text-sm"
+            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-all"
+            title="Đóng"
           >
-            ✕
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
 
@@ -140,43 +149,56 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
           <div className="lg:col-span-8 flex flex-col gap-4">
             
             {/* View Mode Tabs */}
-            <div className="flex items-center justify-between bg-slate-950/50 p-1.5 rounded-2xl border border-white/10">
+            <div className="flex items-center justify-between bg-slate-950/60 p-1.5 rounded-2xl border border-white/10">
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setViewMode('parallax')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
                     viewMode === 'parallax'
-                      ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/25'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-white text-black font-semibold shadow-sm'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  ✨ 3D Parallax Tilt
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                    <polyline points="2 17 12 22 22 17" />
+                    <polyline points="2 12 12 17 22 12" />
+                  </svg>
+                  <span>3D Parallax Tilt</span>
                 </button>
                 <button
                   onClick={() => {
                     if (!sbsResult && activeImage) handleGenerateSBS();
                     else setViewMode('sbs');
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
                     viewMode === 'sbs'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-white text-black font-semibold shadow-sm'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  👓 Stereo SBS 3D
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="9" height="14" rx="2" />
+                    <rect x="13" y="5" width="9" height="14" rx="2" />
+                  </svg>
+                  <span>Stereo SBS 3D</span>
                 </button>
                 <button
                   onClick={() => {
                     if (!anaglyphResult && activeImage) handleGenerateAnaglyph();
                     else setViewMode('anaglyph');
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
                     viewMode === 'anaglyph'
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-white text-black font-semibold shadow-sm'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  🔴🔵 Anaglyph (Red-Cyan)
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="8" cy="12" r="5" />
+                    <circle cx="16" cy="12" r="5" />
+                  </svg>
+                  <span>Anaglyph Red-Cyan</span>
                 </button>
               </div>
 
@@ -184,17 +206,27 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
               {(viewMode === 'sbs' && sbsResult) && (
                 <button
                   onClick={() => handleDownload(sbsResult, 'spatial-sbs-3d')}
-                  className="px-3 py-1 rounded-xl text-xs bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-400/30 flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1 rounded-xl text-xs bg-white/10 hover:bg-white/15 text-zinc-200 border border-white/10 flex items-center gap-1.5 transition-all"
                 >
-                  ⬇ Tải SBS 3D
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Tải SBS 3D</span>
                 </button>
               )}
               {(viewMode === 'anaglyph' && anaglyphResult) && (
                 <button
                   onClick={() => handleDownload(anaglyphResult, 'spatial-anaglyph-3d')}
-                  className="px-3 py-1 rounded-xl text-xs bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-400/30 flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1 rounded-xl text-xs bg-white/10 hover:bg-white/15 text-zinc-200 border border-white/10 flex items-center gap-1.5 transition-all"
                 >
-                  ⬇ Tải Anaglyph
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Tải Anaglyph</span>
                 </button>
               )}
             </div>
@@ -210,9 +242,15 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
               )}
 
               {!activeImage ? (
-                <div className="text-center p-6 text-slate-500">
-                  <div className="text-4xl mb-2">🖼</div>
-                  <p className="text-sm">Vui lòng chọn hình ảnh để bắt đầu chuyển đổi 3D</p>
+                <div className="text-center p-6 text-zinc-500">
+                  <div className="w-12 h-12 mx-auto mb-2.5 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-zinc-400">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                  </div>
+                  <p className="text-xs text-zinc-400">Vui lòng chọn hình ảnh để bắt đầu chuyển đổi 3D</p>
                 </div>
               ) : viewMode === 'parallax' ? (
                 /* Parallax interactive card */
@@ -255,7 +293,7 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
                   <img
                     src={sbsResult || activeImage}
                     alt="Side by Side 3D"
-                    className="max-h-[440px] w-auto object-contain rounded-2xl shadow-xl border border-cyan-500/20"
+                    className="max-h-[440px] w-auto object-contain rounded-2xl shadow-xl border border-white/10"
                   />
                 </div>
               ) : (
@@ -264,16 +302,17 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
                   <img
                     src={anaglyphResult || activeImage}
                     alt="Anaglyph 3D"
-                    className="max-h-[440px] w-auto object-contain rounded-2xl shadow-xl border border-purple-500/20"
+                    className="max-h-[440px] w-auto object-contain rounded-2xl shadow-xl border border-white/10"
                   />
                 </div>
               )}
 
               {/* Instructions badge */}
-              <div className="absolute bottom-3 left-4 px-3 py-1 rounded-full bg-slate-900/80 backdrop-blur-md border border-white/10 text-[11px] text-slate-400 pointer-events-none">
-                {viewMode === 'parallax' && '💡 Rê chuột qua ảnh để nghiêng và cảm nhận chiều sâu nổi'}
-                {viewMode === 'sbs' && '👓 Xem với kính VR hoặc Apple Vision Pro (Left/Right)'}
-                {viewMode === 'anaglyph' && '🔴🔵 Đeo kính 3D Đỏ-Lam cổ điển để thấy hiệu ứng nổi'}
+              <div className="absolute bottom-3 left-4 px-3 py-1 rounded-full bg-slate-900/85 backdrop-blur-md border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1.5 pointer-events-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+                {viewMode === 'parallax' && 'Rê chuột qua ảnh để nghiêng và cảm nhận chiều sâu nổi'}
+                {viewMode === 'sbs' && 'Xem với kính VR hoặc Apple Vision Pro (Left/Right)'}
+                {viewMode === 'anaglyph' && 'Đeo kính 3D Đỏ-Lam cổ điển để thấy hiệu ứng nổi'}
               </div>
             </div>
           </div>
@@ -287,7 +326,7 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
                 <label className="text-xs font-semibold text-slate-300">
                   Độ sâu phân kỳ (Disparity Depth)
                 </label>
-                <span className="text-xs font-mono text-cyan-400 font-bold">
+                <span className="text-xs font-mono text-zinc-200 font-bold">
                   {disparity}px
                 </span>
               </div>
@@ -298,9 +337,9 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
                 step="2"
                 value={disparity}
                 onChange={(e) => setDisparity(Number(e.target.value))}
-                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-white"
               />
-              <div className="flex justify-between text-[10px] text-slate-500">
+              <div className="flex justify-between text-[10px] text-zinc-500">
                 <span>Dịu nhẹ (6px)</span>
                 <span>Chuẩn (18px)</span>
                 <span>Nổi sâu (36px)</span>
@@ -312,19 +351,25 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
               <button
                 onClick={handleGenerateSBS}
                 disabled={isProcessing || !activeImage}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-medium text-xs shadow-lg shadow-cyan-500/20 border border-cyan-400/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-medium text-xs border border-white/10 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
               >
-                <span>👓</span>
-                Tạo Định Dạng Stereo SBS (Vision Pro)
+                <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="5" width="9" height="14" rx="2" />
+                  <rect x="13" y="5" width="9" height="14" rx="2" />
+                </svg>
+                <span>Tạo Định Dạng Stereo SBS (Vision Pro)</span>
               </button>
 
               <button
                 onClick={handleGenerateAnaglyph}
                 disabled={isProcessing || !activeImage}
-                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium text-xs shadow-lg shadow-purple-500/20 border border-purple-400/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white font-medium text-xs border border-white/10 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
               >
-                <span>🔴🔵</span>
-                Tạo 3D Đỏ - Lam (Anaglyph)
+                <svg className="w-4 h-4 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="8" cy="12" r="5" />
+                  <circle cx="16" cy="12" r="5" />
+                </svg>
+                <span>Tạo 3D Đỏ - Lam (Anaglyph)</span>
               </button>
             </div>
 
@@ -345,7 +390,7 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
                       }}
                       className={`relative aspect-square rounded-xl overflow-hidden border transition-all ${
                         activeImage === src
-                          ? 'border-cyan-400 ring-2 ring-cyan-400/30 scale-95'
+                          ? 'border-white ring-2 ring-white/30 scale-95'
                           : 'border-white/10 hover:border-white/30 opacity-70 hover:opacity-100'
                       }`}
                     >
@@ -357,11 +402,16 @@ export const Spatial3DViewerModal: React.FC<Spatial3DViewerModalProps> = ({
             )}
 
             {/* Technical Spec Box */}
-            <div className="p-3.5 rounded-2xl bg-cyan-950/20 border border-cyan-500/20 text-xs text-cyan-200/90 leading-relaxed flex flex-col gap-1.5">
-              <span className="font-semibold text-cyan-300 flex items-center gap-1.5">
-                <span>ℹ️</span> Chuẩn Không Gian 3D (Spatial Specs)
+            <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 text-xs text-zinc-300 leading-relaxed flex flex-col gap-1.5">
+              <span className="font-semibold text-white flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <span>Chuẩn Không Gian 3D (Spatial Specs)</span>
               </span>
-              <p className="text-[11px] text-cyan-300/80">
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
                 • <strong>SBS 3D</strong>: Xuất dạng 2 khung hình ngang 2X độ phân giải, tự động tương thích thiết bị VR/AR như Apple Vision Pro, Meta Quest.<br/>
                 • <strong>Anaglyph</strong>: Sử dụng thuật toán chiếu lọc quang sai Cyan/Red cho kính 3D truyền thống mà không làm mất chi tiết gốc.
               </p>
