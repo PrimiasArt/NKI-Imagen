@@ -273,9 +273,29 @@ export const initAuth = (
   });
 };
 
+// Google OAuth Client ID management
+export const getEffectiveGoogleClientId = (): string => {
+  if (typeof window !== 'undefined') {
+    const custom = safeStorage.getItem('custom_google_client_id')?.trim();
+    if (custom) return custom;
+  }
+  return firebaseConfig.oAuthClientId || '481139169456-aucq56k4vf6a37a3d1eb9qeg4eas4u9h.apps.googleusercontent.com';
+};
+
+export const setCustomGoogleClientId = (clientId: string) => {
+  if (typeof window !== 'undefined') {
+    const trimmed = clientId.trim();
+    if (trimmed) {
+      safeStorage.setItem('custom_google_client_id', trimmed);
+    } else {
+      safeStorage.removeItem('custom_google_client_id');
+    }
+  }
+};
+
 // Google Identity Services (GIS) Direct OAuth2 Token Client with configurable prompt
 export const requestGISToken = async (promptMode: string = ''): Promise<{ user: any; accessToken: string }> => {
-  const clientId = firebaseConfig.oAuthClientId || '481139169456-aucq56k4vf6a37a3d1eb9qeg4eas4u9h.apps.googleusercontent.com';
+  const clientId = getEffectiveGoogleClientId();
   const scope = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
 
   // Ensure GIS script is loaded
@@ -307,7 +327,17 @@ export const requestGISToken = async (promptMode: string = ''): Promise<{ user: 
         scope: scope,
         callback: async (tokenResponse: any) => {
           if (tokenResponse.error) {
-            reject(new Error(`Google GIS Error: ${tokenResponse.error_description || tokenResponse.error}`));
+            const errCode = tokenResponse.error;
+            const errDesc = tokenResponse.error_description || '';
+            if (errCode === 'origin_mismatch' || String(errDesc).includes('origin_mismatch')) {
+              const origin = typeof window !== 'undefined' ? window.location.origin : '';
+              const mismatchErr = new Error(`Lỗi 400: origin_mismatch - Tên miền "${origin}" chưa được khai báo trong "Authorized JavaScript origins" của OAuth 2.0 Client ID trên Google Cloud Console.`);
+              (mismatchErr as any).code = 'auth/origin-mismatch';
+              (mismatchErr as any).origin = origin;
+              reject(mismatchErr);
+              return;
+            }
+            reject(new Error(`Google GIS Error: ${errDesc || errCode}`));
             return;
           }
           const accessToken = tokenResponse.access_token;
@@ -353,6 +383,15 @@ export const requestGISToken = async (promptMode: string = ''): Promise<{ user: 
           resolve({ user: userObj, accessToken });
         },
         error_callback: (err: any) => {
+          const errStr = String(err?.message || err?.type || err);
+          if (errStr.includes('origin_mismatch') || err?.type === 'origin_mismatch') {
+            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+            const mismatchErr = new Error(`Lỗi 400: origin_mismatch - Domain "${origin}" chưa được cấp phép trong Authorized JavaScript origins của OAuth 2.0 Client ID trên Google Cloud Console.`);
+            (mismatchErr as any).code = 'auth/origin-mismatch';
+            (mismatchErr as any).origin = origin;
+            reject(mismatchErr);
+            return;
+          }
           reject(err);
         }
       });

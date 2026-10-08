@@ -9,7 +9,7 @@ import {
   getGalleryStorageEstimate,
   clearGalleryDB
 } from '../services/indexedDbService';
-import { getAccessToken, logout } from '../services/googleService';
+import { getAccessToken, logout, getEffectiveGoogleClientId, setCustomGoogleClientId } from '../services/googleService';
 import { 
   APP_VERSION, 
   BUILD_TIME, 
@@ -115,7 +115,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, []);
 
   const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+  const isLocalhost = currentHost === 'localhost';
   const isUsing127 = currentHost === '127.0.0.1';
+  const isCustomDomain = !isLocalhost && !isUsing127;
+
+  const [customClientIdInput, setCustomClientIdInput] = useState(() => {
+    return typeof window !== 'undefined' ? (localStorage.getItem('custom_google_client_id') || '') : '';
+  });
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
+  const [clientIdSavedToast, setClientIdSavedToast] = useState(false);
+
+  const handleSaveCustomClientId = () => {
+    setCustomGoogleClientId(customClientIdInput);
+    setClientIdSavedToast(true);
+    setTimeout(() => setClientIdSavedToast(false), 3000);
+  };
+
+  const handleResetCustomClientId = () => {
+    setCustomClientIdInput('');
+    setCustomGoogleClientId('');
+    setClientIdSavedToast(true);
+    setTimeout(() => setClientIdSavedToast(false), 3000);
+  };
+
+  const handleCopyOrigin = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(currentOrigin);
+      setCopiedOrigin(true);
+      setTimeout(() => setCopiedOrigin(false), 2000);
+    }
+  };
 
   // Load storage size estimate when opening
   useEffect(() => {
@@ -888,6 +918,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
                       isUsing127
                         ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                        : isCustomDomain
+                        ? 'bg-rose-500/10 text-rose-300 border-rose-500/20'
                         : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
                     }`}
                   >
@@ -895,7 +927,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </span>
                 </div>
 
-                {isUsing127 ? (
+                {isCustomDomain ? (
+                  <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-xl space-y-3 text-xs">
+                    <div className="flex items-start gap-2">
+                      <span className="text-rose-400 font-bold text-sm">⚠️ Phát hiện Online Domain / Vercel:</span>
+                    </div>
+                    <p className="text-rose-200/90 text-[11px] leading-relaxed">
+                      Bạn đang truy cập qua domain trực tuyến: <strong className="font-mono text-white bg-black/40 px-1.5 py-0.5 rounded">{currentOrigin}</strong>.
+                      Nếu bấm kết nối Drive gặp thông báo <strong className="text-white">"Lỗi 400: origin_mismatch"</strong>, Google yêu cầu thêm domain này vào Google Cloud Console.
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        onClick={handleCopyOrigin}
+                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white font-mono text-xs rounded-lg border border-white/20 transition-all flex items-center gap-1.5 active:scale-95"
+                      >
+                        <span>{copiedOrigin ? '✓ Đã chép Origin' : '📋 Sao chép Origin'}</span>
+                      </button>
+                      <a
+                        href="https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0018947505"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs rounded-lg transition-all shadow-[0_0_10px_rgba(16,185,129,0.3)] flex items-center gap-1.5"
+                      >
+                        <span>Mở Google Cloud Console Credentials ↗</span>
+                      </a>
+                      <a
+                        href="https://console.firebase.google.com/project/gen-lang-client-0018947505/authentication/settings"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5"
+                      >
+                        <span>Firebase Authorized Domains ↗</span>
+                      </a>
+                    </div>
+
+                    <div className="p-2.5 bg-black/50 rounded-lg text-[10px] text-white/70 space-y-1">
+                      <div className="font-bold text-white uppercase tracking-wider text-[9px]">3 Bước cấp phép trong 1 phút:</div>
+                      <div>1. Bấm link Google Cloud Console ở trên &gt; Nhấp vào <strong>Web client</strong> (OAuth 2.0 Client IDs).</div>
+                      <div>2. Tại mục <strong>Authorized JavaScript origins</strong>: Bấm <em>ADD URI</em> &gt; Dán <code className="text-primary-300 font-mono">{currentOrigin}</code></div>
+                      <div>3. Tại mục <strong>Authorized redirect URIs</strong>: Bấm <em>ADD URI</em> &gt; Dán <code className="text-primary-300 font-mono">{currentOrigin}</code> &gt; Nhấn <strong>SAVE (Lưu)</strong>.</div>
+                    </div>
+                  </div>
+                ) : isUsing127 ? (
                   <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2 text-xs">
                     <div className="flex items-start gap-2">
                       <span className="text-amber-400 font-bold">⚠️ Chú ý quan trọng về lỗi Drive:</span>
@@ -918,15 +992,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-200">
                     <p className="flex items-center gap-2">
                       <span>✅</span>
-                      <span>Bạn đang truy cập qua <strong>localhost</strong>. Tên miền này đã được ủy quyền hợp lệ trong Firebase Console!</span>
+                      <span>Bạn đang truy cập qua <strong>localhost</strong>. Tên miền này đã được ủy quyền hợp lệ trong Google Cloud & Firebase Console!</span>
                     </p>
                   </div>
                 )}
+
+                {/* Custom Google OAuth Client ID Configuration */}
+                <div className="p-3.5 bg-black/40 border border-white/10 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-white text-xs uppercase tracking-wide flex items-center gap-2">
+                        <span>Tùy Chỉnh Google OAuth Client ID</span>
+                        {localStorage.getItem('custom_google_client_id') && (
+                          <span className="text-[9px] bg-primary-500/20 text-primary-300 px-1.5 py-0.5 rounded font-mono">
+                            Đang dùng Client riêng
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-[11px] text-white/50">
+                        Nếu bạn triển khai web trên server / tên miền riêng của bạn, bạn có thể tự tạo OAuth 2.0 Web Client ID trong Google Cloud Console và nhập vào đây:
+                      </p>
+                    </div>
+                    {clientIdSavedToast && (
+                      <span className="text-[10px] text-emerald-400 font-semibold animate-pulse">
+                        ✓ Đã lưu thành công
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customClientIdInput}
+                      onChange={(e) => setCustomClientIdInput(e.target.value)}
+                      placeholder="VD: 123456789-abcdef.apps.googleusercontent.com (để trống để dùng mặc định)"
+                      className="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/20 font-mono focus:border-primary-500 focus:outline-none transition-colors"
+                    />
+                    <button
+                      onClick={handleSaveCustomClientId}
+                      className="px-3.5 py-1.5 bg-primary-500 hover:bg-primary-600 text-black font-bold text-xs rounded-lg transition-colors shadow-sm"
+                    >
+                      Lưu
+                    </button>
+                    {localStorage.getItem('custom_google_client_id') && (
+                      <button
+                        onClick={handleResetCustomClientId}
+                        className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs rounded-lg transition-colors"
+                        title="Khôi phục Client ID mặc định"
+                      >
+                        Mặc Định
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="text-[10px] text-white/40 font-mono">
+                    Client ID hiện hành:{' '}
+                    <span className="text-white/70 truncate block">{getEffectiveGoogleClientId()}</span>
+                  </div>
+                </div>
 
                 {/* Checklist guide */}
                 <div className="p-3 bg-black/40 border border-white/10 rounded-xl space-y-2 text-[11px] text-white/70">
                   <h4 className="font-bold text-white uppercase tracking-wider text-[10px]">Hướng Dẫn Khắc Phục Lỗi Drive:</h4>
                   <ul className="space-y-1.5 list-disc pl-4 text-white/60">
+                    <li>
+                      <strong className="text-white/90">Nếu gặp lỗi origin_mismatch:</strong> Domain bạn mở ứng dụng chưa được ủy quyền trên Google Cloud. Hãy thêm origin vào OAuth Client ID hoặc chạy trên <code className="text-primary-300 font-mono">http://localhost:3000</code>.
+                    </li>
                     <li>
                       <strong className="text-white/90">Nếu gặp lỗi unauthorized-domain:</strong> Truy cập bằng{' '}
                       <a href="http://localhost:3000" className="text-primary-300 underline font-mono">http://localhost:3000</a>{' '}

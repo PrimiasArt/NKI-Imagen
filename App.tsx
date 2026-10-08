@@ -67,6 +67,9 @@ import { InpaintingStudioModal } from './components/InpaintingStudioModal';
 import { VirtualTryOnModal } from './components/VirtualTryOnModal';
 import { CharacterTurnaroundModal } from './components/CharacterTurnaroundModal';
 import { BiometricMorphModal } from './components/BiometricMorphModal';
+import { CinematicStoryboardModal } from './components/CinematicStoryboardModal';
+import { ECommerceLookbookModal } from './components/ECommerceLookbookModal';
+import { VisualPipelineModal } from './components/VisualPipelineModal';
 import { UpscaleTargetRes } from './services/imageUpscaleService';
 import { getStudioModelConfig } from './services/modelConfigService';
 import { 
@@ -3141,6 +3144,23 @@ const App: React.FC = () => {
     setIsBiometricMorphOpen(true);
   };
 
+  // Breakthrough Pillars v4.3 States & Handlers
+  const [isStoryboardOpen, setIsStoryboardOpen] = useState(false);
+  const [isLookbookOpen, setIsLookbookOpen] = useState(false);
+  const [isPipelineOpen, setIsPipelineOpen] = useState(false);
+
+  const handleOpenStoryboard = () => {
+    setIsStoryboardOpen(true);
+  };
+
+  const handleOpenLookbook = () => {
+    setIsLookbookOpen(true);
+  };
+
+  const handleOpenPipeline = () => {
+    setIsPipelineOpen(true);
+  };
+
   // 5. Character Model Vault & Biometric Core state
   const [isCharacterVaultOpen, setIsCharacterVaultOpen] = useState(false);
   const [vaultTargetSlot, setVaultTargetSlot] = useState<string | null>(null);
@@ -3609,16 +3629,22 @@ const App: React.FC = () => {
                                 lowerMsg.includes('insufficient authentication scopes') ||
                                 lowerMsg.includes('not granted the app read and write');
 
-    const isUnauthorizedDomain = err?.code === 'auth/unauthorized-domain' || 
-                                 lowerMsg.includes('unauthorized-domain') || 
-                                 lowerMsg.includes('unauthorized domain');
+    const isOriginMismatch = err?.code === 'auth/origin-mismatch' || 
+                             lowerMsg.includes('origin_mismatch') || 
+                             lowerMsg.includes('origin mismatch') ||
+                             lowerMsg.includes('origin=');
 
-    const isAccessDenied403 = !isDriveApiDisabled && !isDriveScopeMissing && !isUnauthorizedDomain && (
+    const isUnauthorizedDomain = !isOriginMismatch && (
+                                 err?.code === 'auth/unauthorized-domain' || 
+                                 lowerMsg.includes('unauthorized-domain') || 
+                                 lowerMsg.includes('unauthorized domain'));
+
+    const isAccessDenied403 = !isOriginMismatch && !isDriveApiDisabled && !isDriveScopeMissing && !isUnauthorizedDomain && (
                               lowerMsg.includes("access_denied") || 
                               lowerMsg.includes("access denied") || 
                               err?.code === 'auth/access-denied');
 
-    const isAuthError = !isAccessDenied403 && !isDriveApiDisabled && (
+    const isAuthError = !isOriginMismatch && !isAccessDenied403 && !isDriveApiDisabled && (
                         isDriveScopeMissing ||
                         isUnauthorizedDomain ||
                         err?.code === 'DRIVE_TOKEN_EXPIRED' ||
@@ -3629,7 +3655,17 @@ const App: React.FC = () => {
                         lowerMsg.includes("401") ||
                         lowerMsg.includes("sign-in"));
 
-    if (isUnauthorizedDomain) {
+    if (isOriginMismatch) {
+        title = "Lỗi 400: origin_mismatch (Chưa Ủy Quyền Domain trên Google Cloud)";
+        const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://nki-imagen.vercel.app';
+        message = `Tên miền hiện tại ("${currentOrigin}") chưa được thêm vào "Authorized JavaScript origins" của OAuth 2.0 Client ID trên Google Cloud Console.`;
+        solutions.push(`Mở Google Cloud Console Credentials: https://console.cloud.google.com/apis/credentials?project=gen-lang-client-0018947505`);
+        solutions.push(`Nhấp vào Web client OAuth 2.0 > Tại mục "Authorized JavaScript origins", bấm "ADD URI" và nhập: ${currentOrigin}`);
+        solutions.push(`Tại mục "Authorized redirect URIs", bấm "ADD URI" và nhập: ${currentOrigin} > Bấm SAVE (Lưu).`);
+        solutions.push(`Sau khi lưu, đợi 1-3 phút để Google kích hoạt rồi bấm kết nối lại.`);
+        solutions.push(`Hoặc bạn có thể tự nhập Google OAuth Client ID của riêng bạn trong Cài đặt (Settings > Tab Google Drive).`);
+        solutions.push("Không bắt buộc dùng Google Drive: Bạn có thể bấm 'Bỏ qua Google Drive' bên dưới để tải ảnh trực tiếp về máy tính.");
+    } else if (isUnauthorizedDomain) {
         title = "Chưa Cấp Phép Tên Miền (Authorized Domain)";
         const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
         message = `Tên miền hoặc IP "${currentHost}" chưa được khai báo trong danh sách "Authorized Domains" của dự án Firebase (gen-lang-client-0018947505).`;
@@ -5923,6 +5959,66 @@ const App: React.FC = () => {
         }}
         t={t}
       />
+
+      {/* Cinematic Storyboard & Veo 3 Motion Director Modal (v4.3 Pillar 2) */}
+      <CinematicStoryboardModal
+        isOpen={isStoryboardOpen}
+        onClose={() => setIsStoryboardOpen(false)}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Storyboard Film Still', meta);
+          addToHistory('Storyboard Still', desc || 'Phân cảnh điện ảnh', 'storyboard.png', image);
+          showCleanToast('Đã lưu phân cảnh vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'Storyboard-Scene');
+        }}
+        onSendToWorkspace={(prompt) => {
+          updateJsonInput(prompt);
+          showCleanToast('Đã chuyển prompt kịch bản vào Prompt Studio!');
+        }}
+        t={t}
+      />
+
+      {/* Commercial E-Commerce & Lookbook Studio Modal (v4.3 Pillar 3) */}
+      <ECommerceLookbookModal
+        isOpen={isLookbookOpen}
+        onClose={() => setIsLookbookOpen(false)}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Lookbook Angle', meta);
+          addToHistory('Lookbook Angle', desc || 'Góc chụp thương mại', 'lookbook.png', image);
+          showCleanToast('Đã lưu ảnh thương mại vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'Lookbook-Angle');
+        }}
+        onSendToWorkspace={(prompt) => {
+          updateJsonInput(prompt);
+          showCleanToast('Đã chuyển prompt góc chụp vào Prompt Studio!');
+        }}
+        t={t}
+      />
+
+      {/* Visual Pipeline Recipe & Smart Queue Modal (v4.3 Pillar 4) */}
+      <VisualPipelineModal
+        isOpen={isPipelineOpen}
+        onClose={() => setIsPipelineOpen(false)}
+        activeImageSrc={generatedImages.length > 0 ? generatedImages[0] : (galleryItems.length > 0 ? galleryItems[0].src : null)}
+        onSaveToGallery={(image, desc, meta) => {
+          addToGallery(image, 'JSON_TO_IMG', desc || 'Pipeline Output', meta);
+          addToHistory('Pipeline Output', desc || 'Dây chuyền tự động', 'pipeline.png', image);
+          showCleanToast('Đã lưu kết quả dây chuyền vào Thư viện!');
+        }}
+        onDownload={(image, desc) => {
+          handleDownloadImage(image, desc || 'Pipeline-Result');
+        }}
+        onOpenInUpscale={(image) => {
+          setUpscaleModuleSrc(image);
+          setActiveTab(AppMode.UPSCALE_IMAGE);
+          setIsPipelineOpen(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        t={t}
+      />
       {isCollectionHubOpen && (
           <CollectionManagerModal 
             collections={collections}
@@ -6715,11 +6811,11 @@ const App: React.FC = () => {
                                             </span>
                                         </div>
                                         <span className="text-[9px] text-white/30 hidden sm:inline">
-                                            10 Bộ Công Cụ Đột Phá Thế Hệ Mới
+                                            13 Bộ Công Cụ Đột Phá Thế Hệ Mới (v4.3 Pro)
                                         </span>
                                     </div>
 
-                                    <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-1.5 w-full">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 lg:grid-cols-13 gap-1.5 w-full">
                                         {/* 1. Virtual 3D Gaffer & Generative Relighting */}
                                         <button
                                             type="button"
@@ -6848,6 +6944,45 @@ const App: React.FC = () => {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                             <span className="truncate">Tuổi & Cảm Xúc</span>
+                                        </button>
+
+                                        {/* 11. Cinematic Storyboard & Veo 3 Motion Director */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenStoryboard()}
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
+                                            title="Cinematic Storyboard & Veo 3: Phân cảnh 4 Hồi điện ảnh & Vector chuyển động camera cho Google Veo 3 / Sora"
+                                        >
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                            <span className="truncate">Storyboard</span>
+                                        </button>
+
+                                        {/* 12. Commercial E-Commerce & Lookbook Studio */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenLookbook()}
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
+                                            title="Commercial E-Commerce & Lookbook: Sinh đồng bộ 5 góc chụp thương mại cho Amazon, Shopify, Lookbook"
+                                        >
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                                            </svg>
+                                            <span className="truncate">Lookbook 5 Góc</span>
+                                        </button>
+
+                                        {/* 13. Visual Pipeline Recipe & Smart Queue */}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenPipeline()}
+                                            className="w-full text-[10px] text-zinc-300 hover:text-white font-medium flex items-center justify-center gap-1.5 transition-all bg-white/[0.04] hover:bg-white/[0.08] px-2 py-2 rounded-xl border border-white/10 hover:border-white/20 active:scale-95 shadow-sm group"
+                                            title="Visual Pipeline Recipe & Smart Queue: Dây chuyền tự động hóa Tạo ảnh -> Sắc nét vi mô 0-API -> Upscale 4K -> Cloud Vault"
+                                        >
+                                            <svg className="w-3.5 h-3.5 opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                            <span className="truncate">Dây Chuyền AI</span>
                                         </button>
                                     </div>
                                 </div>
