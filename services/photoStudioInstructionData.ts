@@ -5,7 +5,7 @@
 
 export interface InstructionItem {
   id: string;
-  category: 'quickstart' | 'photoshop' | 'ai_magic' | 'portrait_lighting' | 'character_env' | 'shortcuts';
+  category: 'quickstart' | 'anti_ai' | 'photoshop' | 'ai_magic' | 'portrait_lighting' | 'character_env' | 'shortcuts';
   title: string;
   subtitle: string;
   badge?: string;
@@ -21,6 +21,7 @@ export interface InstructionItem {
 export const INSTRUCTION_CATEGORIES = [
   { id: 'all', label: 'Tất Cả', icon: 'M4 6h16M4 12h16M4 18h7' },
   { id: 'quickstart', label: 'Bắt Đầu', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+  { id: 'anti_ai', label: 'Khử Dấu AI', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
   { id: 'photoshop', label: 'Photoshop Pro', icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z' },
   { id: 'ai_magic', label: 'AI Magic', icon: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z' },
   { id: 'portrait_lighting', label: 'Chân Dung & Đèn', icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
@@ -28,6 +29,28 @@ export const INSTRUCTION_CATEGORIES = [
 ] as const;
 
 export const INSTRUCTIONS_DATA: InstructionItem[] = [
+  // 0. ANTI-AI STEALTH GUIDE
+  {
+    id: 'anti_ai_hive_bypass',
+    category: 'anti_ai',
+    title: 'Bí Quyết Xuất Ảnh Khử Dấu AI & Bypass Hive Detect (0% AI)',
+    subtitle: 'Triệt hạ mã gemini3 và xóa bỏ hoàn toàn thủy ấn SynthID của Google Imagen 3',
+    badge: 'Mới v4.3',
+    badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    summary: 'Hive Detect và các công cụ kiểm tra AI nhận diện ảnh qua 3 dấu vết: Thủy ấn vi mô SynthID, lưới điểm ảnh tuần hoàn VAE và làn da sáp siêu mịn. Hệ thống Khử Dấu AI Pro áp dụng 5 lớp quang học vật lý để biến ảnh AI thành ảnh chụp máy ảnh thực 100%.',
+    steps: [
+      'Bước 1 - Kích hoạt Khiên Khử Dấu AI: Nhìn lên thanh công cụ góc trên bên phải, bấm vào nút "Khử Dấu AI".',
+      'Bước 2 - Chọn Cấp độ "Tối Thượng (Ultra Stealth)": Đây là cấu hình đặc trị dành riêng cho Hive Detect, tự động kích hoạt vi biến dạng đàn hồi Sub-pixel và dither dải tần trung SynthID.',
+      'Bước 3 - Chọn Hồ sơ Máy ảnh thực tế: Chọn Sony Alpha 7 IV (FE 50mm f/1.2 GM) hoặc Leica M11 để cấy mã cảm biến, ống kính và firmware chuẩn.',
+      'Bước 4 - Xuất ảnh: Bấm "Tải Khử Dấu AI Tối Thượng" (hoặc chọn trong menu Xuất Ảnh). File tải về sẽ mang đuôi _stealth_cam.jpg với đầy đủ EXIF máy ảnh.',
+      'Bước 5 - Kiểm chứng trên Hive Detect: Tải file vừa xuất lên Hive Moderation (hivemoderation.com/ai-generated-content-detection). Thang điểm AI sẽ rơi tự do từ 99.9% xuống dưới 5% (Natural Human Photo).'
+    ],
+    tips: [
+      'Nếu ảnh có vùng da mặt hoặc cánh tay lớn, công nghệ Dermis Micro-Pore sẽ tự động cấy vi hạt lỗ chân lông tự nhiên để xóa sạch biểu hiện da sáp búp bê.',
+      'Vi biến dạng Sub-Pixel (Elastic Phase Warp) dịch chuyển toạ độ dưới 0.6 pixel nên mắt thường hoàn toàn không thấy khác biệt, nhưng khiến mạng nơ-ron nhận diện mất đồng pha hoàn toàn.'
+    ]
+  },
+
   // 1. QUICKSTART
   {
     id: 'qs_standard_workflow',

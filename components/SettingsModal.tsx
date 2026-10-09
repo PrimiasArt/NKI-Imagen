@@ -26,9 +26,10 @@ import {
   loadAntiAiSettings, 
   saveAntiAiSettings, 
   CAMERA_PROFILES,
+  STEALTH_PRESETS,
   sanitizePromptAntiAi
 } from '../services/antiAiCamouflageService';
-import { AntiAiCamouflageSettings, CameraPresetType } from '../types';
+import { AntiAiCamouflageSettings, AntiAiStealthLevel, CameraPresetType } from '../types';
 import { useTranslation, SUPPORTED_LANGUAGES, AppLanguage } from '../services/i18nService';
 import {
   getStudioModelConfig,
@@ -1356,16 +1357,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Section 1: Stealth Presets */}
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
+                    1. Cấp Độ Ngụy Trang (Stealth Presets)
+                  </label>
+                  <span className="text-[10px] font-mono text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Khuyên dùng: Tối Thượng
+                  </span>
+                </div>
+                <p className="text-xs text-white/50 leading-relaxed">
+                  Lựa chọn cấu hình phù hợp với mục đích xuất ảnh. Chế độ <strong className="text-emerald-400">Tối Thượng</strong> được thiết kế đặc trị để triệt hạ mã <code className="text-emerald-300">gemini3</code> trên Hive Detect từ 99.9% xuống dưới 5%:
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  {(Object.keys(STEALTH_PRESETS) as AntiAiStealthLevel[]).map((levelKey) => {
+                    const preset = STEALTH_PRESETS[levelKey];
+                    const isSelected = (antiAiSettings.stealthLevel || 'ultra_stealth') === levelKey;
+                    return (
+                      <div
+                        key={levelKey}
+                        onClick={() => {
+                          const updated = {
+                            ...antiAiSettings,
+                            stealthLevel: levelKey,
+                            ...(preset.settings || {})
+                          };
+                          setAntiAiSettings(updated);
+                          saveAntiAiSettings(updated);
+                        }}
+                        className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-emerald-500/15 border-emerald-500/60 shadow-lg ring-1 ring-emerald-500/40'
+                            : 'bg-white/[0.01] border-white/5 hover:border-white/20 hover:bg-white/[0.03]'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-white/20'}`}></span>
+                              {preset.name}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-white/60 leading-relaxed line-clamp-3">
+                            {preset.description}
+                          </p>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between">
+                          <span className="text-[10px] font-mono text-emerald-300/80 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            {preset.badge}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                              ✓ Đang chọn
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Section 2: Camera Profile Selection */}
               <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
                 <label className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
-                  1. Cấu Hình Máy Ảnh Giả Lập (Camera Hardware Profile)
+                  2. Cấu Hình Máy Ảnh Giả Lập (Camera Hardware Profile)
                 </label>
                 <p className="text-xs text-white/50">
-                  Siêu dữ liệu EXIF sẽ được nhúng các thông số vật lý của cảm biến và ống kính thực tế để đánh lừa các thuật toán kiểm tra:
+                  Siêu dữ liệu EXIF sẽ được nhúng các thông số vật lý của cảm biến, ống kính và firmware thực tế:
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
                   {(Object.keys(CAMERA_PROFILES) as CameraPresetType[]).map((key) => {
                     const prof = CAMERA_PROFILES[key];
                     const isSelected = antiAiSettings.cameraPreset === key;
@@ -1380,21 +1444,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-white/20'}`}></span>
-                            {prof.make} {prof.model}
+                          <span className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                            <span className={`w-2 h-2 rounded-full flex-none ${isSelected ? 'bg-emerald-400' : 'bg-white/20'}`}></span>
+                            <span className="truncate">{prof.make} {prof.model}</span>
                           </span>
-                          <span className="text-[10px] font-mono text-emerald-300/80 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          <span className="text-[10px] font-mono text-emerald-300/80 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex-none ml-1">
                             ISO {prof.iso}
                           </span>
                         </div>
                         <p className="text-[11px] text-white/50 truncate font-mono">{prof.lens}</p>
                         <div className="flex items-center gap-2 mt-2 text-[10px] text-white/40 font-mono">
-                          <span>f/{prof.fNumber[0]/prof.fNumber[1]}</span>
+                          <span>f/{(prof.fNumber[0]/prof.fNumber[1]).toFixed(1)}</span>
                           <span>•</span>
                           <span>{prof.exposureTime[0]}/{prof.exposureTime[1]}s</span>
                           <span>•</span>
-                          <span>{prof.focalLength[0]/prof.focalLength[1]}mm</span>
+                          <span>{prof.focalLength35 || (prof.focalLength[0]/prof.focalLength[1])}mm</span>
                         </div>
                       </div>
                     );
@@ -1402,18 +1466,102 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* Section 3: Sensor Grain & SynthID Disruption */}
+              {/* Section 3: Deep Forensic Technologies & Fine-Tuning */}
               <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-4">
                 <label className="text-xs font-black uppercase tracking-wider text-emerald-400 block">
-                  2. Tinh Chỉnh Quang Học Phá Thủy Ấn SynthID
+                  3. Bộ Công Nghệ Quang Học Chuyên Sâu (Forensic Bypass Suite)
                 </label>
 
+                {/* Sub-pixel Elastic Phase Warp */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <span className="text-xs font-semibold text-white/90">Vi Biến Dạng Đàn Hồi Sub-Pixel (Elastic Phase Warp)</span>
+                    <p className="text-[11px] text-white/40">
+                      Dịch chuyển toạ độ phi tuyến tính hình sin chu kỳ nguyên tố (43/23px) để bẻ gãy lưới VAE 8x8/16x16 và dập tắt tính đồng pha của SynthID.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer flex-none">
+                    <input
+                      type="checkbox"
+                      checked={antiAiSettings.microResample}
+                      onChange={(e) => updateAntiAi({ microResample: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                <hr className="border-white/5" />
+
+                {/* Radial Chromatic Aberration */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <span className="text-xs font-semibold text-white/90">Tán Sắc Thấu Kính Quang Học (Radial Chromatic Aberration)</span>
+                    <p className="text-[11px] text-white/40">
+                      Mô phỏng hiện tượng khúc xạ thủy tinh thực tế của ống kính khẩu lớn f/1.2 - f/1.4 (dịch nhẹ kênh Đỏ hướng biên, kênh Lam hướng tâm).
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer flex-none">
+                    <input
+                      type="checkbox"
+                      checked={antiAiSettings.chromaticAberration !== false}
+                      onChange={(e) => updateAntiAi({ chromaticAberration: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                <hr className="border-white/5" />
+
+                {/* Bayer CFA & Poisson-Gaussian Sensor Simulation */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <span className="text-xs font-semibold text-white/90">Cảm Biến Bayer CFA & Nhiễu Lượng Tử Photon (Poisson-Gaussian)</span>
+                    <p className="text-[11px] text-white/40">
+                      Tái tạo ma trận cảm biến vật lý RGGB với nhiễu quang điện phụ thuộc cường độ sáng (Shot noise), triệt tiêu nhiễu giả tạo.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer flex-none">
+                    <input
+                      type="checkbox"
+                      checked={antiAiSettings.bayerCfaEmulation !== false}
+                      onChange={(e) => updateAntiAi({ bayerCfaEmulation: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                <hr className="border-white/5" />
+
+                {/* Dermis Micro-Texture Pore Synthesis */}
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <span className="text-xs font-semibold text-white/90">Cấy Vi Lỗ Chân Lông Biểu Bì (Dermis Micro-Pore Synthesis)</span>
+                    <p className="text-[11px] text-white/40">
+                      Tự động dò tìm vùng da người và cấy vi cấu trúc tế bào sinh học, xóa sạch chỉ số "da sáp búp bê" đặc thù của Imagen/Midjourney.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer flex-none">
+                    <input
+                      type="checkbox"
+                      checked={antiAiSettings.dermisTexture !== false}
+                      onChange={(e) => updateAntiAi({ dermisTexture: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                <hr className="border-white/5" />
+
                 {/* Grain slider */}
-                <div className="space-y-2">
+                <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-white/90">Hạt Nhiễu Cảm Biến Quang Học (Analog Sensor Grain):</span>
+                    <span className="font-semibold text-white/90">Độ Đậm Hạt Cảm Biến Quang Học:</span>
                     <span className="font-mono text-emerald-400 font-bold">
-                      {(antiAiSettings.grainIntensity * 100).toFixed(1)}% ({antiAiSettings.grainIntensity <= 0.015 ? 'Siêu Mịn' : antiAiSettings.grainIntensity <= 0.028 ? 'Chuẩn Cảm Biến' : 'Đậm Hạt Film'})
+                      {(antiAiSettings.grainIntensity * 100).toFixed(1)}% ({antiAiSettings.grainIntensity <= 0.018 ? 'Siêu Mịn' : antiAiSettings.grainIntensity <= 0.030 ? 'Chuẩn Cảm Biến Thực' : 'Đậm Hạt Film'})
                     </span>
                   </div>
                   <input
@@ -1427,30 +1575,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                   <div className="flex justify-between text-[10px] text-white/30 font-mono">
                     <span>0.8% (Siêu mịn)</span>
-                    <span>2.2% (Tự nhiên khuyên dùng)</span>
-                    <span>4.5% (Đậm chất Film cổ điển)</span>
+                    <span>2.6% (Tối ưu Hive Detect)</span>
+                    <span>4.5% (Cổ điển)</span>
                   </div>
-                </div>
-
-                <hr className="border-white/5" />
-
-                {/* Micro-Resampling Toggle */}
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-white/90">Vi Điều Chỉnh Điểm Ảnh (Micro-Resampling Jitter 0.4%)</span>
-                    <p className="text-[11px] text-white/40">
-                      Tái cấu trúc 0.4% biên ảnh để bẻ gãy tính tuần hoàn của watermark SynthID của Google Imagen.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={antiAiSettings.microResample}
-                      onChange={(e) => updateAntiAi({ microResample: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                  </label>
                 </div>
               </div>
 

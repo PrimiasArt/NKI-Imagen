@@ -121,15 +121,22 @@ export interface PersonalPreset {
   createdAt: number;
 }
 
-export type CameraPresetType = 'SONY_A7IV' | 'FUJIFILM_XT4' | 'CANON_R5' | 'IPHONE_15_PRO';
+export type CameraPresetType = 'SONY_A7IV' | 'FUJIFILM_XT4' | 'CANON_R5' | 'LEICA_M11' | 'IPHONE_15_PRO';
+
+export type AntiAiStealthLevel = 'balanced' | 'advanced' | 'ultra_stealth';
 
 export interface AntiAiCamouflageSettings {
   enabled: boolean;
+  stealthLevel?: AntiAiStealthLevel; // 'balanced' | 'advanced' | 'ultra_stealth'
   grainIntensity: number; // 0.012 to 0.045
-  microResample: boolean; // Subtle cropping and spatial jitter to break SynthID grids
+  microResample: boolean; // Elastic Sub-Pixel Phase Disruption
   cameraPreset: CameraPresetType;
   stripMetadata: boolean;
   jpegQuality: number; // e.g. 0.93
+  bayerCfaEmulation?: boolean; // Bayer CFA Poisson-Gaussian sensor noise
+  chromaticAberration?: boolean; // Radial lens optical dispersion
+  dermisTexture?: boolean; // Micro-dermis pores to eliminate smooth AI skin
+  synthIdDisruption?: boolean; // Multi-band mid-frequency phase desynchronization
 }
 
 // --- v4.4-v5.0 Upgrade Types ---

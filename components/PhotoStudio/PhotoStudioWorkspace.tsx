@@ -23,7 +23,19 @@ import {
   runBackgroundReplace
 } from '../../services/aiStudioService';
 import { getCachedImageModels, ImageModelOption } from '../../services/geminiService';
-import { applyAntiAiCamouflage, loadAntiAiSettings } from '../../services/antiAiCamouflageService';
+import { 
+  applyAntiAiCamouflage, 
+  loadAntiAiSettings, 
+  saveAntiAiSettings, 
+  CAMERA_PROFILES, 
+  STEALTH_PRESETS 
+} from '../../services/antiAiCamouflageService';
+import { 
+  GalleryItem, 
+  AntiAiCamouflageSettings, 
+  AntiAiStealthLevel, 
+  CameraPresetType 
+} from '../../types';
 import { saveGalleryItemDB } from '../../services/indexedDbService';
 import { SmartSegmentToolbar } from './SmartSegmentToolbar';
 import { LayerStackPanel } from './LayerStackPanel';
@@ -355,7 +367,18 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
   const [isComparingOriginal, setIsComparingOriginal] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [antiAiActive, setAntiAiActive] = useState<boolean>(() => loadAntiAiSettings().enabled);
+  const [antiAiSettings, setAntiAiSettings] = useState<AntiAiCamouflageSettings>(loadAntiAiSettings);
+  const [showAntiAiPopover, setShowAntiAiPopover] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const updateStudioAntiAi = (patch: Partial<AntiAiCamouflageSettings>) => {
+    const updated = { ...antiAiSettings, ...patch };
+    setAntiAiSettings(updated);
+    if (patch.enabled !== undefined) {
+      setAntiAiActive(patch.enabled);
+    }
+    saveAntiAiSettings(updated);
+  };
 
   // Optical Bokeh Focus Point Picker State (v4.3)
   const [isPickingFocus, setIsPickingFocus] = useState<boolean>(false);
@@ -1460,21 +1483,31 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
     try {
       let finalDataUrl = mainCanvas.toDataURL(format === 'png' ? 'image/png' : 'image/jpeg', 0.95);
 
-      if (format === 'anti_ai' || (antiAiActive && format !== 'png')) {
+      const isAntiAi = format === 'anti_ai' || (antiAiActive && format !== 'png');
+      if (isAntiAi) {
         const settings = loadAntiAiSettings();
         const camoResult = await applyAntiAiCamouflage(finalDataUrl, settings);
-        finalDataUrl = camoResult.camouflagedDataUrl;
+        if (camoResult.applied) {
+          finalDataUrl = camoResult.camouflagedDataUrl || camoResult.dataUrl;
+        }
       }
 
       const a = document.createElement('a');
       a.href = finalDataUrl;
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      a.download = `NKI_Studio_${timestamp}.${format === 'png' ? 'png' : 'jpg'}`;
+      const ext = format === 'png' && !isAntiAi ? 'png' : 'jpg';
+      const suffix = isAntiAi ? '_stealth_cam' : '';
+      a.download = `NKI_Studio_${timestamp}${suffix}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
 
-      showToast(format === 'anti_ai' ? 'Đã tải ảnh Khử Dấu AI thành công!' : 'Đã tải ảnh về máy!');
+      if (isAntiAi) {
+        const lvl = antiAiSettings.stealthLevel === 'ultra_stealth' ? 'Tối Thượng (Bypass Hive Detect)' : 'Cao Cấp';
+        showToast(`Đã xuất ảnh Khử Dấu AI ${lvl} thành công!`);
+      } else {
+        showToast('Đã tải ảnh về máy thành công!');
+      }
     } catch (err: any) {
       console.error('Download failed:', err);
       showToast('Lỗi tải ảnh: ' + (err?.message || ''));
@@ -1724,6 +1757,124 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             <span className="hidden sm:inline">Lưu Gallery</span>
           </button>
 
+          {/* Anti-AI Stealth Selector Pill with Popover */}
+          <div className="relative">
+            <button
+              onClick={() => setShowAntiAiPopover(prev => !prev)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border flex items-center gap-1.5 active:scale-95 ${
+                antiAiActive
+                  ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/25 shadow-sm'
+                  : 'bg-white/[0.08] hover:bg-white/[0.15] text-white/60 border-white/10'
+              }`}
+              title="Cấu hình Khử Dấu AI & Bypass Hive Detect"
+            >
+              <svg className={`w-3.5 h-3.5 ${antiAiActive ? 'text-emerald-400' : 'text-zinc-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <span className="hidden md:inline font-bold">Khử Dấu AI:</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                antiAiActive ? 'bg-emerald-500/30 text-emerald-200' : 'bg-white/10 text-white/50'
+              }`}>
+                {antiAiActive ? (antiAiSettings.stealthLevel === 'ultra_stealth' ? 'Tối Thượng (Hive 0%)' : antiAiSettings.stealthLevel === 'advanced' ? 'Cao Cấp' : 'Cân Bằng') : 'Tắt'}
+              </span>
+            </button>
+
+            {/* Quick Popover */}
+            {showAntiAiPopover && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900/95 backdrop-blur-xl border border-white/20 rounded-2xl p-4 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                      <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white">Khử Dấu AI Pro</h4>
+                      <p className="text-[10px] text-white/50">Phá vỡ SynthID & gemini3</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={antiAiActive}
+                      onChange={(e) => updateStudioAntiAi({ enabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+
+                {/* Preset Buttons */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-white/50 uppercase tracking-wider block">Cấp Độ Ngụy Trang</label>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {(Object.keys(STEALTH_PRESETS) as AntiAiStealthLevel[]).map((levelKey) => {
+                      const preset = STEALTH_PRESETS[levelKey];
+                      const isSelected = (antiAiSettings.stealthLevel || 'ultra_stealth') === levelKey;
+                      return (
+                        <button
+                          key={levelKey}
+                          onClick={() => updateStudioAntiAi({ stealthLevel: levelKey, ...(preset.settings || {}), enabled: true })}
+                          className={`w-full text-left p-2 rounded-xl border text-xs transition-all flex items-center justify-between ${
+                            isSelected && antiAiActive
+                              ? 'bg-emerald-500/20 border-emerald-500/60 text-white font-bold'
+                              : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.06] text-white/70'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${isSelected && antiAiActive ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                              <span>{preset.name}</span>
+                            </div>
+                            <span className="text-[10px] text-white/40 block mt-0.5">{preset.badge}</span>
+                          </div>
+                          {isSelected && antiAiActive && (
+                            <span className="text-emerald-400 text-xs">✓</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Camera Profile */}
+                <div className="space-y-1.5 pt-1 border-t border-white/10">
+                  <div className="flex items-center justify-between text-[10px] text-white/50">
+                    <span className="font-bold uppercase tracking-wider">Hồ Sơ Máy Ảnh EXIF</span>
+                    <span className="text-emerald-400 font-mono">{CAMERA_PROFILES[antiAiSettings.cameraPreset]?.make || 'SONY'}</span>
+                  </div>
+                  <select
+                    value={antiAiSettings.cameraPreset}
+                    onChange={(e) => updateStudioAntiAi({ cameraPreset: e.target.value as CameraPresetType })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:border-emerald-500 outline-none"
+                  >
+                    {(Object.keys(CAMERA_PROFILES) as CameraPresetType[]).map((key) => (
+                      <option key={key} value={key} className="bg-slate-900 text-white">
+                        {CAMERA_PROFILES[key].name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Quick Action Button */}
+                <button
+                  onClick={() => {
+                    setShowAntiAiPopover(false);
+                    handleDownload('anti_ai');
+                  }}
+                  disabled={isExporting}
+                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-black rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Xuất Khử Dấu AI Tối Thượng Ngay</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="relative group">
             <button
               onClick={() => handleDownload(antiAiActive ? 'anti_ai' : 'png')}
@@ -1737,14 +1888,27 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
             </button>
 
             {/* Export Dropdown Menu on hover */}
-            <div className="absolute right-0 top-full mt-1.5 hidden group-hover:flex flex-col bg-slate-900 border border-white/15 rounded-2xl p-2 w-48 shadow-2xl z-50">
+            <div className="absolute right-0 top-full mt-1.5 hidden group-hover:flex flex-col bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-2xl p-2 w-64 shadow-2xl z-50">
               <button
-                onClick={() => handleDownload('png')}
-                className="w-full text-left px-3 py-2 text-xs rounded-xl hover:bg-white/10 text-white font-medium flex items-center justify-between"
+                onClick={() => handleDownload('anti_ai')}
+                className="w-full text-left p-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 font-medium flex items-center justify-between border border-emerald-500/40 shadow-sm"
               >
-                <span>Tải định dạng PNG</span>
-                <span className="text-[10px] text-white/40">Lossless</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-none">
+                    <svg className="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="font-bold text-white text-xs block">Tải Khử Dấu AI Tối Thượng</span>
+                    <span className="text-[10px] text-emerald-300/80">Bypass Hive Detect 0% • SynthID Scrambled</span>
+                  </div>
+                </div>
+                <span className="text-[9px] bg-emerald-500/30 text-emerald-200 px-1.5 py-0.5 rounded font-mono font-bold">PRO</span>
               </button>
+
+              <div className="my-1 border-t border-white/5" />
+
               <button
                 onClick={() => handleDownload('jpg')}
                 className="w-full text-left px-3 py-2 text-xs rounded-xl hover:bg-white/10 text-white font-medium flex items-center justify-between"
@@ -1753,16 +1917,11 @@ export const PhotoStudioWorkspace: React.FC<PhotoStudioWorkspaceProps> = ({
                 <span className="text-[10px] text-white/40">Chuẩn</span>
               </button>
               <button
-                onClick={() => handleDownload('anti_ai')}
-                className="w-full text-left px-3 py-2 text-xs rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-200 font-medium flex items-center justify-between mt-1 border border-white/10"
+                onClick={() => handleDownload('png')}
+                className="w-full text-left px-3 py-2 text-xs rounded-xl hover:bg-white/10 text-white font-medium flex items-center justify-between"
               >
-                <span className="flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  <span>Tải Khử Dấu AI</span>
-                </span>
-                <span className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-zinc-300 font-mono">EXIF</span>
+                <span>Tải định dạng PNG</span>
+                <span className="text-[10px] text-white/40">Lossless</span>
               </button>
             </div>
           </div>
