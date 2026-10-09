@@ -1559,24 +1559,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* Grain slider */}
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-white/90">Độ Đậm Hạt Cảm Biến Quang Học:</span>
+                    <span className="font-semibold text-white/90">Độ Đậm Hạt Cảm Biến Quang Học (Sensor Grain):</span>
                     <span className="font-mono text-emerald-400 font-bold">
-                      {(antiAiSettings.grainIntensity * 100).toFixed(1)}% ({antiAiSettings.grainIntensity <= 0.018 ? 'Siêu Mịn' : antiAiSettings.grainIntensity <= 0.030 ? 'Chuẩn Cảm Biến Thực' : 'Đậm Hạt Film'})
+                      {(antiAiSettings.grainIntensity * 100).toFixed(1)}% ({antiAiSettings.grainIntensity <= 0.012 ? 'Cực Kỳ Trong Trẻo' : antiAiSettings.grainIntensity <= 0.018 ? 'Chuẩn Studio ISO 100' : 'Hạt Cảm Biến Rõ'})
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="0.008"
-                    max="0.045"
-                    step="0.002"
+                    min="0.005"
+                    max="0.030"
+                    step="0.001"
                     value={antiAiSettings.grainIntensity}
                     onChange={(e) => updateAntiAi({ grainIntensity: parseFloat(e.target.value) })}
                     className="w-full accent-emerald-500 bg-white/10 rounded-lg h-2 cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-white/30 font-mono">
-                    <span>0.8% (Siêu mịn)</span>
-                    <span>2.6% (Tối ưu Hive Detect)</span>
-                    <span>4.5% (Cổ điển)</span>
+                    <span>0.5% (Trong trẻo tuyệt đối)</span>
+                    <span>1.6% (Chuẩn Studio ISO 100 khuyên dùng)</span>
+                    <span>3.0% (Hạt cảm biến)</span>
                   </div>
                 </div>
               </div>
